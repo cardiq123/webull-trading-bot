@@ -1,0 +1,28 @@
+{
+  "as_of": "2026-09-25",
+  "sample_end": "2026-09-25",
+  "selected": [
+    "dual_momentum"
+  ],
+  "modes": {
+    "dual_momentum": "etf"
+  },
+  "rationale": "Selected because default parameters were profitable on the 2017-onward out-of-sample window, walk-forward parameter choices did not flip the sign, the parameter grid was not fragile, the test was on ETFs rather than a survivorship-biased stock list, and a higher slippage assumption did not erase the profit factor. dual_momentum OOS Sharpe 0.55, CAGR 0.45%, max DD -1.89%, trades 31",
+  "portfolio": {
+    "starting_equity": 100000.0,
+    "ending_equity": 104429.2321099472,
+    "total_return": 0.04429232109947212,
+    "cagr": 0.004465254784890016,
+    "sharpe": 0.5518677033278953,
+    "sortino": 0.739801522259782,
+    "max_drawdown": -0.018878058734233094,
+    "exposure": 0.03470675693894929,
+    "trades": 31,
+    "win_rate": 0.5483870967741935,
+    "avg_win": 405.42216365157026,
+    "avg_loss": -175.92461943782314,
+    "profit_factor": 2.798348196801979,
+    "expectancy": 142.87845515958614,
+    "years": 9.727583846680355
+  }
+}
