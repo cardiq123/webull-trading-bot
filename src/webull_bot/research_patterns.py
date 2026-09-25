@@ -475,15 +475,18 @@ def _plot_wedges(plt, bars, book, out_dirs, limit: int) -> list[Path]:
             height = float(row["upper"] - row["lower"])
             if span < 20 or price <= 0 or height <= 0:
                 continue
-            candidates.append((height / price, symbol, loc, str(row["kind"])))
+            side = "breakdown" if bool(signals["short_next_open"].iloc[loc]) else "breakout"
+            candidates.append((height / price, symbol, loc, str(row["kind"]), side))
     candidates.sort(key=lambda item: item[0], reverse=True)
     saved = []
     used = set()
-    for _height, symbol, loc, kind in candidates:
+    for _height, symbol, loc, kind, side in candidates:
         if symbol in used or len(saved) >= limit:
             continue
         used.add(symbol)
-        saved.append(_draw_wedge(plt, bars[symbol], symbol, loc, cache[symbol].iloc[loc], kind, out_dirs))
+        saved.append(
+            _draw_wedge(plt, bars[symbol], symbol, loc, cache[symbol].iloc[loc], kind, side, out_dirs)
+        )
     return saved
 
 
@@ -512,7 +515,7 @@ def _draw_trendline(plt, frame, symbol, loc, anchors, out_dirs) -> Path:
     return _save_fig(plt, fig, out_dirs, f"trendline_{symbol}.png")
 
 
-def _draw_wedge(plt, frame, symbol, loc, row, kind, out_dirs) -> Path:
+def _draw_wedge(plt, frame, symbol, loc, row, kind, side, out_dirs) -> Path:
     start = int(row["start"])
     pad_left = max(0, start - 5)
     pad_right = min(len(frame), loc + 8)
@@ -527,7 +530,7 @@ def _draw_wedge(plt, frame, symbol, loc, row, kind, out_dirs) -> Path:
     ax.plot(xs, lower, color="#2f6b4f", linewidth=1.6, label="lower line")
     ax.scatter([frame.index[loc]], [frame["close"].iloc[loc]], color="#b00020", zorder=4, label="breakout close")
     when = pd.Timestamp(frame.index[loc]).date()
-    ax.set_title(f"{symbol} {kind} wedge breakout, {when}")
+    ax.set_title(f"{symbol} {kind} wedge {side}, {when}")
     ax.legend(frameon=False, loc="upper left")
     fig.autofmt_xdate()
     return _save_fig(plt, fig, out_dirs, f"wedge_{symbol}.png")
