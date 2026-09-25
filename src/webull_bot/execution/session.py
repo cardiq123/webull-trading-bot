@@ -59,7 +59,11 @@ def run_replay(
             chosen = dict(strategy.default_params)
             if params and strategy.name in params:
                 chosen.update(params[strategy.name])
-            chosen.setdefault("symbols", strategy.universe("etf"))
+            if not chosen.get("symbols"):
+                if strategy.custom_universe:
+                    chosen["symbols"] = strategy.universe("dow") or ["__none__"]
+                else:
+                    chosen["symbols"] = strategy.universe("etf") or ["__none__"]
             books[strategy.name] = strategy.generate(history, regime_now, chosen)
         snapshot = broker.snapshot()
         prices = {pos.symbol: pos.peak_price or pos.avg_price for pos in snapshot.positions}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from webull_bot.strategies.base import Strategy
+from webull_bot.strategies.bluechip_reversal import BluechipReversal
 from webull_bot.strategies.day import (
     EndOfDayMeanReversion,
     GapAndGo,
@@ -29,6 +30,7 @@ def all_strategies() -> list[Strategy]:
         ConnorsRSI2(),
         RelativeStrengthRotation(),
         DualMomentum(),
+        BluechipReversal(),
     ]
 
 

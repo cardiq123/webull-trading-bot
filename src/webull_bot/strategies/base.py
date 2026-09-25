@@ -24,6 +24,9 @@ class Strategy(ABC):
     # Free hourly history is about two years. Those tests cannot support a
     # durable-edge claim even when the numbers are positive.
     short_sample: bool = False
+    # Set when the strategy brings its own point-in-time universe and must
+    # not be scored on the ETF book or the 2026 survivor stock list.
+    custom_universe: bool = False
     trail_pct: float | None = None
     default_params: dict[str, Any]
 

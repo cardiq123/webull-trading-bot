@@ -61,8 +61,12 @@ INTRADAY_SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "AMD", "TSLA", "AMZN"]
 
 
 def all_sectors() -> dict[str, str]:
+    from webull_bot.universe_dow import DOW_SECTORS
+
     merged = dict(ETF_UNIVERSE)
     merged.update(STOCK_UNIVERSE)
+    for symbol, sector in DOW_SECTORS.items():
+        merged.setdefault(symbol, sector)
     return merged
 
 

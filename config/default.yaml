@@ -68,6 +68,8 @@ logging:
 strategies:
   # Empty means "use config/selected_strategies.json", which research writes.
   # Do not put a strategy here until RESULTS.md shows an out-of-sample edge.
+  # config/optional_strategies.json lists a book that passed the gates but
+  # did not beat dual momentum. It stays out of enabled until you add it.
   enabled: []
   selection_file: config/selected_strategies.json
 

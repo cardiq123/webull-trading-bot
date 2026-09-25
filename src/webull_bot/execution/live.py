@@ -65,8 +65,15 @@ def _cycle(broker, data_provider, strategies, journal, limits, symbols, webhook)
     # Signals are taken from the last completed bar only. The next poll
     # sends the order; we do not fill it locally.
     for strategy in strategies:
+        if getattr(strategy, "custom_universe", False):
+            journal.event(
+                "live",
+                f"skip {strategy.name}; backtest and paper only, no live orders",
+                {},
+            )
+            continue
         params = dict(strategy.default_params)
-        params["symbols"] = strategy.universe("etf")
+        params["symbols"] = strategy.universe("etf") or ["__none__"]
         book = strategy.generate(bars, regime, params)
         for symbol, frame in book.items():
             if symbol in held or frame.empty:

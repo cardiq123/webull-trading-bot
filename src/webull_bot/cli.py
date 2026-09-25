@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
 
     paper = sub.add_parser("paper", help="Paper trade. This is the default execution mode.")
     _add_config(paper)
+    paper.add_argument("--strategy", action="append", default=[], help="Strategy name. Repeatable. Default: the selected mix. Fills stock, not option orders.")
     paper.add_argument("--replay", action="store_true", help="Simulate a session on recent historical bars")
     paper.add_argument("--max-cycles", type=int, default=0, help="Stop after this many cycles. Replay defaults to 5 when omitted.")
     paper.add_argument("--poll-seconds", type=int, default=60)
@@ -132,7 +133,7 @@ def _backtest(config, args) -> int:
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     symbols = set(research_symbols())
     for strategy in strategies:
-        symbols.update(strategy.universe("etf"))
+        symbols.update(name for name in _trade_symbols(strategy) if name != "__none__")
     bars = provider.history(sorted(symbols), "2011-01-01", end, "1d")
     if "SPY" not in bars:
         raise SystemExit("SPY history did not download. Check the network and retry.")
@@ -144,7 +145,7 @@ def _backtest(config, args) -> int:
     params = {}
     for strategy in strategies:
         chosen = dict(strategy.default_params)
-        chosen["symbols"] = strategy.universe("etf")
+        chosen["symbols"] = _trade_symbols(strategy)
         params[strategy.name] = chosen
     limits = _limits(config)
     result = run_backtest(
@@ -189,6 +190,8 @@ def _paper(config, args) -> int:
     from webull_bot.universe import STOCK_UNIVERSE, research_symbols
 
     names, rationale = load_selection(config)
+    if args.strategy:
+        names = list(args.strategy)
     print(DISCLAIMER)
     print(rationale or "No strategy is selected. The session will not open new risk.")
     broker = PaperBroker(
@@ -203,7 +206,13 @@ def _paper(config, args) -> int:
         journal.event("paper", "no selected strategies; monitoring only", {})
     strategies = [strategy_by_name(name) for name in names]
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
-    symbols = sorted(set(research_symbols()))
+    symbols = set(research_symbols())
+    params = {}
+    for strategy in strategies:
+        chosen_symbols = _trade_symbols(strategy)
+        params[strategy.name] = {"symbols": chosen_symbols}
+        symbols.update(name for name in chosen_symbols if name != "__none__")
+    symbols = sorted(symbols)
     webhook = webhook_url(config.get("notifications", "webhook_url", default="") or "")
     limits = _limits(config)
     if args.replay:
@@ -212,7 +221,7 @@ def _paper(config, args) -> int:
         cycles = args.max_cycles or 5
         summary = run_replay(
             bars, strategies, regime, broker, journal,
-            cycles=cycles, limits=limits, webhook=webhook,
+            cycles=cycles, limits=limits, webhook=webhook, params=params,
         )
         print(json.dumps(summary, default=str, indent=2))
         return 0
@@ -271,6 +280,15 @@ def _live(config, args) -> int:
         max_cycles=args.max_cycles or 1,
     )
     return 0
+
+
+def _trade_symbols(strategy) -> list[str]:
+    """Symbols this strategy may trade. An empty list must not mean "every bar"."""
+    if strategy.custom_universe:
+        names = strategy.universe("dow")
+    else:
+        names = strategy.universe("etf")
+    return list(names) if names else ["__none__"]
 
 
 def _limits(config):

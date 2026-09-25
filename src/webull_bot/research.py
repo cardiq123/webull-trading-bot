@@ -68,6 +68,8 @@ class Study:
     train_sharpes: list[float] = field(default_factory=list)
     equity: pd.Series | None = None
     notes: list[str] = field(default_factory=list)
+    oos_trades: pd.DataFrame | None = None
+    wf_trades: pd.DataFrame | None = None
 
 
 def run_research(
@@ -93,7 +95,9 @@ def run_research(
     costs = CostModel()
     studies: list[Study] = []
 
-    daily_strategies = [s for s in all_strategies() if not s.short_sample]
+    daily_strategies = [
+        s for s in all_strategies() if not s.short_sample and not s.custom_universe
+    ]
     for strategy in daily_strategies:
         modes = ["etf"] if strategy.name == "dual_momentum" else ["etf", "stock"]
         for mode in modes:
@@ -177,11 +181,41 @@ def run_research(
         intraday_notes.append(f"Intraday download or test failed: {exc}")
         print(intraday_notes[-1])
 
-    # Cost stress for anything still selectable.
+    print("Downloading Dow point-in-time history...")
+    dow_missing: list[str] = []
+    try:
+        from webull_bot.research_bluechip import ensure_dow_history, run_bluechip_stock
+
+        dow_missing = ensure_dow_history(provider, bars, end)
+        if dow_missing:
+            print(f"Dow names with no Yahoo history: {', '.join(dow_missing)}")
+        print("Testing bluechip_reversal [dow]", flush=True)
+        studies.append(run_bluechip_stock(bars, limits, costs, sample_end))
+    except Exception as exc:
+        traceback.print_exc()
+        empty = compute_metrics(
+            BacktestResult(pd.Series(dtype=float), pd.Series(dtype=float), pd.DataFrame()),
+            STARTING_EQUITY,
+        )
+        studies.append(
+            Study(
+                name="bluechip_reversal",
+                mode="dow",
+                citation="Point-in-time Dow reversal.",
+                default_oos=empty,
+                walk_forward=empty,
+                flags=["error"],
+                selectable=False,
+                notes=[f"Research run failed: {exc}"],
+            )
+        )
+
+    # Cost stress for anything still selectable. The Dow study records its
+    # own 15 bps result inside run_bluechip_stock, including the flag.
     stressed: list[str] = []
     harsh = CostModel(slippage_bps=15.0, half_spread_bps=2.0)
     for study in studies:
-        if not study.selectable:
+        if not study.selectable or getattr(study, "stress_metrics", None) is not None:
             continue
         strategy = _by_name(study.name)
         print(f"Cost stress {study.name}")
@@ -224,6 +258,26 @@ def run_research(
             notes=[*study.notes, "Flags: " + ", ".join(study.flags or ["none"])],
         )
 
+    from webull_bot.research_bluechip import (
+        bluechip_markdown,
+        price_options,
+        promote_bluechip,
+        write_optional_config,
+        write_option_html,
+    )
+
+    promote_bluechip(studies)
+    blue = next((study for study in studies if study.name == "bluechip_reversal"), None)
+    if blue is not None and blue.oos_trades is not None and getattr(blue, "insample_trades", None) is not None:
+        print("Pricing the Black-Scholes options overlay (estimate, not a chain)...")
+        try:
+            price_options(blue, bars, sample_end)
+            write_option_html(blue, report_path, DISCLAIMER)
+        except Exception as exc:
+            traceback.print_exc()
+            blue.notes.append(f"Options overlay failed: {exc}")
+    write_optional_config(studies, Path(config_dir))
+
     selected = [study for study in studies if study.selectable]
     # Prefer a diversified mix: at most one of each family.
     selected = _diversify(selected)
@@ -240,6 +294,7 @@ def run_research(
             costs,
             trade_start=pd.Timestamp(OOS_START),
             trade_end=sample_end,
+            modes={study.name: study.mode for study in selected},
         )
         portfolio_metrics = compute_metrics(result, STARTING_EQUITY)
         portfolio_equity = result.daily_equity()
@@ -265,7 +320,20 @@ def run_research(
         )
 
     benchmark = _benchmark(bars, sample_end, costs)
-    _write_results(report_path, studies, selected, portfolio_metrics, benchmark, missing, intraday_notes, sample_end)
+    extra = ""
+    if blue is not None and getattr(blue, "insample_metrics", None) is not None:
+        extra = bluechip_markdown(blue, benchmark, dow_missing)
+    _write_results(
+        report_path,
+        studies,
+        selected,
+        portfolio_metrics,
+        benchmark,
+        missing,
+        intraday_notes,
+        sample_end,
+        extra=extra,
+    )
     _write_selection(Path(config_dir), selected, portfolio_metrics, sample_end)
     summary = {
         "as_of": date.today().isoformat(),
@@ -343,7 +411,9 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
     )
     if mode == "stock":
         flags.append("diagnostic_only")
-    selectable = mode == "etf" and is_selectable(flags, default_metrics)
+    # Point-in-time Dow membership is dated, so it can clear the same numeric
+    # gates as an ETF book. The 2026 survivor stock list cannot.
+    selectable = mode in {"etf", "dow"} and is_selectable(flags, default_metrics)
     notes = [
         strategy.citation,
         "Out-of-sample window starts 2017-01-01 and uses default published parameters.",
@@ -351,7 +421,7 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
     ]
     if fragile_grid(train_sharpes):
         notes.append("The in-sample parameter grid did not agree with itself.")
-    return Study(
+    study = Study(
         name=strategy.name,
         mode=mode,
         citation=strategy.citation,
@@ -362,7 +432,10 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
         train_sharpes=train_sharpes,
         equity=default.daily_equity(),
         notes=notes,
+        oos_trades=default.trades,
+        wf_trades=pd.concat(fold_trades) if fold_trades else pd.DataFrame(),
     )
+    return study
 
 
 def _study_intraday(strategy, mode, hourly, daily_bars, limits, costs) -> Study:
@@ -431,18 +504,31 @@ def _study_intraday(strategy, mode, hourly, daily_bars, limits, costs) -> Study:
 
 
 def _execute(strategy, mode, bars, limits, costs, trade_start, trade_end, params) -> BacktestResult:
-    return _execute_many([strategy], mode, bars, limits, costs, trade_start, trade_end, {strategy.name: params})
+    return _execute_many(
+        [strategy], mode, bars, limits, costs, trade_start, trade_end, {strategy.name: params}
+    )
 
 
-def _execute_many(strategies, mode, bars, limits, costs, trade_start, trade_end, params_map=None) -> BacktestResult:
+def _execute_many(
+    strategies, mode, bars, limits, costs, trade_start, trade_end, params_map=None, modes=None
+) -> BacktestResult:
+    modes = modes or {}
+
+    def _mode(strategy) -> str:
+        if strategy.name in modes:
+            return modes[strategy.name]
+        if strategy.name == "dual_momentum":
+            return "etf"
+        return mode
+
     symbols: list[str] = []
     for strategy in strategies:
-        symbols.extend(strategy.universe(mode if strategy.name != "dual_momentum" else "etf"))
+        symbols.extend(strategy.universe(_mode(strategy)))
     params_map = dict(params_map or {})
     for strategy in strategies:
         params_map.setdefault(strategy.name, dict(strategy.default_params))
         params_map[strategy.name] = dict(params_map[strategy.name])
-        params_map[strategy.name]["symbols"] = strategy.universe(mode if strategy.name != "dual_momentum" else "etf")
+        params_map[strategy.name]["symbols"] = strategy.universe(_mode(strategy))
     scoped = _scope(bars, symbols, trade_end)
     breadth = [symbol for symbol in STOCK_UNIVERSE if symbol in scoped]
     regime = build_regime(scoped, breadth)
@@ -544,8 +630,9 @@ def _write_selection(config_dir: Path, selected: list[Study], portfolio: dict[st
         rationale = (
             "Selected because default parameters were profitable on the 2017-onward "
             "out-of-sample window, walk-forward parameter choices did not flip the sign, "
-            "the parameter grid was not fragile, the test was on ETFs rather than a "
-            "survivorship-biased stock list, and a higher slippage assumption did not "
+        "the parameter grid was not fragile, the test was on ETFs or point-in-time "
+        "Dow membership rather than a survivorship-biased stock list, and a higher "
+        "slippage assumption did not "
             "erase the profit factor. "
             + ", ".join(
                 f"{study.name} OOS Sharpe {study.default_oos.get('sharpe'):.2f}, "
@@ -574,7 +661,9 @@ def _write_selection(config_dir: Path, selected: list[Study], portfolio: dict[st
     (config_dir / "selected_strategies.json").write_text(json.dumps(payload, indent=2, default=str))
 
 
-def _write_results(report_dir, studies, selected, portfolio, benchmark, missing, intraday_notes, sample_end) -> None:
+def _write_results(
+    report_dir, studies, selected, portfolio, benchmark, missing, intraday_notes, sample_end, extra: str = ""
+) -> None:
     lines = [
         "# Research results",
         "",
@@ -603,10 +692,12 @@ def _write_results(report_dir, studies, selected, portfolio, benchmark, missing,
         "parameters (not a mined neighbor) clear profit factor 1.10, Sharpe 0.40, "
         "20 trades, and a drawdown no worse than -30% on 2017-onward data; the "
         "in-sample grid is not fragile; walk-forward choices do not flip the sign; "
-        "the test universe is ETFs; and the result survives 15 bps of slippage. "
-        "Stock-only runs are diagnostics. They use a 2026 list of survivors and "
-        "cannot be the default book. Hourly tests use the free Yahoo limit of roughly "
-        "two years and are never treated as a durable edge.",
+        "the test universe is ETFs or point-in-time Dow membership; and the result "
+        "survives 15 bps of slippage. A passing Dow book joins the default account "
+        "only when its out-of-sample Sharpe beats dual momentum by at least 0.15. "
+        "Otherwise it stays optional. Stock-only runs on the fixed 2026 survivor "
+        "list are diagnostics and cannot be the default book. Hourly tests use the "
+        "free Yahoo limit of roughly two years and are never treated as a durable edge.",
         "",
         "## Default-parameter out-of-sample results",
         "",
@@ -681,7 +772,17 @@ def _write_results(report_dir, studies, selected, portfolio, benchmark, missing,
             continue
         profit_factor = study.default_oos.get("profit_factor")
         profit_factor_text = "n/a" if profit_factor is None else f"{float(profit_factor):.2f}"
-        reason = ", ".join(study.flags) or "passed the numeric gates but lost the family slot to a higher-Sharpe strategy"
+        if (
+            study.name == "bluechip_reversal"
+            and getattr(study, "passed_gates", False)
+            and not getattr(study, "promoted", False)
+        ):
+            reason = (
+                "passed the stock gates but did not beat dual momentum by 0.15 Sharpe, "
+                "so it is optional rather than the default"
+            )
+        else:
+            reason = ", ".join(study.flags) or "passed the numeric gates but lost the family slot to a higher-Sharpe strategy"
         lines.append(
             f"- **{study.name} ({study.mode})**: {reason}. "
             f"OOS Sharpe {study.default_oos.get('sharpe'):.2f}, "
@@ -713,6 +814,8 @@ def _write_results(report_dir, studies, selected, portfolio, benchmark, missing,
     if missing:
         lines.append(f"- Symbols that failed to download: {', '.join(missing)}.")
     lines.extend(f"- {note}" for note in intraday_notes)
+    if extra:
+        lines.append(extra.rstrip("\n"))
     lines.append("")
     # RESULTS.md lives at the repo root; the function is also given the report dir.
     Path("RESULTS.md").write_text("\n".join(lines))

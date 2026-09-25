@@ -25,6 +25,12 @@ What the public docs support, and what this class calls:
 * A protective stop is a separate STOP_LOSS sell, not an OTO combo. Combo
   orders exist in the API and are intentionally not required for the first
   live path.
+* Options are in the public trade API (``instrument_type=OPTION``,
+  ``option_strategy`` ``SINGLE`` or ``VERTICAL``). ``build_single_option_order``
+  and ``build_bull_call_spread`` match those published examples.
+  ``place_order`` does not send them. This process does not submit option
+  orders. The blue-chip options column is a Black-Scholes estimate, and
+  paper mode fills the underlying stock.
 
 What could not be verified without the owner's keys
 ----------------------------------------------------
@@ -126,6 +132,142 @@ def build_equity_order(
             raise ValueError(f"{order_type} requires stop_price")
         payload["stop_price"] = f"{stop_price:.2f}"
     return payload
+
+
+def build_single_option_order(
+    *,
+    client_order_id: str,
+    symbol: str,
+    side: str,
+    quantity: float,
+    strike_price: float,
+    option_expire_date: str,
+    option_type: str,
+    limit_price: Optional[float] = None,
+    order_type: str = "LIMIT",
+    time_in_force: str = "DAY",
+    position_intent: str = "BUY_TO_OPEN",
+) -> dict[str, Any]:
+    """One US option leg, matching the published single-leg example.
+
+    The payload is for tests and for a later paper path. Nothing here
+    calls the network.
+    """
+    _check_option_id(client_order_id)
+    if order_type == "TRAILING_STOP_LOSS":
+        raise ValueError("TRAILING_STOP_LOSS is not supported for options")
+    if order_type not in {"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_LIMIT"}:
+        raise ValueError(f"Unsupported option order type {order_type}")
+    if option_type not in {"CALL", "PUT"}:
+        raise ValueError("option_type must be CALL or PUT")
+    if side not in {"BUY", "SELL"}:
+        raise ValueError("side must be BUY or SELL")
+    _check_expiry(option_expire_date)
+    if order_type in {"LIMIT", "STOP_LOSS_LIMIT"} and limit_price is None:
+        raise ValueError(f"{order_type} requires limit_price")
+    leg_side = side
+    payload: dict[str, Any] = {
+        "combo_type": "NORMAL",
+        "client_order_id": client_order_id,
+        "symbol": symbol,
+        "instrument_type": "OPTION",
+        "market": "US",
+        "order_type": order_type,
+        "quantity": _qty(quantity),
+        "option_strategy": "SINGLE",
+        "side": side,
+        "time_in_force": time_in_force,
+        "entrust_type": "QTY",
+        "position_intent": position_intent,
+        "legs": [
+            {
+                "side": leg_side,
+                "quantity": _qty(quantity),
+                "symbol": symbol,
+                "strike_price": f"{strike_price:.2f}",
+                "option_expire_date": option_expire_date,
+                "instrument_type": "OPTION",
+                "option_type": option_type,
+                "market": "US",
+            }
+        ],
+    }
+    if limit_price is not None:
+        payload["limit_price"] = f"{limit_price:.2f}"
+    return payload
+
+
+def build_bull_call_spread(
+    *,
+    client_order_id: str,
+    symbol: str,
+    quantity: float,
+    long_strike: float,
+    short_strike: float,
+    option_expire_date: str,
+    limit_price: float,
+    time_in_force: str = "DAY",
+) -> dict[str, Any]:
+    """Bull call debit spread: buy the lower call, sell the higher call.
+
+    ``limit_price`` is the net debit, as in the published VERTICAL example.
+    This function does not send the order.
+    """
+    _check_option_id(client_order_id)
+    _check_expiry(option_expire_date)
+    if short_strike <= long_strike:
+        raise ValueError("A bull call spread sells the higher strike")
+    if limit_price <= 0:
+        raise ValueError("limit_price is the net debit and must be positive")
+    qty = _qty(quantity)
+    return {
+        "combo_type": "NORMAL",
+        "client_order_id": client_order_id,
+        "symbol": symbol,
+        "instrument_type": "OPTION",
+        "market": "US",
+        "order_type": "LIMIT",
+        "quantity": qty,
+        "option_strategy": "VERTICAL",
+        "side": "BUY",
+        "time_in_force": time_in_force,
+        "entrust_type": "QTY",
+        "position_intent": "BUY_TO_OPEN",
+        "limit_price": f"{limit_price:.2f}",
+        "legs": [
+            {
+                "side": "BUY",
+                "quantity": qty,
+                "symbol": symbol,
+                "strike_price": f"{long_strike:.2f}",
+                "option_expire_date": option_expire_date,
+                "instrument_type": "OPTION",
+                "option_type": "CALL",
+                "market": "US",
+            },
+            {
+                "side": "SELL",
+                "quantity": qty,
+                "symbol": symbol,
+                "strike_price": f"{short_strike:.2f}",
+                "option_expire_date": option_expire_date,
+                "instrument_type": "OPTION",
+                "option_type": "CALL",
+                "market": "US",
+            },
+        ],
+    }
+
+
+def _check_option_id(client_order_id: str) -> None:
+    if len(client_order_id) > 32:
+        raise ValueError("client_order_id must be at most 32 characters")
+
+
+def _check_expiry(option_expire_date: str) -> None:
+    parts = option_expire_date.split("-")
+    if len(parts) != 3 or len(parts[0]) != 4 or len(parts[1]) != 2 or len(parts[2]) != 2:
+        raise ValueError("option_expire_date must be YYYY-MM-DD")
 
 
 def new_client_order_id() -> str:
