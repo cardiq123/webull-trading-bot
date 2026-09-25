@@ -281,6 +281,32 @@ Nothing else was selected.
 
 The walk-forward stock path, which is allowed to leave the default for another pre-registered cell, had Sharpe 0.59, profit factor 1.24, and 630 trades. That is not a pass. The gate uses the published default, and the grid did not agree with itself. The same walk-forward trades, repriced as a Black-Scholes estimate, lost money: long calls CAGR -2.48% (Sharpe -0.52), bull call spreads CAGR -11.37% (Sharpe -3.48). Default-parameter calls and spreads were also negative. Modeled option profits are an estimate (no historical chain) and are not a separate gate. Missing Yahoo history: DWDP, KFT, WBA. UTX reuses the RTX series. Full table in [RESULTS.md](RESULTS.md).
 
+**Support reversal does not have an out-of-sample edge.** The pre-registered default (20-day low at horizontal pivot support, bullish candle) on the point-in-time Dow 30, 2017-01-01 through 2026-09-25:
+
+| Book | CAGR | Total | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Trades | +30% hit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Long stock, default | 2.40% | 25.97% | 42.28% | $717 | $-472 | $31 | 1.11 | -15.43% | 0.35 | 842 | n/a |
+| Long stock, walk-forward | 0.64% | 6.45% | 45.49% | $484 | $-384 | $11 | 1.05 | -12.68% | 0.14 | 677 | n/a |
+| Long stock, 15 bps | 0.25% | 2.49% | 42.38% | $603 | $-437 | $4 | 1.01 | -15.44% | 0.07 | 689 | n/a |
+| Calls, +30% premium target | -1.01% | -14.79% | 44.09% | $375 | $-580 | $-159 | 0.51 | -15.38% | -0.64 | 93 | 40.86% |
+
+Flags: parameter_fragile, oos_sharpe_below_0_40. The +30% premium target was hit on 40.86% of the default option trades (close-based path 38.46%; 21 DTE 44.83%; 45 DTE 45.10%; delta 0.50 38.81%; premium stop -30% 33.33%; IV 1.00x 41.67%; IV 1.30x 46.72%; doubled bid/ask 34.38%). Every option column lost money. It is not optional and not the default.
+
+**Wedge breakout does not have an out-of-sample edge.** The pre-registered default (converging wedge or triangle, both directions, 0.25 ATR buffer, wide-body candle), same window:
+
+| Book | CAGR | Total | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Trades | +30% hit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Long stock, default | -0.31% | -2.98% | 54.36% | $225 | $-274 | $-3 | 0.98 | -10.10% | -0.06 | 1010 | n/a |
+| Long stock, walk-forward | 1.16% | 11.89% | 42.70% | $177 | $-107 | $14 | 1.23 | -3.34% | 0.57 | 829 | n/a |
+| Short stock, default | -15.27% | -80.04% | 40.00% | $99 | $-194 | $-77 | 0.34 | -80.04% | -0.32 | 5 | n/a |
+| Calls, +30% target | -0.82% | -12.17% | 55.56% | $392 | $-692 | $-90 | 0.71 | -16.52% | -0.37 | 135 | 52.59% |
+| Puts, +30% target | -1.09% | -15.78% | 34.48% | $384 | $-617 | $-272 | 0.33 | -15.78% | -0.88 | 58 | 32.76% |
+| Calls and puts, one account | -0.92% | -13.58% | 49.52% | $375 | $-625 | $-129 | 0.59 | -15.44% | -0.54 | 105 | 45.71% |
+
+Flags: parameter_fragile, oos_profit_factor_below_1, oos_sharpe_negative, sharpe_decay. The walk-forward stock Sharpe of 0.57 is the training-window picker leaving the default. It is not the gated book. The combined option book's +30% hit rate was 45.71% (calls 52.59%, puts 32.76%). Close-based marks hit 35.64%. 21 DTE hit 48.98%, 45 DTE 35.35%, delta 0.50 43.48%, premium stop -30% 38.38%, IV 1.00x 47.41%, IV 1.30x 39.00%, doubled bid/ask 34.92%. Every option column lost money: the target is reached often, and the losers are larger than the winners. Short stock is a research baseline on its own $100,000 account and does not charge borrow. It is not optional and not the default.
+
+Example charts of what the detectors mark as a rising trendline and a wedge are in `reports/setups/`. Neither strategy joins the config. The default book is still dual momentum.
+
 - Gap-and-go on ETFs took 1 trade and lost money (Sharpe -0.32). The stock
   diagnostic also lost money (Sharpe -0.41, 67 trades) and is survivorship-biased.
 - End-of-day mean reversion on ETFs was slightly profitable (Sharpe 0.15,

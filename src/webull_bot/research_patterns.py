@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from webull_bot.backtest.assessment import is_selectable
@@ -385,14 +386,16 @@ def save_setup_charts(bars, report_dir: Path) -> list[Path]:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    from webull_bot.patterns import rising_trendline, strong_breakout_candle, wedge_lines
     from webull_bot.strategies.support_reversal import SupportReversal
     from webull_bot.strategies.wedge_breakout import WedgeBreakout
 
     out_dirs = [report_dir / "setups", Path("/opt/cursor/artifacts/setups")]
     for folder in out_dirs:
         folder.mkdir(parents=True, exist_ok=True)
-    saved: list[Path] = []
+        for stale in folder.glob("trendline_*.png"):
+            stale.unlink()
+        for stale in folder.glob("wedge_*.png"):
+            stale.unlink()
     support = SupportReversal()
     wedge = WedgeBreakout()
     symbols = [symbol for symbol in ("AAPL", "MSFT", "JPM", "CAT", "HD", "UNH", "BA", "IBM") if symbol in bars]
@@ -401,81 +404,176 @@ def save_setup_charts(bars, report_dir: Path) -> list[Path]:
     support_params["symbols"] = symbols
     wedge_params = dict(wedge.default_params)
     wedge_params["symbols"] = symbols
-    support_book = support.generate({symbol: bars[symbol] for symbol in symbols}, None, support_params)
-    wedge_book = wedge.generate({symbol: bars[symbol] for symbol in symbols}, None, wedge_params)
-    saved.extend(_plot_entries(plt, bars, support_book, "trendline", out_dirs, limit=2))
+    subset = {symbol: bars[symbol] for symbol in symbols}
+    support_book = support.generate(subset, None, support_params)
+    wedge_book = wedge.generate(subset, None, wedge_params)
+    saved: list[Path] = []
+    saved.extend(_plot_trendlines(plt, bars, support_book, out_dirs, limit=2))
     saved.extend(_plot_wedges(plt, bars, wedge_book, out_dirs, limit=2))
-    # Keep the imports used so a reader can see which detectors the charts call.
-    _ = (rising_trendline, strong_breakout_candle, wedge_lines)
+    if saved:
+        print("Setup charts: " + ", ".join(str(path) for path in saved))
+    else:
+        print("Setup charts were not written: no trendline or wedge example in the chart symbols")
     return saved
 
 
-def _plot_entries(plt, bars, book, label, out_dirs, limit: int) -> list[Path]:
-    from webull_bot.patterns import rising_trendline
+def _plot_trendlines(plt, bars, book, out_dirs, limit: int) -> list[Path]:
+    """Draw the two confirmed pivot lows the detector actually fitted."""
+    from webull_bot.patterns import _pivot_points, confirmed_pivot_low
 
-    saved = []
+    candidates = []
     for symbol, signals in book.items():
-        if len(saved) >= limit:
-            break
-        flags = signals["entry_next_open"].fillna(False)
-        hits = list(flags[flags].index)
-        if not hits:
-            continue
-        ts = hits[len(hits) // 2]
         frame = bars[symbol]
-        loc = frame.index.get_loc(ts)
-        if isinstance(loc, slice):
+        points = _pivot_points(confirmed_pivot_low(frame["low"], 3, 3), 3)
+        flags = signals["entry_next_open"].fillna(False)
+        for ts in flags[flags].index:
+            loc = _loc(frame, ts)
+            if loc is None:
+                continue
+            anchors = _trendline_anchors(points, loc)
+            if anchors is None:
+                continue
+            earlier, later, slope = anchors
+            span = later[0] - earlier[0]
+            price = float(frame["close"].iloc[loc])
+            # A chart of a multi-year line is unreadable. The detector itself
+            # has no span cap; this filter only chooses the example image.
+            if span < 15 or span > 80 or price <= 0:
+                continue
+            rise = slope * span / price
+            candidates.append((rise, symbol, loc, anchors))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    saved = []
+    used = set()
+    for _rise, symbol, loc, anchors in candidates:
+        if symbol in used or len(saved) >= limit:
             continue
-        start = max(0, int(loc) - 80)
-        stop = min(len(frame), int(loc) + 15)
-        window = frame.iloc[start:stop]
-        line = rising_trendline(frame["low"], 3, 3).iloc[start:stop]
-        fig, ax = plt.subplots(figsize=(9, 4.5))
-        ax.plot(window.index, window["close"], color="#1f4b99", label="close")
-        ax.plot(window.index, line, color="#c47b00", label="rising trendline")
-        ax.scatter([ts], [frame.loc[ts, "close"]], color="#b00020", zorder=3, label="confirmation")
-        ax.set_title(f"{symbol} trendline support confirmation")
-        ax.legend(frameon=False)
-        fig.autofmt_xdate()
-        path = out_dirs[0] / f"{label}_{symbol}.png"
-        fig.savefig(path, dpi=120, bbox_inches="tight")
-        fig.savefig(out_dirs[1] / path.name, dpi=120, bbox_inches="tight")
-        plt.close(fig)
-        saved.append(path)
+        used.add(symbol)
+        saved.append(_draw_trendline(plt, bars[symbol], symbol, loc, anchors, out_dirs))
     return saved
 
 
 def _plot_wedges(plt, bars, book, out_dirs, limit: int) -> list[Path]:
     from webull_bot.patterns import wedge_lines
 
-    saved = []
+    candidates = []
+    cache = {}
     for symbol, signals in book.items():
-        if len(saved) >= limit:
-            break
-        flags = signals["entry_next_open"].fillna(False) | signals["short_next_open"].fillna(False)
-        hits = list(flags[flags].index)
-        if not hits:
-            continue
-        ts = hits[len(hits) // 3]
         frame = bars[symbol]
-        loc = frame.index.get_loc(ts)
-        if isinstance(loc, slice):
+        lines = wedge_lines(frame["high"], frame["low"], 3, 3, lookback=40)
+        cache[symbol] = lines
+        flags = signals["entry_next_open"].fillna(False) | signals["short_next_open"].fillna(False)
+        for ts in flags[flags].index:
+            loc = _loc(frame, ts)
+            if loc is None:
+                continue
+            row = lines.iloc[loc]
+            if not row["kind"] or not np.isfinite(row["start"]):
+                continue
+            span = loc - int(row["start"])
+            price = float(frame["close"].iloc[loc])
+            height = float(row["upper"] - row["lower"])
+            if span < 20 or price <= 0 or height <= 0:
+                continue
+            candidates.append((height / price, symbol, loc, str(row["kind"])))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    saved = []
+    used = set()
+    for _height, symbol, loc, kind in candidates:
+        if symbol in used or len(saved) >= limit:
             continue
-        start = max(0, int(loc) - 70)
-        stop = min(len(frame), int(loc) + 15)
-        window = frame.iloc[start:stop]
-        lines = wedge_lines(frame["high"], frame["low"], 3, 3, lookback=40).iloc[start:stop]
-        fig, ax = plt.subplots(figsize=(9, 4.5))
-        ax.plot(window.index, window["close"], color="#1f4b99", label="close")
-        ax.plot(window.index, lines["upper"], color="#9a3b2f", label="upper line")
-        ax.plot(window.index, lines["lower"], color="#2f6b4f", label="lower line")
-        ax.scatter([ts], [frame.loc[ts, "close"]], color="#b00020", zorder=3, label="breakout")
-        ax.set_title(f"{symbol} wedge or triangle breakout")
-        ax.legend(frameon=False)
-        fig.autofmt_xdate()
-        path = out_dirs[0] / f"wedge_{symbol}.png"
-        fig.savefig(path, dpi=120, bbox_inches="tight")
-        fig.savefig(out_dirs[1] / path.name, dpi=120, bbox_inches="tight")
-        plt.close(fig)
-        saved.append(path)
+        used.add(symbol)
+        saved.append(_draw_wedge(plt, bars[symbol], symbol, loc, cache[symbol].iloc[loc], kind, out_dirs))
     return saved
+
+
+def _draw_trendline(plt, frame, symbol, loc, anchors, out_dirs) -> Path:
+    earlier, later, slope = anchors
+    pad_left = max(0, earlier[0] - 8)
+    pad_right = min(len(frame), loc + 12)
+    window = frame.iloc[pad_left:pad_right]
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _candles(ax, window)
+    xs = frame.index[earlier[0] : loc + 1]
+    ys = [earlier[1] + slope * (i - earlier[0]) for i in range(earlier[0], loc + 1)]
+    ax.plot(xs, ys, color="#c47b00", linewidth=1.6, label="rising trendline")
+    ax.scatter(
+        [frame.index[earlier[0]], frame.index[later[0]]],
+        [earlier[1], later[1]],
+        color="#c47b00",
+        zorder=3,
+        label="confirmed pivot lows",
+    )
+    ax.scatter([frame.index[loc]], [frame["close"].iloc[loc]], color="#b00020", zorder=4, label="confirmation")
+    when = pd.Timestamp(frame.index[loc]).date()
+    ax.set_title(f"{symbol} rising trendline support, confirmed {when}")
+    ax.legend(frameon=False, loc="upper left")
+    fig.autofmt_xdate()
+    return _save_fig(plt, fig, out_dirs, f"trendline_{symbol}.png")
+
+
+def _draw_wedge(plt, frame, symbol, loc, row, kind, out_dirs) -> Path:
+    start = int(row["start"])
+    pad_left = max(0, start - 5)
+    pad_right = min(len(frame), loc + 8)
+    window = frame.iloc[pad_left:pad_right]
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _candles(ax, window)
+    indexes = range(start, loc + 1)
+    xs = frame.index[start : loc + 1]
+    upper = [float(row["upper"]) + float(row["upper_slope"]) * (i - loc) for i in indexes]
+    lower = [float(row["lower"]) + float(row["lower_slope"]) * (i - loc) for i in indexes]
+    ax.plot(xs, upper, color="#9a3b2f", linewidth=1.6, label="upper line")
+    ax.plot(xs, lower, color="#2f6b4f", linewidth=1.6, label="lower line")
+    ax.scatter([frame.index[loc]], [frame["close"].iloc[loc]], color="#b00020", zorder=4, label="breakout close")
+    when = pd.Timestamp(frame.index[loc]).date()
+    ax.set_title(f"{symbol} {kind} wedge breakout, {when}")
+    ax.legend(frameon=False, loc="upper left")
+    fig.autofmt_xdate()
+    return _save_fig(plt, fig, out_dirs, f"wedge_{symbol}.png")
+
+
+def _candles(ax, window: pd.DataFrame) -> None:
+    for ts, row in window.iterrows():
+        color = "#1f7a4d" if row["close"] >= row["open"] else "#9a3b2f"
+        ax.plot([ts, ts], [row["low"], row["high"]], color=color, linewidth=0.8)
+        body_low = min(row["open"], row["close"])
+        body_high = max(row["open"], row["close"])
+        ax.plot([ts, ts], [body_low, body_high], color=color, linewidth=3.2)
+
+
+def _trendline_anchors(points: list[tuple[int, float, int]], t: int):
+    """The same two pivots ``rising_trendline`` uses on bar ``t``."""
+    known = [point for point in points if point[2] < t]
+    if len(known) < 2:
+        return None
+    x2, y2, _confirm = known[-1]
+    chosen = None
+    for point in reversed(known[:-1]):
+        if point[0] < x2 and point[1] < y2:
+            chosen = point
+            break
+    if chosen is None or x2 == chosen[0]:
+        return None
+    slope = (y2 - chosen[1]) / (x2 - chosen[0])
+    if slope <= 0:
+        return None
+    return (chosen[0], chosen[1]), (x2, y2), slope
+
+
+def _loc(frame: pd.DataFrame, ts) -> int | None:
+    loc = frame.index.get_loc(ts)
+    if isinstance(loc, slice):
+        return None
+    try:
+        return int(loc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _save_fig(plt, fig, out_dirs, name: str) -> Path:
+    path = out_dirs[0] / name
+    fig.savefig(path, dpi=120, bbox_inches="tight")
+    fig.savefig(out_dirs[1] / name, dpi=120, bbox_inches="tight")
+    plt.close(fig)
+    return path

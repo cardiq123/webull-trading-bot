@@ -93,6 +93,24 @@ def test_rising_trendline_uses_only_confirmed_pivots():
     assert prefix.iloc[20] == pytest.approx(again.iloc[20])
 
 
+def test_chart_anchors_match_the_rising_trendline():
+    from webull_bot.patterns import _pivot_points, confirmed_pivot_low
+    from webull_bot.research_patterns import _trendline_anchors
+
+    index = pd.bdate_range("2020-01-01", periods=40)
+    low = pd.Series(30.0, index=index)
+    low.iloc[6] = 10.0
+    low.iloc[16] = 14.0
+    points = _pivot_points(confirmed_pivot_low(low, 2, 2), 2)
+    anchors = _trendline_anchors(points, 20)
+    assert anchors is not None
+    earlier, later, slope = anchors
+    assert earlier == (6, 10.0)
+    assert later == (16, 14.0)
+    assert slope == pytest.approx(0.4)
+    assert _trendline_anchors(points, 17) is None
+
+
 def test_prior_month_low_does_not_use_the_rest_of_this_month():
     index = pd.bdate_range("2020-01-02", periods=45)
     low = pd.Series(np.linspace(20, 19, len(index)), index=index)
