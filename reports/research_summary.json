@@ -744,6 +744,53 @@
         "expectancy": -26.162603029135678,
         "years": 0.9856262833675564
       }
+    },
+    {
+      "name": "bluechip_reversal",
+      "mode": "dow",
+      "selectable": false,
+      "flags": [
+        "parameter_fragile",
+        "insufficient_trades",
+        "oos_profit_factor_below_1",
+        "oos_sharpe_negative",
+        "sharpe_decay",
+        "cost_fragile"
+      ],
+      "default_oos": {
+        "starting_equity": 100000.0,
+        "ending_equity": 99440.46899622281,
+        "total_return": -0.005595310037771806,
+        "cagr": -0.0005766493056885702,
+        "sharpe": -0.12581015491332428,
+        "sortino": -0.1664953278462739,
+        "max_drawdown": -0.020697489329039365,
+        "exposure": 0.002642767481329638,
+        "trades": 5,
+        "win_rate": 0.4,
+        "avg_win": 662.1352984467434,
+        "avg_loss": -627.9338668902207,
+        "profit_factor": 0.7029777426784362,
+        "expectancy": -111.90620075543502,
+        "years": 9.727583846680355
+      },
+      "walk_forward": {
+        "starting_equity": 100000.0,
+        "ending_equity": 132066.90030715262,
+        "total_return": 0.32066900307152624,
+        "cagr": 0.029005452554249134,
+        "sharpe": 0.5854359710627123,
+        "sortino": 0.850916858522476,
+        "max_drawdown": -0.10718006164332439,
+        "exposure": 0.20551131426475486,
+        "trades": 630,
+        "win_rate": 0.5698412698412698,
+        "avg_win": 423.95131041258435,
+        "avg_loss": -453.2376829174106,
+        "profit_factor": 1.2391250281379609,
+        "expectancy": 46.62080693253894,
+        "years": 9.727583846680355
+      }
     }
   ],
   "portfolio": {

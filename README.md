@@ -275,6 +275,10 @@ buy-and-hold on return or on Sharpe.
 
 Nothing else was selected.
 
+**Blue-chip reversal does not pass.** Point-in-time Dow 30, default parameters, same 2017-01-01 through 2026-09-25 window. The pre-registered rule (RSI(2) < 10, RSI(14) divergence, 10-day EMA reclaim) took 5 out-of-sample trades, CAGR -0.06%, total return -0.56%, win rate 40%, profit factor 0.70, max drawdown -2.07%, Sharpe -0.13, exposure 0.26%, average hold 7.0 sessions. The 2013–2016 sample took 0 trades. At 15 bps slippage Sharpe was -0.17 and profit factor 0.62. Flags: parameter_fragile, insufficient_trades, profit factor below 1, negative Sharpe, sharpe_decay, cost_fragile. It is not optional and not the default.
+
+The walk-forward stock path, which is allowed to leave the default for another pre-registered cell, had Sharpe 0.59, profit factor 1.24, and 630 trades. That is not a pass. The gate uses the published default, and the grid did not agree with itself. The same walk-forward trades, repriced as a Black-Scholes estimate, lost money: long calls CAGR -2.48% (Sharpe -0.52), bull call spreads CAGR -11.37% (Sharpe -3.48). Default-parameter calls and spreads were also negative. Modeled option profits are an estimate (no historical chain) and are not a separate gate. Missing Yahoo history: DWDP, KFT, WBA. UTX reuses the RTX series. Full table in [RESULTS.md](RESULTS.md).
+
 - Gap-and-go on ETFs took 1 trade and lost money (Sharpe -0.32). The stock
   diagnostic also lost money (Sharpe -0.41, 67 trades) and is survivorship-biased.
 - End-of-day mean reversion on ETFs was slightly profitable (Sharpe 0.15,

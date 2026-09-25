@@ -1,0 +1,4 @@
+{
+  "optional": [],
+  "rationale": "bluechip_reversal did not pass the out-of-sample gates. It is not enabled and not optional."
+}

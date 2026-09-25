@@ -230,7 +230,10 @@ def bluechip_markdown(study, benchmark: dict, missing: list[str]) -> str:
         lines.append("")
         lines.append(
             "Dow names with no Yahoo history in this run, so those membership days "
-            f"are absent: {', '.join(missing)}."
+            f"are absent: {', '.join(missing)}. "
+            "UTX is not in that list because Yahoo has no UTX file and the study "
+            "reuses the RTX series for the pre-2020 United Technologies window. "
+            "That splice is a data caveat, not a second listing."
         )
     lines.append("")
     return "\n".join(lines)

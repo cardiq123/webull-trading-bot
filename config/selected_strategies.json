@@ -7,7 +7,7 @@
   "modes": {
     "dual_momentum": "etf"
   },
-  "rationale": "Selected because default parameters were profitable on the 2017-onward out-of-sample window, walk-forward parameter choices did not flip the sign, the parameter grid was not fragile, the test was on ETFs rather than a survivorship-biased stock list, and a higher slippage assumption did not erase the profit factor. dual_momentum OOS Sharpe 0.55, CAGR 0.45%, max DD -1.89%, trades 31",
+  "rationale": "Selected because default parameters were profitable on the 2017-onward out-of-sample window, walk-forward parameter choices did not flip the sign, the parameter grid was not fragile, the test was on ETFs or point-in-time Dow membership rather than a survivorship-biased stock list, and a higher slippage assumption did not erase the profit factor. dual_momentum OOS Sharpe 0.55, CAGR 0.45%, max DD -1.89%, trades 31",
   "portfolio": {
     "starting_equity": 100000.0,
     "ending_equity": 104429.2321099472,
