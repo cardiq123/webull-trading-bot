@@ -1,0 +1,78 @@
+# Paper is the only mode the CLI starts by default. `live` also requires
+# live_trading_enabled: true AND the typed confirmation phrase.
+live_trading_enabled: false
+allow_unproven_strategies: false
+
+account:
+  starting_equity: 100000
+  account_type: margin   # cash or margin
+
+risk:
+  risk_per_trade: 0.0075
+  max_position_pct: 0.20
+  max_concurrent_positions: 5
+  max_sector_pct: 0.35
+  max_correlation: 0.85
+  correlation_lookback: 60
+  daily_max_loss_pct: 0.02
+  max_drawdown_pct: 0.15
+  flatten_on_daily_loss: true
+  flatten_on_max_drawdown: false
+  intraday_margin_ratio: 0.25
+  min_margin_equity: 2000
+  allow_shorts: false
+  allow_fractional: false
+
+# FINRA Regulatory Notice 26-10 eliminated the pattern day trader designation
+# effective 2026-06-04, with a phase-in through 2027-10-20. `auto` keeps the
+# legacy 3-day-trades / $25,000 test during that phase-in because a broker
+# may not have migrated yet. It also applies the $2,000 margin floor and a
+# simplified intraday margin check. See src/webull_bot/risk/pdt.py.
+pdt:
+  mode: auto
+  enforce_legacy_during_transition: true
+  legacy_equity_threshold: 25000
+  legacy_max_day_trades: 3
+  legacy_window_business_days: 5
+
+costs:
+  commission_per_trade: 0.0
+  slippage_bps: 5.0
+  half_spread_bps: 1.0
+  # SEC Section 31, effective 2026-04-04: $20.60 per $1,000,000 sold.
+  sec_fee_per_dollar_sold: 0.0000206
+  # FINRA TAF for 2026, statutory rate. A holiday sets this to 0 from
+  # 2026-10-01 through 2026-12-31; leave the statutory rate for research.
+  finra_taf_per_share: 0.000195
+  finra_taf_cap: 9.79
+
+data:
+  provider: yfinance
+  cache_dir: data/cache
+  start: "2011-01-01"
+  interval: 1d
+
+broker:
+  paper_state_db: data/paper_state.sqlite
+
+journal:
+  path: data/journal.sqlite
+
+notifications:
+  webhook_url: ""
+
+logging:
+  level: INFO
+  dir: logs
+
+strategies:
+  # Empty means "use config/selected_strategies.json", which research writes.
+  # Do not put a strategy here until RESULTS.md shows an out-of-sample edge.
+  # config/optional_strategies.json lists a book that passed the gates but
+  # did not beat dual momentum. It stays out of enabled until you add it.
+  enabled: []
+  selection_file: config/selected_strategies.json
+
+schedule:
+  timezone: America/New_York
+  poll_seconds: 60

@@ -1,0 +1,5 @@
+{
+  "optional": [],
+  "expression": "stock",
+  "rationale": "bluechip_reversal did not pass the out-of-sample gates. support_reversal did not pass the out-of-sample gates. wedge_breakout did not pass the out-of-sample gates."
+}
