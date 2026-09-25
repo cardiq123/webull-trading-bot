@@ -210,6 +210,29 @@ def run_research(
             )
         )
 
+    try:
+        from webull_bot.research_patterns import run_pattern_studies
+
+        studies.extend(run_pattern_studies(bars, limits, costs, sample_end))
+    except Exception as exc:
+        traceback.print_exc()
+        empty = compute_metrics(
+            BacktestResult(pd.Series(dtype=float), pd.Series(dtype=float), pd.DataFrame()),
+            STARTING_EQUITY,
+        )
+        studies.append(
+            Study(
+                name="support_reversal",
+                mode="dow",
+                citation="Support reversal.",
+                default_oos=empty,
+                walk_forward=empty,
+                flags=["error"],
+                selectable=False,
+                notes=[f"Research run failed: {exc}"],
+            )
+        )
+
     # Cost stress for anything still selectable. The Dow study records its
     # own 15 bps result inside run_bluechip_stock, including the flag.
     stressed: list[str] = []
@@ -323,6 +346,22 @@ def run_research(
     extra = ""
     if blue is not None and getattr(blue, "insample_metrics", None) is not None:
         extra = bluechip_markdown(blue, benchmark, dow_missing)
+    from webull_bot.research_patterns import pattern_markdown, save_setup_charts
+
+    pattern_studies = [
+        study for study in studies if study.name in {"support_reversal", "wedge_breakout"} and getattr(study, "insample_metrics", None) is not None
+    ]
+    dual = next((study for study in studies if study.name == "dual_momentum" and study.mode == "etf"), None)
+    if pattern_studies:
+        extra += pattern_markdown(
+            pattern_studies,
+            benchmark,
+            dual.default_oos if dual is not None else None,
+        )
+        try:
+            save_setup_charts(bars, report_path)
+        except Exception as exc:
+            print(f"Setup charts were not written: {exc}")
     _write_results(
         report_path,
         studies,
@@ -364,6 +403,7 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
     fold_returns: list[pd.Series] = []
     fold_trades: list[pd.DataFrame] = []
     fold_exposure: list[pd.Series] = []
+    fold_chosen: list[tuple] = []
     for train_start, train_end, test_start, test_end in FOLDS:
         test_end_ts = min(pd.Timestamp(test_end), pd.Timestamp(sample_end))
         if pd.Timestamp(test_start) >= test_end_ts:
@@ -380,6 +420,7 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
             rows.append({"params": params, **metrics})
         train_sharpes.extend(float(row["sharpe"] or 0.0) for row in rows)
         chosen = pick_params(rows, strategy.default_params)
+        fold_chosen.append((pd.Timestamp(test_start), test_end_ts, dict(chosen)))
         test = _execute(
             strategy, mode, bars, limits, costs,
             trade_start=pd.Timestamp(test_start),
@@ -435,6 +476,7 @@ def _study_daily(strategy: Strategy, mode: str, bars, limits, costs, sample_end)
         oos_trades=default.trades,
         wf_trades=pd.concat(fold_trades) if fold_trades else pd.DataFrame(),
     )
+    study.fold_params = fold_chosen
     return study
 
 
@@ -773,7 +815,7 @@ def _write_results(
         profit_factor = study.default_oos.get("profit_factor")
         profit_factor_text = "n/a" if profit_factor is None else f"{float(profit_factor):.2f}"
         if (
-            study.name == "bluechip_reversal"
+            study.name in {"bluechip_reversal", "support_reversal", "wedge_breakout"}
             and getattr(study, "passed_gates", False)
             and not getattr(study, "promoted", False)
         ):

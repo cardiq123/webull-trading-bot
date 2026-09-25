@@ -18,7 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 broker = ["webull-openapi-python-sdk>=0.1.0"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "matplotlib>=3.8"]
 
 [project.scripts]
 webull-bot = "webull_bot.cli:main"

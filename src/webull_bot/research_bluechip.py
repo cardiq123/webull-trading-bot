@@ -102,9 +102,17 @@ def price_options(study, bars, sample_end) -> dict[str, Any]:
     return packs
 
 
+DOW_BOOKS = ("bluechip_reversal", "support_reversal", "wedge_breakout")
+
+
 def promote_bluechip(studies) -> None:
     """Demote a passing Dow book unless it clearly beats dual momentum."""
-    blue = next((study for study in studies if study.name == "bluechip_reversal"), None)
+    for name in DOW_BOOKS:
+        _promote_one(studies, name)
+
+
+def _promote_one(studies, name: str) -> None:
+    blue = next((study for study in studies if study.name == name and study.mode == "dow"), None)
     if blue is None:
         return
     blue.passed_gates = bool(blue.selectable)
@@ -127,34 +135,30 @@ def promote_bluechip(studies) -> None:
 
 
 def write_optional_config(studies, config_dir: Path) -> None:
-    blue = next((study for study in studies if study.name == "bluechip_reversal"), None)
     config_dir.mkdir(parents=True, exist_ok=True)
-    if blue is None:
-        payload = {"optional": [], "rationale": "Blue-chip study did not run."}
-    elif blue.promoted:
-        payload = {
-            "optional": [],
-            "rationale": "bluechip_reversal was promoted into the default book.",
-        }
-    elif getattr(blue, "passed_gates", False):
-        payload = {
-            "optional": ["bluechip_reversal"],
-            "expression": "stock",
-            "rationale": (
-                "The stock signal passed the out-of-sample gates and did not beat "
-                "dual momentum by the pre-registered 0.15 Sharpe margin. Add "
-                "bluechip_reversal to strategies.enabled to paper-trade the stock. "
-                "Paper fills the underlying. Option orders are not sent."
-            ),
-        }
-    else:
-        payload = {
-            "optional": [],
-            "rationale": (
-                "bluechip_reversal did not pass the out-of-sample gates. "
-                "It is not enabled and not optional."
-            ),
-        }
+    optional = []
+    notes = []
+    for name in DOW_BOOKS:
+        study = next((item for item in studies if item.name == name and item.mode == "dow"), None)
+        if study is None:
+            notes.append(f"{name} did not run.")
+            continue
+        if getattr(study, "promoted", False):
+            notes.append(f"{name} was promoted into the default book.")
+        elif getattr(study, "passed_gates", False):
+            optional.append(name)
+            notes.append(
+                f"{name} passed and did not beat dual momentum by 0.15 Sharpe. "
+                "Add it to strategies.enabled to paper-trade the long stock. "
+                "Option orders and short stock are not sent."
+            )
+        else:
+            notes.append(f"{name} did not pass the out-of-sample gates.")
+    payload = {
+        "optional": optional,
+        "expression": "stock",
+        "rationale": " ".join(notes) if notes else "No Dow study ran.",
+    }
     (config_dir / "optional_strategies.json").write_text(json.dumps(payload, indent=2))
 
 

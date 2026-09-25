@@ -36,6 +36,34 @@ def call_delta(spot: float, strike: float, t_years: float, sigma: float, rate: f
     return math.exp(-dividend * t_years) * norm_cdf(d1)
 
 
+def put_price(spot: float, strike: float, t_years: float, sigma: float, rate: float, dividend: float) -> float:
+    """Put from put-call parity. Same model limits as ``call_price``."""
+    if spot <= 0 or strike <= 0:
+        return 0.0
+    if t_years <= 0 or sigma <= 0:
+        return max(0.0, strike - spot)
+    call = call_price(spot, strike, t_years, sigma, rate, dividend)
+    return call - math.exp(-dividend * t_years) * spot + math.exp(-rate * t_years) * strike
+
+
+def put_delta(spot: float, strike: float, t_years: float, sigma: float, rate: float, dividend: float) -> float:
+    if spot <= 0 or strike <= 0 or t_years <= 0 or sigma <= 0:
+        return -1.0 if spot < strike else 0.0
+    return call_delta(spot, strike, t_years, sigma, rate, dividend) - math.exp(-dividend * t_years)
+
+
+def option_price(right: str, spot: float, strike: float, t_years: float, sigma: float, rate: float, dividend: float) -> float:
+    if right == "put":
+        return put_price(spot, strike, t_years, sigma, rate, dividend)
+    return call_price(spot, strike, t_years, sigma, rate, dividend)
+
+
+def option_delta(right: str, spot: float, strike: float, t_years: float, sigma: float, rate: float, dividend: float) -> float:
+    if right == "put":
+        return put_delta(spot, strike, t_years, sigma, rate, dividend)
+    return call_delta(spot, strike, t_years, sigma, rate, dividend)
+
+
 def strike_for_delta(
     spot: float,
     t_years: float,
@@ -51,6 +79,28 @@ def strike_for_delta(
         mid = 0.5 * (lo + hi)
         delta = call_delta(spot, mid, t_years, sigma, rate, dividend)
         if delta > target_delta:
+            lo = mid
+        else:
+            hi = mid
+    return hi
+
+
+def strike_for_put_delta(
+    spot: float,
+    t_years: float,
+    sigma: float,
+    target_abs_delta: float,
+    rate: float,
+    dividend: float,
+) -> float:
+    """Strike whose put delta is about ``-target_abs_delta``. Higher strikes are more negative."""
+    lo = spot * 0.2
+    hi = spot * 3.0
+    target = -abs(target_abs_delta)
+    for _ in range(48):
+        mid = 0.5 * (lo + hi)
+        delta = put_delta(spot, mid, t_years, sigma, rate, dividend)
+        if delta > target:
             lo = mid
         else:
             hi = mid
