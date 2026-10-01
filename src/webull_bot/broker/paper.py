@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from webull_bot.broker.base import Broker
 from webull_bot.costs import CostModel, buy_fees, buy_price, sell_price, sell_regulatory_fees
 from webull_bot.models import (
     AccountSnapshot,
@@ -23,7 +24,7 @@ from webull_bot.models import (
 )
 
 
-class PaperBroker:
+class PaperBroker(Broker):
     name = "paper"
 
     def __init__(
@@ -32,12 +33,17 @@ class PaperBroker:
         costs: CostModel,
         starting_equity: float = 100_000.0,
         account_type: str = "margin",
+        leverage: float = 1.0,
     ) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.costs = costs
         self.starting_equity = float(starting_equity)
         self.account_type = account_type
+        # 1.0 debits the full share notional, which is the stock paper account.
+        # A higher value reserves notional/leverage so a futures-sized print can
+        # be rehearsed through the same fill and stop code. Stock replay leaves this at 1.
+        self.leverage = float(leverage) if leverage and leverage > 0 else 1.0
         self._conn = sqlite3.connect(self.db_path)
         self._conn.row_factory = sqlite3.Row
         self._init()
@@ -54,10 +60,14 @@ class PaperBroker:
     def snapshot(self) -> AccountSnapshot:
         cash = self._cash()
         positions = self.positions()
+        reserved = self._reserved_by_symbol()
         equity = cash
         for pos in positions:
             price = pos.peak_price or pos.avg_price
-            equity += pos.quantity * price
+            margin = reserved.get(pos.symbol, 0.0)
+            if margin <= 0:
+                margin = pos.avg_price * pos.quantity
+            equity += margin + (price - pos.avg_price) * pos.quantity
         return AccountSnapshot(
             equity=equity,
             cash=cash,
@@ -122,7 +132,17 @@ class PaperBroker:
         pos = self._conn.execute("SELECT * FROM positions WHERE symbol = ?", (symbol,)).fetchone()
         if pos is None:
             return []
+        for order in self.open_orders():
+            if order.symbol == symbol:
+                self.cancel_order(order.client_order_id)
         return self._fill_sell(symbol, float(pos["quantity"]), price, reason, pos["strategy"] or "")
+
+    def set_sector(self, symbol: str, sector: str) -> None:
+        self._conn.execute(
+            "UPDATE positions SET sector = ? WHERE symbol = ?",
+            (sector, symbol),
+        )
+        self._conn.commit()
 
     def flatten(self) -> list[Fill]:
         """Cancel resting orders and fill market exits at the last marked price."""
@@ -143,37 +163,101 @@ class PaperBroker:
             )
         self._conn.commit()
 
+    def update_stop(self, symbol: str, stop_price: float) -> None:
+        self._conn.execute(
+            "UPDATE positions SET stop_price = ? WHERE symbol = ?",
+            (float(stop_price), symbol),
+        )
+        self._conn.commit()
+
+    def fill_order_at(self, order: Order, raw_price: float) -> list[Fill]:
+        """Fill a market order at a known print, such as a closing price.
+
+        ``process_bar`` fills market orders at the bar open. Spec 8 buys the
+        close, so the paper path needs this entry point. It uses the same
+        cost model as every other paper fill.
+        """
+        self.place_order(order)
+        if order.side == Side.BUY:
+            fills = self._fill_buy(order, raw_price)
+        else:
+            fills = self._fill_sell(
+                order.symbol, order.quantity, raw_price, "fill", order.strategy, order.client_order_id
+            )
+        self.mark_prices({order.symbol: raw_price})
+        self._refresh_equity()
+        return fills
+
     def process_bar(self, symbol: str, open_: float, high: float, low: float, close: float) -> list[Fill]:
-        """Fill resting orders against one bar. Stops gap through to the open."""
+        """Fill resting orders against one bar.
+
+        Market orders fill at the open. If the bar trades through a protective
+        stop and a profit limit, the stop fills. A gap through the stop fills
+        at the open.
+        """
         fills: list[Fill] = []
-        orders = [
-            row
-            for row in self._conn.execute("SELECT * FROM orders WHERE status = 'NEW' AND symbol = ?", (symbol,))
-        ]
+        orders = list(
+            self._conn.execute("SELECT * FROM orders WHERE status = 'NEW' AND symbol = ?", (symbol,))
+        )
         for row in orders:
             order = self._order_from_row(row)
+            if order.order_type != OrderType.MARKET:
+                continue
             fill_raw = _paper_fill_price(order, open_, high, low, close)
             if fill_raw is None:
                 continue
             if order.side == Side.BUY:
                 fills.extend(self._fill_buy(order, fill_raw))
             else:
-                fills.extend(self._fill_sell(symbol, order.quantity, fill_raw, "order", order.strategy, order.client_order_id))
-        # Protective stops stored on the position, if no resting stop order filled them.
-        pos = self._conn.execute("SELECT * FROM positions WHERE symbol = ?", (symbol,)).fetchone()
-        if pos is not None and pos["stop_price"] is not None:
-            stop = float(pos["stop_price"])
-            if open_ <= stop or low <= stop:
-                raw = open_ if open_ <= stop else stop
-                fills.extend(self._fill_sell(symbol, float(pos["quantity"]), raw, "stop", pos["strategy"] or ""))
+                fills.extend(
+                    self._fill_sell(symbol, order.quantity, fill_raw, "order", order.strategy, order.client_order_id)
+                )
+        stopped = self._stop_out(symbol, open_, low)
+        fills.extend(stopped)
+        if stopped:
+            self.mark_prices({symbol: close})
+            self._refresh_equity()
+            return fills
+        resting = list(
+            self._conn.execute("SELECT * FROM orders WHERE status = 'NEW' AND symbol = ?", (symbol,))
+        )
+        for row in resting:
+            order = self._order_from_row(row)
+            if order.order_type == OrderType.MARKET:
+                continue
+            fill_raw = _paper_fill_price(order, open_, high, low, close)
+            if fill_raw is None:
+                continue
+            if order.side == Side.BUY:
+                fills.extend(self._fill_buy(order, fill_raw))
+            else:
+                fills.extend(
+                    self._fill_sell(symbol, order.quantity, fill_raw, "target", order.strategy, order.client_order_id)
+                )
         self.mark_prices({symbol: close})
         self._refresh_equity()
+        return fills
+
+    def _stop_out(self, symbol: str, open_: float, low: float) -> list[Fill]:
+        """Fill the protective stop and cancel resting orders when the bar hits it."""
+        pos = self._conn.execute("SELECT * FROM positions WHERE symbol = ?", (symbol,)).fetchone()
+        if pos is None or pos["stop_price"] is None:
+            return []
+        stop = float(pos["stop_price"])
+        if not (open_ <= stop or low <= stop):
+            return []
+        raw = open_ if open_ <= stop else stop
+        fills = self._fill_sell(symbol, float(pos["quantity"]), raw, "stop", pos["strategy"] or "")
+        for order in self.open_orders():
+            if order.symbol == symbol:
+                self.cancel_order(order.client_order_id)
         return fills
 
     def _fill_buy(self, order: Order, raw_price: float) -> list[Fill]:
         fill_px = buy_price(raw_price, self.costs)
         fee = buy_fees(self.costs)
-        spent = fill_px * order.quantity + fee
+        reserve = fill_px * order.quantity / self.leverage
+        spent = reserve + fee
         cash = self._cash()
         if spent > cash + 1e-8:
             self.cancel_order(order.client_order_id)
@@ -183,16 +267,18 @@ class PaperBroker:
         if existing is None:
             self._conn.execute(
                 """
-                INSERT INTO positions (symbol, quantity, avg_price, strategy, stop_price, last_price, sector)
-                VALUES (?, ?, ?, ?, ?, ?, '')
+                INSERT INTO positions (
+                    symbol, quantity, avg_price, strategy, stop_price, last_price, sector, margin_reserved
+                ) VALUES (?, ?, ?, ?, ?, ?, '', ?)
                 """,
-                (order.symbol, order.quantity, fill_px, order.strategy, order.stop_price, fill_px),
+                (order.symbol, order.quantity, fill_px, order.strategy, order.stop_price, fill_px, reserve),
             )
         else:
             new_qty = float(existing["quantity"]) + order.quantity
+            new_reserve = float(existing["margin_reserved"] or 0.0) + reserve
             self._conn.execute(
-                "UPDATE positions SET quantity = ?, avg_price = ?, last_price = ? WHERE symbol = ?",
-                (new_qty, fill_px, fill_px, order.symbol),
+                "UPDATE positions SET quantity = ?, avg_price = ?, last_price = ?, margin_reserved = ? WHERE symbol = ?",
+                (new_qty, fill_px, fill_px, new_reserve, order.symbol),
             )
         self._conn.execute(
             "UPDATE orders SET status = 'FILLED', fill_price = ? WHERE client_order_id = ?",
@@ -226,15 +312,27 @@ class PaperBroker:
         if pos is None:
             return []
         qty = min(float(quantity), float(pos["quantity"]))
+        full_qty = float(pos["quantity"])
         fill_px = sell_price(raw_price, self.costs)
         fees = sell_regulatory_fees(fill_px, qty, self.costs)
-        proceeds = fill_px * qty - fees
-        self._conn.execute("UPDATE account SET cash = cash + ? WHERE id = 1", (proceeds,))
-        left = float(pos["quantity"]) - qty
+        reserved = float(pos["margin_reserved"] or 0.0)
+        if reserved <= 0:
+            reserved = float(pos["avg_price"]) * full_qty
+        reserved = reserved * (qty / full_qty) if full_qty else 0.0
+        # Give back the reserved margin and book the price change. At 1x
+        # leverage the reserve is the full notional, so this is the same
+        # cash credit as paying the sale proceeds.
+        credit = reserved + (fill_px - float(pos["avg_price"])) * qty - fees
+        self._conn.execute("UPDATE account SET cash = cash + ? WHERE id = 1", (credit,))
+        left = full_qty - qty
         if left <= 1e-9:
             self._conn.execute("DELETE FROM positions WHERE symbol = ?", (symbol,))
         else:
-            self._conn.execute("UPDATE positions SET quantity = ? WHERE symbol = ?", (left, symbol))
+            left_reserve = float(pos["margin_reserved"] or 0.0) * (left / full_qty)
+            self._conn.execute(
+                "UPDATE positions SET quantity = ?, margin_reserved = ? WHERE symbol = ?",
+                (left, left_reserve, symbol),
+            )
         if client_order_id:
             self._conn.execute(
                 "UPDATE orders SET status = 'FILLED', fill_price = ? WHERE client_order_id = ?",
@@ -286,7 +384,8 @@ class PaperBroker:
                 strategy TEXT,
                 stop_price REAL,
                 last_price REAL,
-                sector TEXT
+                sector TEXT,
+                margin_reserved REAL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS orders (
                 client_order_id TEXT PRIMARY KEY,
@@ -304,6 +403,14 @@ class PaperBroker:
             """
         )
         self._conn.commit()
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(positions)")}
+        if "margin_reserved" not in columns:
+            self._conn.execute("ALTER TABLE positions ADD COLUMN margin_reserved REAL DEFAULT 0")
+            self._conn.commit()
+
+    def _reserved_by_symbol(self) -> dict[str, float]:
+        rows = self._conn.execute("SELECT symbol, margin_reserved FROM positions").fetchall()
+        return {row["symbol"]: float(row["margin_reserved"] or 0.0) for row in rows}
 
     @staticmethod
     def _order_from_row(row: sqlite3.Row) -> Order:

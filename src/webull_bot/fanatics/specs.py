@@ -137,7 +137,10 @@ def session_table(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _tick(symbol: str) -> float:
-    return float(INSTRUMENTS[symbol]["tick"])
+    spec = INSTRUMENTS.get(symbol)
+    if spec is None:
+        return 0.01
+    return float(spec["tick"])
 
 
 def spec1(bars: dict[str, pd.DataFrame], params: dict) -> list[Signal]:

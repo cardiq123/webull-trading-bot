@@ -189,6 +189,46 @@ That replays the last five daily sessions through the paper broker, writes
 `data/journal.sqlite`, and prints equity. Omit `--replay` to poll during
 NYSE hours (America/New_York, weekends and full-day holidays idle) and run
 one after-close pass. `--max-cycles` stops an unattended loop.
+`--max-cycles 45` replays the last 45 daily sessions of the selected book.
+
+To replay every implemented strategy (dual momentum, the other stock rules,
+and the eight Chart Fanatics specs) through that same paper broker and
+compare each one to a backtest of the same sessions:
+
+```bash
+python -m webull_bot paper-sim
+```
+
+`paper-sim` writes the comparison into `RESULTS.md`. It uses simulated
+fills, protective stops, the daily-loss flatten, and the kill-switch
+flatten. It does not place an order at a broker. Chart Fanatics specs that
+are futures or crypto are rehearsed on the paper ledger with margin
+reserved so a contract-sized print can exist; shorts are not sent, and
+those specs are not added to the Webull stock config.
+
+### Pointing the bot at a Webull paper account
+
+`paper` and `paper-sim` never call Webull, even if API keys are set. They
+fill inside this process.
+
+Webull's OpenAPI test host is the sandbox. After the API application is
+approved, put the keys in the environment and leave the host on the sandbox:
+
+```bash
+export WEBULL_APP_KEY=... WEBULL_APP_SECRET=... WEBULL_ACCOUNT_ID=...
+export WEBULL_ENV=sandbox
+```
+
+`WEBULL_ENV=sandbox` uses `api.sandbox.webull.com`. `WEBULL_ENV=production`
+uses `api.webull.com`. Use sandbox when you mean Webull's paper or test
+account. This environment has no keys, and this project does not call the
+API from research or from `paper-sim`.
+
+Orders to the sandbox host go through `python -m webull_bot live`, which
+still refuses to start unless `live_trading_enabled` is true and the
+confirmation phrase is typed. Leave `live_trading_enabled` false until you
+intend to send those orders. There is no path in `paper` or `paper-sim`
+that submits a live order.
 
 ```bash
 python -m webull_bot kill --flatten

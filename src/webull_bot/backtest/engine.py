@@ -100,6 +100,16 @@ class BacktestResult:
         return grouped
 
 
+def _returns_before(returns: pd.DataFrame, ts: pd.Timestamp) -> pd.DataFrame:
+    """Return rows strictly before ``ts`` so today's close is not in the correlation."""
+    if returns is None or returns.empty:
+        return returns
+    prior = returns.loc[:ts]
+    if len(prior) == 0:
+        return prior
+    return prior.iloc[:-1]
+
+
 def _session_date(ts: Any) -> date:
     stamp = pd.Timestamp(ts)
     if stamp.tzinfo is not None:
@@ -159,8 +169,15 @@ def run_backtest(
     highs = {symbol: _clean(bars[symbol]["high"], clock, np.nan) for symbol in symbols}
     lows = {symbol: _clean(bars[symbol]["low"], clock, np.nan) for symbol in symbols}
     closes = {symbol: _clean(bars[symbol]["close"], clock, np.nan) for symbol in symbols}
-    close_frame = pd.DataFrame({symbol: pd.Series(closes[symbol], index=clock) for symbol in symbols})
-    returns = close_frame.pct_change()
+    # Correlation uses history from before the trade window. Building it on
+    # the sliced clock made a 60-day lookback see only the bars since
+    # trade_start, so a short replay rejected different names than paper.
+    history_index = clock_source.index
+    if trade_end is not None:
+        history_index = history_index[history_index <= pd.Timestamp(trade_end)]
+    hist_returns = pd.DataFrame(
+        {symbol: bars[symbol]["close"].reindex(history_index).astype(float) for symbol in symbols}
+    ).pct_change()
 
     books: list[_Book] = []
     for strategy in strategies:
@@ -293,7 +310,7 @@ def run_backtest(
             sector=book.sector,
             as_of=session,
             prices=mark,
-            returns=returns.iloc[:bar_index],
+            returns=_returns_before(hist_returns, ts),
             would_day_trade_on_close=not book.holds_overnight,
         )
         if not plan.accepted:

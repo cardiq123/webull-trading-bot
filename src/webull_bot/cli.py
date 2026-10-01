@@ -53,6 +53,14 @@ def main(argv: list[str] | None = None) -> int:
     research.add_argument("--report-dir", default="reports")
     research.add_argument("--end", default=None)
 
+    paper_sim = sub.add_parser(
+        "paper-sim",
+        help="Replay every implemented strategy through the local paper broker. Does not call Webull.",
+    )
+    _add_config(paper_sim)
+    paper_sim.add_argument("--sessions", type=int, default=45, help="Trading sessions at the end of the sample. Default 45.")
+    paper_sim.add_argument("--report-dir", default="reports")
+
     args = parser.parse_args(argv)
     config = load_config(args.config)
     setup_logging(config.get("logging", "level", default="INFO"), config.get("logging", "dir", default="logs"))
@@ -69,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
         from webull_bot.research import run_research
 
         run_research(report_dir=args.report_dir, end=args.end)
+        return 0
+    if args.command == "paper-sim":
+        from webull_bot.paper_study import run as run_paper_sim
+
+        run_paper_sim(report_dir=args.report_dir, sessions=args.sessions, config_path=args.config)
         return 0
     parser.error(args.command)
     return 2
