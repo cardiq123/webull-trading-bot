@@ -1,5 +1,5 @@
 {
   "optional": [],
   "expression": "stock",
-  "rationale": "bluechip_reversal did not pass the out-of-sample gates. support_reversal did not pass the out-of-sample gates. wedge_breakout did not pass the out-of-sample gates."
+  "rationale": "bluechip_reversal did not pass the out-of-sample gates. support_reversal did not pass the out-of-sample gates. wedge_breakout did not pass the out-of-sample gates. Chart Fanatics: spec 1 no edge; spec 2 inconclusive; spec 3 inconclusive; spec 4 no edge; spec 5 inconclusive; spec 6 inconclusive; spec 7 inconclusive; spec 8 no edge."
 }

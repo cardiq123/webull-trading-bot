@@ -307,6 +307,8 @@ Flags: parameter_fragile, oos_profit_factor_below_1, oos_sharpe_negative, sharpe
 
 Example charts of what the detectors mark as a rising trendline and a wedge are in `reports/setups/`. Neither strategy joins the config. The default book is still dual momentum.
 
+**Chart Fanatics specs: none joins the book.** Eight rules from prop-firm scalpers were scored on the pre-registered default, with walk-forward only inside that grid. Spec 8 (SPY and QQQ, buy the close and sell the next open, 2017-01-01 through 2026-09-30, 2,448 trades) has a positive gross overnight drift and a negative traded result after 5 bps slippage and 1 bp half-spread: Sharpe -1.54, profit factor 0.71, max drawdown -85.64%. Specs 1 and 4 on a Binance BTC/ETH proxy cleared 300 trades and lost money (no edge on that proxy, not a verdict on NQ). Specs 2, 3, 5, 6, and 7 stayed under 300 trades. Yahoo NQ=F and ES=F 5-minute history is about 70 days. Dukascopy's free 1-minute host throttled, so there is no multi-year CME sample. Nothing was added to the optional list. The default is still dual momentum. Full table in [RESULTS.md](RESULTS.md).
+
 - Gap-and-go on ETFs took 1 trade and lost money (Sharpe -0.32). The stock
   diagnostic also lost money (Sharpe -0.41, 67 trades) and is survivorship-biased.
 - End-of-day mean reversion on ETFs was slightly profitable (Sharpe 0.15,

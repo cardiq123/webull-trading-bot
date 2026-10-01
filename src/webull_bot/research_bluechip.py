@@ -154,6 +154,11 @@ def write_optional_config(studies, config_dir: Path) -> None:
             )
         else:
             notes.append(f"{name} did not pass the out-of-sample gates.")
+    existing = config_dir / "optional_strategies.json"
+    if existing.exists() and "overnight_drift" in json.loads(existing.read_text()).get("optional", []):
+        if "overnight_drift" not in optional:
+            optional.append("overnight_drift")
+            notes.append("overnight_drift stayed optional from the Chart Fanatics study.")
     payload = {
         "optional": optional,
         "expression": "stock",

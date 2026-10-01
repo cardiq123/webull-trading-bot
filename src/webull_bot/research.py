@@ -858,6 +858,12 @@ def _write_results(
     lines.extend(f"- {note}" for note in intraday_notes)
     if extra:
         lines.append(extra.rstrip("\n"))
+    fanatics = Path("reports/fanatics_section.md")
+    if fanatics.exists():
+        lines.append("")
+        lines.append("<!-- FANATICS_START -->")
+        lines.append(fanatics.read_text().strip())
+        lines.append("<!-- FANATICS_END -->")
     lines.append("")
     # RESULTS.md lives at the repo root; the function is also given the report dir.
     Path("RESULTS.md").write_text("\n".join(lines))
