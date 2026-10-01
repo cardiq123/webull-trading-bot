@@ -1,0 +1,9 @@
+numpy>=1.26
+pandas>=2.1
+PyYAML>=6.0
+requests>=2.31
+yfinance>=0.2.50
+pytest>=8.0
+# Official Webull OpenAPI SDK. Imported lazily by the broker adapter.
+# https://github.com/webull-inc/webull-openapi-python-sdk
+webull-openapi-python-sdk>=0.1.0
