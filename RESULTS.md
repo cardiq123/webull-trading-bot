@@ -2286,6 +2286,167 @@ Every sized-account scale row loses money, and none clears the old gate. The -20
 Not added to `config/optional_strategies.json`. The published A-D books and the earlier exit labels are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_SCALE_END -->
 
+<!-- CHART_READS_SCALE_CORRECTED_START -->
+## Corrected options scale-out
+
+DOES NOT CHANGE THE GATE. The earlier scale-out section scored a different rule: after the +15% tier, every remaining contract moved to break-even. This section is the correction, frozen before the re-score. Contracts 1-4 (2 at +15%, 1 at +20%, 1 at +30%) keep the initial premium stop for the whole trade. The runner keeps that stop until the +15% tier fills, then its stop moves to the entry ask, and its limit stays at +100%. A stop sells only the contracts that stop applies to. Nothing was sent to a broker. Live trading stays off.
+
+The cell the gate reads is a -20% premium stop and 21 DTE, the midpoint of the stated 5-35 DTE band. -30%, 5 DTE, and 35 DTE are sensitivities and do not replace it. Longs are calls and shorts are puts, delta 0.45. The sized account is the in-sample median equity that puts the -20% stop at about 2% of the account, and at least the five-lot debit. The $1,000 book takes five contracts only when that debit fits. Random entries keep the symbols, directions, and count, shuffle the timestamps with seed 17, and use the same ladder. The holdout is the same window each book used before.
+
+### Chop-v2 60-minute box breakout
+
+283 signals on the named list, frozen chop-v2 box, no cell override. Calls and puts follow the setup. 21 DTE. This is the forward-test candidate.
+Holdout 2025-10-13 through 2026-10-06. Signals 283, of which 139 are in the holdout. In-sample five-lot quotes: 139. Median debit $4,202.99. Quotes that fit five contracts in $1,000: 0 of 139. Sized account $42,052.22, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 44 | 18.2% | -17.8% | $-920.50 | 0.09 | -8.75 | -96.3% | $1,550.24 | 56 |
+| scale, premium stop -20%, 21 DTE | gate | 53 | 17.0% | -17.0% | $-764.20 | 0.24 | -6.69 | -96.3% | $1,549.57 | 50 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 45 | 33.3% | -17.1% | $-870.23 | 0.28 | -4.22 | -93.8% | $2,891.95 | 37 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 53 | 15.1% | -15.9% | $-767.32 | 0.29 | -8.08 | -96.7% | $1,384.00 | 58 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 67 | 14.9% | -22.1% | $-616.96 | 0.14 | -9.97 | -98.3% | $715.72 | 38 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 42 | 16.7% | -16.4% | $-950.78 | 0.19 | -7.93 | -95.0% | $2,119.54 | 67 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 139 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 139 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 38 | 21.1% | -17.2% | $-1,065.36 | 0.12 | -9.82 | -96.3% | $1,568.53 | 81 |
+Gated holdout row: 53 trades, expectancy $-764.20, profit factor 0.24, Sharpe -6.69, max drawdown -96.3%, ending $1,549.57. It does not clear the old gate. It does not beat the random entries on Sharpe with a drawdown that is not worse.
+43 hit 0, 1 hit 1, 0 hit 2, 8 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 7. Armed after the first target: 10.
+
+### Partial bounce, daily Dow
+
+2508 signals. Same bounce entry. Calls, 21 DTE. Holdout 2019-01-01 through 2026-10-06.
+Holdout 2019-01-01 through 2026-10-06. Signals 2508, of which 1223 are in the holdout. In-sample five-lot quotes: 1270. Median debit $474.48. Quotes that fit five contracts in $1,000: 1073 of 1270. Sized account $4,764.04, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 44 | 4.5% | -37.6% | $-107.79 | 0.07 | -13.11 | -99.5% | $21.48 | 1166 |
+| scale, premium stop -20%, 21 DTE | gate | 23 | 4.3% | -29.8% | $-203.82 | 0.02 | -14.33 | -98.4% | $76.25 | 1189 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 23 | 13.0% | -26.6% | $-202.79 | 0.12 | -6.90 | -97.9% | $99.94 | 1182 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 25 | 4.0% | -28.7% | $-187.14 | 0.05 | -15.64 | -98.2% | $85.42 | 1184 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 25 | 0.0% | -41.6% | $-190.02 | 0.00 | -14.28 | -99.7% | $13.45 | 1190 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 21 | 0.0% | -27.7% | $-221.20 | 0.00 | -18.05 | -97.5% | $118.78 | 1192 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 9 | 0.0% | -33.8% | $-104.89 | 0.00 | -28.73 | -94.4% | $55.98 | 1209 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 11 | 9.1% | -28.6% | $-83.85 | 0.04 | -7.66 | -93.1% | $77.67 | 1200 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 17 | 0.0% | -37.7% | $-278.57 | 0.00 | -16.14 | -99.4% | $28.38 | 1196 |
+Gated holdout row: 23 trades, expectancy $-203.82, profit factor 0.02, Sharpe -14.33, max drawdown -98.4%, ending $76.25. It does not clear the old gate. It beats the random entries on Sharpe with a drawdown that is not worse.
+22 hit 0, 0 hit 1, 0 hit 2, 1 hit 3, 0 hit 4. Runner +100%: 0. Runner stopped at break-even: 1. Armed after the first target: 1.
+
+### A, 60-minute
+
+457 continuation signals. Calls, 21 DTE.
+Holdout 2025-10-13 through 2026-10-06. Signals 457, of which 222 are in the holdout. In-sample five-lot quotes: 225. Median debit $4,158.84. Quotes that fit five contracts in $1,000: 0 of 225. Sized account $41,610.65, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 46 | 13.0% | -19.3% | $-877.00 | 0.14 | -8.83 | -97.0% | $1,268.78 | 134 |
+| scale, premium stop -20%, 21 DTE | gate | 45 | 17.8% | -18.4% | $-879.84 | 0.10 | -8.38 | -95.9% | $2,017.99 | 142 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 39 | 28.2% | -21.5% | $-1,040.32 | 0.12 | -7.54 | -97.5% | $1,038.00 | 136 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 44 | 13.6% | -18.5% | $-913.32 | 0.14 | -7.65 | -96.6% | $1,424.58 | 149 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 78 | 14.1% | -23.4% | $-524.57 | 0.14 | -6.22 | -98.3% | $694.41 | 95 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 32 | 18.8% | -18.9% | $-1,232.29 | 0.04 | -11.83 | -94.8% | $2,177.35 | 156 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 222 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 222 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 49 | 20.4% | -17.2% | $-811.07 | 0.18 | -7.39 | -95.5% | $1,868.40 | 129 |
+Gated holdout row: 45 trades, expectancy $-879.84, profit factor 0.10, Sharpe -8.38, max drawdown -95.9%, ending $2,017.99. It does not clear the old gate. It does not beat the random entries on Sharpe with a drawdown that is not worse.
+35 hit 0, 3 hit 1, 0 hit 2, 6 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 8. Armed after the first target: 10.
+
+### B, 60-minute
+
+235 failed-breakout signals. Calls and puts follow the setup. 21 DTE.
+Holdout 2025-10-13 through 2026-10-06. Signals 235, of which 121 are in the holdout. In-sample five-lot quotes: 112. Median debit $4,039.31. Quotes that fit five contracts in $1,000: 0 of 112. Sized account $40,415.31, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 48 | 14.6% | -17.6% | $-810.72 | 0.14 | -6.47 | -96.3% | $1,500.73 | 48 |
+| scale, premium stop -20%, 21 DTE | gate | 39 | 10.3% | -20.9% | $-1,003.93 | 0.06 | -12.86 | -96.9% | $1,261.94 | 69 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 34 | 20.6% | -24.0% | $-1,156.58 | 0.11 | -7.83 | -97.4% | $1,091.46 | 64 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 37 | 8.1% | -21.5% | $-1,051.17 | 0.07 | -11.31 | -96.2% | $1,521.88 | 71 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 64 | 12.5% | -21.7% | $-619.64 | 0.06 | -11.17 | -98.1% | $758.58 | 43 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 27 | 7.4% | -22.3% | $-1,424.76 | 0.06 | -15.90 | -95.2% | $1,946.83 | 85 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 121 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 0 | 0.0% | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | 121 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 41 | 14.6% | -20.3% | $-939.49 | 0.15 | -9.36 | -95.3% | $1,896.07 | 66 |
+Gated holdout row: 39 trades, expectancy $-1,003.93, profit factor 0.06, Sharpe -12.86, max drawdown -96.9%, ending $1,261.94. It does not clear the old gate. It does not beat the random entries on Sharpe with a drawdown that is not worse.
+34 hit 0, 1 hit 1, 1 hit 2, 2 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 4. Armed after the first target: 5.
+
+### C, daily Dow
+
+1838 signals. Same daily entries. Calls, 21 DTE.
+Holdout 2019-01-01 through 2026-10-06. Signals 1838, of which 853 are in the holdout. In-sample five-lot quotes: 967. Median debit $423.10. Quotes that fit five contracts in $1,000: 858 of 967. Sized account $4,250.18, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 42 | 0.0% | -36.3% | $-100.55 | 0.00 | -15.95 | -99.4% | $27.09 | 902 |
+| scale, premium stop -20%, 21 DTE | gate | 29 | 10.3% | -25.9% | $-142.76 | 0.06 | -11.47 | -97.4% | $110.24 | 805 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 22 | 31.8% | -22.3% | $-190.06 | 0.13 | -5.22 | -98.4% | $68.82 | 795 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 33 | 15.2% | -23.4% | $-126.71 | 0.22 | -10.00 | -98.4% | $68.89 | 799 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 35 | 0.0% | -38.8% | $-121.02 | 0.00 | -14.89 | -99.7% | $14.61 | 800 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 24 | 12.5% | -24.2% | $-171.09 | 0.08 | -11.40 | -96.6% | $143.94 | 807 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 8 | 0.0% | -40.9% | $-116.54 | 0.00 | -37.58 | -93.2% | $67.66 | 845 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 10 | 20.0% | -26.7% | $-90.33 | 0.13 | -10.08 | -90.3% | $96.67 | 837 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 20 | 10.0% | -30.2% | $-208.11 | 0.07 | -16.36 | -97.9% | $87.98 | 826 |
+Gated holdout row: 29 trades, expectancy $-142.76, profit factor 0.06, Sharpe -11.47, max drawdown -97.4%, ending $110.24. It does not clear the old gate. It beats the random entries on Sharpe with a drawdown that is not worse.
+24 hit 0, 2 hit 1, 0 hit 2, 3 hit 3, 0 hit 4. Runner +100%: 0. Runner stopped at break-even: 3. Armed after the first target: 5.
+
+### D, daily Dow
+
+292 signals. Same daily entries. Calls and puts follow the setup. 21 DTE.
+Holdout 2019-01-01 through 2026-10-06. Signals 292, of which 116 are in the holdout. In-sample five-lot quotes: 171. Median debit $399.92. Quotes that fit five contracts in $1,000: 149 of 171. Sized account $4,018.31, the in-sample median that puts the -20% stop near 2% of equity. The -30% row uses that same account.
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE, in sample | in sample | 40 | 0.0% | -34.3% | $-99.18 | 0.00 | -18.14 | -98.7% | $51.07 | 131 |
+| scale, premium stop -20%, 21 DTE | gate | 17 | 5.9% | -33.3% | $-225.89 | 0.00 | -17.22 | -95.6% | $178.16 | 98 |
+| scale, premium stop -30%, 21 DTE | sensitivity | 19 | 10.5% | -34.4% | $-199.67 | 0.04 | -11.89 | -94.6% | $224.66 | 95 |
+| all-out +30%, premium stop -20%, 21 DTE | comparison | 19 | 5.3% | -31.0% | $-202.24 | 0.07 | -16.40 | -95.6% | $175.76 | 97 |
+| scale, premium stop -20%, 5 DTE | sensitivity | 22 | 0.0% | -46.0% | $-181.69 | 0.00 | -14.20 | -99.5% | $21.12 | 94 |
+| scale, premium stop -20%, 35 DTE | sensitivity | 17 | 5.9% | -29.3% | $-222.58 | 0.01 | -17.95 | -94.2% | $234.45 | 98 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20%, 21 DTE | gate, $1,000 | 7 | 0.0% | -35.3% | $-116.44 | 0.00 | -31.93 | -81.5% | $184.93 | 109 |
+| scale, premium stop -30%, 21 DTE | sensitivity, $1,000 | 8 | 12.5% | -28.5% | $-110.56 | 0.12 | -8.87 | -88.4% | $115.54 | 107 |
+
+| Cell | Role | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending | Skipped |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| random entries, same -20% ladder, 21 DTE | random | 21 | 4.8% | -29.9% | $-176.83 | 0.02 | -14.24 | -92.4% | $304.84 | 95 |
+Gated holdout row: 17 trades, expectancy $-225.89, profit factor 0.00, Sharpe -17.22, max drawdown -95.6%, ending $178.16. It does not clear the old gate. It does not beat the random entries on Sharpe with a drawdown that is not worse.
+16 hit 0, 0 hit 1, 0 hit 2, 1 hit 3, 0 hit 4. Runner +100%: 0. Runner stopped at break-even: 0. Armed after the first target: 1.
+
+Every gated holdout row loses money, and none clears the old gate. Where a row beats the random entries, both Sharpes are negative. That comparison only requires a higher Sharpe, a drawdown that is not worse, and at least 20 trades.
+
+Not added to `config/optional_strategies.json`. The published A-D books, the earlier scale-out numbers, and the share forward test are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_SCALE_CORRECTED_END -->
 <!-- CHART_READS_HOLD_START -->
 ## Chop-hold retest
 

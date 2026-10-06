@@ -77,6 +77,11 @@ def empty_state() -> dict[str, Any]:
         "shadow_positions": [],
         "shadow_exits": [],
         "spy": None,
+        "option_signals": [],
+        "option_orders": [],
+        "option_fills": [],
+        "option_exits": [],
+        "option_positions": [],
     }
 
 
@@ -250,6 +255,9 @@ def run_cycle(
     _mark_open(state, frames, now, lines, broker, dry_run, journal)
     for setup in actionable:
         _on_signal(state, setup, frames, now, lines, broker, dry_run, journal)
+    from webull_bot.execution.forward_options import mark_options
+
+    mark_options(state, actionable, frames, now, lines, broker, dry_run, journal)
     _mark_shadows(state, frames, now, lines, dry_run)
     _mark_spy(state, frames, now, lines, dry_run)
 
@@ -778,6 +786,12 @@ def render_report(state: dict[str, Any]) -> str:
             f"SPY buy-and-hold: {int(spy['shares'])} shares from ${float(spy['entry']):.2f} "
             f"marked ${float(spy['last']):.2f}, P&L ${pnl:.2f}. Not sent."
         )
+    from webull_bot.execution.forward_options import option_lines
+
+    extra = option_lines(state)
+    if extra:
+        lines.append("")
+        lines.extend(extra)
     lines.append("")
     return "\n".join(lines)
 
@@ -785,7 +799,21 @@ def render_report(state: dict[str, Any]) -> str:
 def _blank(state: dict) -> bool:
     return not any(
         state.get(key)
-        for key in ("signals", "orders", "fills", "exits", "positions", "shadow_positions", "shadow_exits", "spy")
+        for key in (
+            "signals",
+            "orders",
+            "fills",
+            "exits",
+            "positions",
+            "shadow_positions",
+            "shadow_exits",
+            "spy",
+            "option_signals",
+            "option_orders",
+            "option_fills",
+            "option_exits",
+            "option_positions",
+        )
     )
 
 

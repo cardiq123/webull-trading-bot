@@ -5,10 +5,13 @@ gate, and it is not a default exit. The ordinary simulator path is
 unchanged when ``fixed_contracts`` is absent and ``exit_style`` is absent.
 
 Buy 5 contracts. Sell 2 at +15% of the premium paid, 1 at +20%, 1 at +30%,
-and leave 1 as a runner with a limit at +100%. After the +15% tier fills,
-the remaining contracts stop at break-even, which is the entry ask (0% on
-the premium). Before that fill, the initial stop is one of the frozen
-premium stops (-20%, -30%, -50%) or the setup's underlying stop.
+and leave 1 as a runner with a limit at +100%. The break-even stop applies
+only to that runner, and only after the +15% tier fills. Until that fill
+the runner keeps the initial stop. Contracts 1-4 keep the initial stop for
+the whole trade. They do not move to break-even. The initial stop is one
+of the frozen premium stops (-20%, -30%, -50%) or the setup's underlying
+stop. -20% with 21 DTE is the corrected cell. -30% and the 5 and 35 DTE
+edges are sensitivities. The gate does not pick among them.
 
 A limit fills at the limit, not at the overshoot. A stop that gaps through
 fills at the worse bid. On a bar that trades both the stop and a target,
@@ -57,6 +60,53 @@ RISK_FRACTION = 0.02
 ANCHOR_STOP = -0.30
 FAR_OTM_DELTA = 0.20
 CASH_ACCOUNT = 1_000.0
+# Frozen before the corrected re-score. 21 is the midpoint of the stated
+# 5-35 DTE band. The edges are reported and do not replace this cell.
+CORRECTED_DTE = 21
+CORRECTED_DTE_BAND = (5, 35)
+CORRECTED_STOP = -0.20
+CORRECTED_STOP_SENSITIVITY = -0.30
+CORRECTED_DELTA = 0.45
+
+
+def corrected_cells() -> list[tuple[str, dict, str]]:
+    """The corrected ladder, frozen before its re-score.
+
+    The first row is the cell the gate reads. A sensitivity or a comparison
+    does not replace it.
+    """
+    return [
+        (
+            "scale, premium stop -20%, 21 DTE",
+            {"mode": "scale", "stop_kind": "premium", "premium_stop": CORRECTED_STOP, "dte": CORRECTED_DTE},
+            "gate",
+        ),
+        (
+            "scale, premium stop -30%, 21 DTE",
+            {
+                "mode": "scale",
+                "stop_kind": "premium",
+                "premium_stop": CORRECTED_STOP_SENSITIVITY,
+                "dte": CORRECTED_DTE,
+            },
+            "sensitivity",
+        ),
+        (
+            "all-out +30%, premium stop -20%, 21 DTE",
+            {"mode": "all_out", "stop_kind": "premium", "premium_stop": CORRECTED_STOP, "dte": CORRECTED_DTE},
+            "comparison",
+        ),
+        (
+            "scale, premium stop -20%, 5 DTE",
+            {"mode": "scale", "stop_kind": "premium", "premium_stop": CORRECTED_STOP, "dte": CORRECTED_DTE_BAND[0]},
+            "sensitivity",
+        ),
+        (
+            "scale, premium stop -20%, 35 DTE",
+            {"mode": "scale", "stop_kind": "premium", "premium_stop": CORRECTED_STOP, "dte": CORRECTED_DTE_BAND[1]},
+            "sensitivity",
+        ),
+    ]
 
 
 def scale_grid() -> list[tuple[str, dict]]:
@@ -160,22 +210,32 @@ def new_state(ask: float, mode: str, stop_kind: str, premium_stop: Optional[floa
         stop_px = None
     if mode == "scale":
         tiers = [
-            {"pct": float(pct), "qty": int(qty), "limit": float(ask) * (1.0 + float(pct))}
-            for pct, qty in SCALE_TIERS
+            {
+                "pct": float(pct),
+                "qty": int(qty),
+                "limit": float(ask) * (1.0 + float(pct)),
+                "role": "runner" if index == len(SCALE_TIERS) - 1 else "fixed",
+            }
+            for index, (pct, qty) in enumerate(SCALE_TIERS)
         ]
+        runner_open = 1
     else:
         tiers = [
             {
                 "pct": ALL_OUT_TARGET,
                 "qty": SCALE_CONTRACTS,
                 "limit": float(ask) * (1.0 + ALL_OUT_TARGET),
+                "role": "fixed",
             }
         ]
+        runner_open = 0
     return {
         "mode": mode,
         "stop_kind": stop_kind,
         "stop_px": stop_px,
         "entry_ask": float(ask),
+        "runner_stop": None,
+        "runner_open": runner_open,
         "tiers": tiers,
         "tier_count": len(tiers),
         "remaining": SCALE_CONTRACTS,
@@ -224,32 +284,50 @@ def apply_scale_bar(
     entry_bar: bool,
     terminal: Optional[str],
 ) -> Optional[str]:
-    """One bar. Stop first, then limits, then the time stop or expiry.
+    """One bar. Stops first, then limits, then the time stop or expiry.
 
-    Break-even is armed at the end of the bar, after the limits, so the
-    same bar's adverse extreme does not scratch a target that just filled.
+    The initial stop covers contracts 1-4 for the whole trade, and the
+    runner until the +15% tier has filled. After that fill, only the runner
+    moves to the entry ask. Break-even is armed at the end of the bar, so
+    the same bar's adverse extreme does not scratch the target that just
+    filled. A bar that trades through a contract's own stop does not also
+    fill that contract's limit.
     """
     if state["done"]:
         return state["reason"] or None
-    if not state["armed"] and state["stop_kind"] == "underlying" and quotes.get("underlying_hit"):
+    if state["stop_kind"] == "underlying" and quotes.get("underlying_hit") and not state["armed"]:
         _flatten(state, float(quotes["underlying_bid"]), "initial_stop")
         return "initial_stop"
-    if _premium_hit(state, float(quotes["open_bid"]), allow=not entry_bar):
-        reason = "breakeven" if state["armed"] else "initial_stop"
-        _flatten(state, float(quotes["open_bid"]), reason)
-        return reason
-    if _premium_hit(state, float(quotes["adverse_bid"]), allow=True):
-        reason = "breakeven" if state["armed"] else "initial_stop"
-        _flatten(state, float(quotes["adverse_bid"]), reason)
-        return reason
+    if _initial_stop_hit(state, float(quotes["open_bid"]), allow=not entry_bar):
+        _flatten(state, float(quotes["open_bid"]), "initial_stop")
+        return "initial_stop"
+    if _initial_stop_hit(state, float(quotes["adverse_bid"]), allow=True):
+        _flatten(state, float(quotes["adverse_bid"]), "initial_stop")
+        return "initial_stop"
+    if state["stop_kind"] == "underlying" and quotes.get("underlying_hit") and state["armed"]:
+        _stop_fixed(state, float(quotes["underlying_bid"]))
+    if state["armed"] and int(state.get("runner_open") or 0) > 0:
+        if _runner_stop_hit(state, float(quotes["open_bid"]), allow=not entry_bar):
+            _stop_runner(state, float(quotes["open_bid"]))
+        elif _runner_stop_hit(state, float(quotes["adverse_bid"]), allow=True):
+            _stop_runner(state, float(quotes["adverse_bid"]))
     favorable = float(quotes["favorable_bid"])
     while state["tiers"] and favorable + 1e-12 >= float(state["tiers"][0]["limit"]):
+        tier = state["tiers"][0]
+        if tier.get("role") == "runner" and int(state.get("runner_open") or 0) <= 0:
+            state["tiers"].pop(0)
+            continue
         tier = state["tiers"].pop(0)
         _sell(state, int(tier["qty"]), float(tier["limit"]), float(tier["pct"]))
         state["targets_hit"] += 1
-        if state["mode"] == "scale" and state["remaining"] > 0:
+        if tier.get("role") == "runner":
+            state["runner_open"] = 0
+            state["runner"] = "target"
+        elif state["mode"] == "scale" and float(tier["pct"]) == float(SCALE_TIERS[0][0]):
             state["arm_pending"] = True
     if state["remaining"] <= 0:
+        if state.get("runner") == "breakeven":
+            return _finish(state, "breakeven")
         return _finish(state, "target")
     if terminal:
         _flatten(state, float(quotes["close_bid"]), terminal)
@@ -258,8 +336,7 @@ def apply_scale_bar(
         state["armed"] = True
         state["arm_pending"] = False
         state["armed_flag"] = 1
-        state["stop_px"] = float(state["entry_ask"])
-        state["stop_kind"] = "premium"
+        state["runner_stop"] = float(state["entry_ask"])
     return None
 
 
@@ -472,6 +549,39 @@ def _prepare(execution: dict[str, pd.DataFrame], session_filter: bool) -> dict[s
     return frames
 
 
+def _initial_stop_hit(state: dict, bid: float, *, allow: bool) -> bool:
+    """The frozen premium stop. Contracts 1-4 keep it after the runner arms."""
+    if not allow or state["stop_px"] is None or state["stop_kind"] != "premium":
+        return False
+    if state["remaining"] <= 0:
+        return False
+    return bid <= float(state["stop_px"])
+
+
+def _runner_stop_hit(state: dict, bid: float, *, allow: bool) -> bool:
+    if not allow or state.get("runner_stop") is None or int(state.get("runner_open") or 0) <= 0:
+        return False
+    return bid <= float(state["runner_stop"])
+
+
+def _stop_runner(state: dict, price: float) -> None:
+    qty = int(state.get("runner_open") or 0)
+    if qty <= 0:
+        return
+    _sell(state, qty, price, None)
+    state["runner_open"] = 0
+    state["runner"] = "breakeven"
+    state["tiers"] = [tier for tier in state["tiers"] if tier.get("role") != "runner"]
+
+
+def _stop_fixed(state: dict, price: float) -> None:
+    """Sell contracts 1-4. The runner keeps its own stop."""
+    qty = sum(int(tier["qty"]) for tier in state["tiers"] if tier.get("role") != "runner")
+    state["tiers"] = [tier for tier in state["tiers"] if tier.get("role") == "runner"]
+    if qty > 0:
+        _sell(state, qty, price, None)
+
+
 def _premium_hit(state: dict, bid: float, *, allow: bool) -> bool:
     if not allow or state["stop_px"] is None:
         return False
@@ -495,6 +605,9 @@ def _sell(state: dict, qty: int, price: float, bucket: Optional[float]) -> None:
 
 
 def _flatten(state: dict, price: float, reason: str) -> str:
+    if state["mode"] == "scale" and int(state.get("runner_open") or 0) > 0:
+        state["runner"] = reason
+        state["runner_open"] = 0
     if state["remaining"] > 0:
         _sell(state, int(state["remaining"]), price, None)
     return _finish(state, reason)
@@ -507,10 +620,8 @@ def _finish(state: dict, reason: str) -> str:
         state["armed_flag"] = 1
     if state["mode"] == "all_out":
         state["runner"] = "all_out" if reason == "target" else reason
-    elif reason == "target":
-        state["runner"] = "target"
-    else:
-        state["runner"] = reason
+    elif not state.get("runner"):
+        state["runner"] = "target" if reason == "target" else reason
     return reason
 
 

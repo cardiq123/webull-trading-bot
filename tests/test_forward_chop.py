@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -466,6 +467,26 @@ def test_place_order_sends_the_day_trailing_stop(monkeypatch):
     body = broker._trade.order_v3.placed[1][0]
     assert body["order_type"] == "MARKET"
     assert "trailing_type" not in body
+    from webull_bot.broker.webull import build_single_option_order
+
+    option = build_single_option_order(
+        client_order_id="c" * 32,
+        symbol="NVDA",
+        side="SELL",
+        quantity=1,
+        strike_price=200,
+        option_expire_date="2026-10-27",
+        option_type="CALL",
+        limit_price=1.0,
+        order_type="LIMIT",
+        position_intent="SELL_TO_CLOSE",
+    )
+    broker.place_option_order(option)
+    sent = broker._trade.order_v3.placed[2][0]
+    assert sent["instrument_type"] == "OPTION"
+    assert sent["order_type"] == "LIMIT"
+    assert sent["quantity"] == "1"
+    assert "trailing_type" not in sent
 
     monkeypatch.setenv("WEBULL_ENV", "production")
     from webull_bot.cli import _forward_test
@@ -475,6 +496,169 @@ def test_place_order_sends_the_day_trailing_stop(monkeypatch):
             load_config("config/default.yaml"),
             SimpleNamespace(strategy="chop_breakout_60m", dry_run=False, now="2026-10-06T10:35:00", config="config/default.yaml"),
         )
+
+
+def test_dry_run_prints_the_option_ladder_and_does_not_send(tmp_path, monkeypatch):
+    def _priced(frame, symbol, direction, now, rv):
+        return {
+            "right": "call" if direction == "long" else "put",
+            "option_type": "CALL" if direction == "long" else "PUT",
+            "strike": 200.0,
+            "expiry": "2026-10-27",
+            "ask": 1.0,
+            "debit": 520.0,
+            "sigma": 0.25,
+            "delta": 0.45,
+            "years": 21 / 365,
+            "spot": 200.0,
+        }
+
+    monkeypatch.setattr("webull_bot.execution.forward_options._contract", _priced)
+    journal = Journal(tmp_path / "journal.sqlite")
+    broker = _Broker()
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 198, 205, 197, 204),
+            ("2026-10-06 10:30", 200, 206, 199, 205),
+        ]
+    )
+    lines = run_cycle(
+        journal=journal,
+        frames=_book(frame),
+        now=_at("2026-10-06T10:35:00"),
+        broker=broker,
+        dry_run=True,
+        scan=lambda frames: [_setup("NVDA", "long", "2026-10-06 09:30"), _setup("AMD", "short", "2026-10-06 09:30", stop=210.0)],
+    )
+    text = "\n".join(lines)
+    assert "Would BUY 5 NVDA CALL strike 200.00 expiry 2026-10-27 LIMIT 1.00 DAY" in text
+    assert "Would place SELL 2 NVDA CALL LIMIT 1.15 DAY" in text
+    assert "Would place SELL 1 NVDA CALL LIMIT 1.20 DAY" in text
+    assert "Would place SELL 1 NVDA CALL LIMIT 1.30 DAY" in text
+    assert "Would place SELL 1 NVDA CALL LIMIT 2.00 DAY" in text
+    assert "contracts 1-4 stay at 0.80" in text
+    assert "runner stays there until the +15% tier fills" in text
+    assert "Would BUY 5 AMD PUT" in text
+    assert "short signal" in text and "skipped" in text
+    assert "No broker call." in text
+    assert broker.orders == []
+    assert journal.forward_load("chop_breakout_60m") is None
+    live = Path("src/webull_bot/execution/live.py").read_text()
+    assert "place_option_order" not in live
+    assert "mark_options" not in live
+
+
+class _OptionBroker(_Broker):
+    def __init__(self):
+        super().__init__()
+        self.option_orders = []
+
+    def place_option_order(self, payload):
+        self.option_orders.append(dict(payload))
+        return payload
+
+
+def test_option_stop_sells_only_the_runner_and_does_not_repeat(tmp_path, monkeypatch):
+    """After +15%, a break-even touch sells the runner only, once."""
+
+    def _priced(frame, symbol, direction, now, rv):
+        return {
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 200.0,
+            "expiry": "2026-10-27",
+            "ask": 1.0,
+            "debit": 520.0,
+            "sigma": 0.25,
+            "delta": 0.45,
+            "years": 21 / 365,
+            "spot": 200.0,
+        }
+
+    def _bids(position, row, entry_bar):
+        hour = pd.Timestamp(row.name).tz_convert(NY).hour
+        if hour <= 9:
+            favorable, adverse = 1.05, 0.90
+        elif hour == 10:
+            favorable, adverse = 1.16, 0.90
+        else:
+            favorable, adverse = 1.10, 0.97
+        return {
+            "open_bid": 1.0,
+            "adverse_bid": adverse,
+            "favorable_bid": favorable,
+            "close_bid": 1.0,
+            "underlying_hit": False,
+            "underlying_bid": 0.0,
+            "entry_bar": entry_bar,
+        }
+
+    monkeypatch.setattr("webull_bot.execution.forward_options._contract", _priced)
+    monkeypatch.setattr("webull_bot.execution.forward_options._quotes", _bids)
+    journal = Journal(tmp_path / "journal.sqlite")
+    broker = _OptionBroker()
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 198, 205, 197, 204),
+            ("2026-10-06 10:30", 200, 206, 199, 205),
+            ("2026-10-06 11:30", 200, 202, 199, 201),
+            ("2026-10-06 12:30", 200, 201, 199, 200),
+        ]
+    )
+    signal = _setup("NVDA", "long", "2026-10-06 09:30")
+
+    def cycle(stamp: str):
+        return run_cycle(
+            journal=journal,
+            frames=_book(frame),
+            now=_at(stamp),
+            broker=broker,
+            dry_run=False,
+            scan=lambda frames: [signal],
+        )
+
+    first = cycle("2026-10-06T10:35:00")
+    assert any("BUY 5 NVDA CALL" in line for line in first)
+    assert len(broker.option_orders) == 5
+    buys = [row for row in broker.option_orders if row["side"] == "BUY"]
+    assert len(buys) == 1
+    assert buys[0]["quantity"] == "5"
+    limits = [row for row in broker.option_orders if row["side"] == "SELL"]
+    assert [row["quantity"] for row in limits] == ["2", "1", "1", "1"]
+    assert [row["limit_price"] for row in limits] == ["1.15", "1.20", "1.30", "2.00"]
+    share_ids = {order.client_order_id for order in broker.orders}
+
+    again = cycle("2026-10-06T10:40:00")
+    assert any("already journaled" in line for line in again)
+    assert len(broker.option_orders) == 5
+
+    cycle("2026-10-06T11:35:00")
+    assert len([row for row in broker.option_orders if row["side"] == "SELL"]) == 4
+    stopped = cycle("2026-10-06T12:35:00")
+    text = "\n".join(stopped)
+    assert "SELL 1 NVDA CALL" in text
+    assert "bot stop breakeven" in text
+    assert "Only contracts still open" in text
+    stops = [
+        row
+        for row in broker.option_orders
+        if row["side"] == "SELL" and row["position_intent"] == "SELL_TO_CLOSE" and float(row["limit_price"]) < 1.1
+    ]
+    assert len(stops) == 1
+    assert stops[0]["quantity"] == "1"
+    runner_ids = {row["client_order_id"] for row in limits if row["limit_price"] == "2.00"}
+    kept_ids = {row["client_order_id"] for row in limits if row["limit_price"] in {"1.20", "1.30"}}
+    assert runner_ids <= set(broker.cancelled)
+    assert kept_ids.isdisjoint(broker.cancelled)
+    assert share_ids.isdisjoint(broker.cancelled)
+    before = len(broker.option_orders)
+    cycle("2026-10-06T12:40:00")
+    assert len(broker.option_orders) == before
+    saved = journal.forward_load("chop_breakout_60m")
+    position = saved["option_positions"][0]
+    assert position["scale"]["remaining"] == 2
+    assert position["scale"]["runner"] == "breakeven"
+    assert position["scale"]["sold"]["0.15"] == 2
 
 
 def test_cli_idle_returns_before_any_broker_or_download(monkeypatch, capsys):

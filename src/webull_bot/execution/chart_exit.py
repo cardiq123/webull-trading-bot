@@ -190,9 +190,10 @@ def plan_option_scale(
 
     The limits are 2 at +15%, 1 at +20%, 1 at +30%, and the runner at +100%
     of the premium paid. Webull's options page has no OTO, OCO, or OTOCO,
-    so a resting stop beside those limits could oversell. The initial stop
-    and the break-even stop are watches. After the +15% limit fills, the
-    watch moves to the entry premium. Limits are DAY orders. Nothing is sent.
+    so a resting stop beside those limits could oversell. Contracts 1-4 keep
+    the initial premium stop. Only the runner moves to the entry premium,
+    and only after the +15% limit fills. A stop sells contracts still open.
+    Limits are DAY orders. Nothing is sent.
     """
     if right not in {"call", "put"}:
         raise ValueError("right must be call or put")
@@ -235,13 +236,14 @@ def plan_option_scale(
             "premium_stop": None if stop_kind != "premium" else breakeven * (1.0 + float(premium_stop)),
             "underlying_stop": underlying_stop,
             "breakeven_premium": breakeven,
+            "breakeven_applies_to": "runner",
             "arm_after_contracts_sold": int(SCALE_TIERS[0][1]),
         },
         "note": (
             "Each tier is its own option LIMIT sell. OTO, OCO, and OTOCO are not supported on options, "
             "and a resting STOP_LOSS next to these limits could sell the same contracts twice. "
-            "The initial stop and the break-even stop are bot-managed. "
-            "After the +15% order fills, the bot watches the entry premium on whatever is left. "
+            "Contracts 1-4 keep the initial stop. Break-even applies to only the runner, after the +15% "
+            "order fills. A stop sells only contracts still open. "
             "The limits are DAY orders and are renewed for a multi-day hold. No option order is sent."
         ),
     }

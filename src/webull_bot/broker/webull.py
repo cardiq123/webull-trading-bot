@@ -814,6 +814,15 @@ class WebullBroker(Broker):
         order.note = f"submitted keys={_keys(body)}"
         return order
 
+    def place_option_order(self, payload: dict) -> dict:
+        """One option payload. Sandbox forward test only. Live trading does not call this."""
+        self._require_account()
+        self._guard_sandbox()
+        if payload.get("instrument_type") != "OPTION":
+            raise WebullError("place_option_order accepts an option payload only")
+        response = self._trade.order_v3.place_order(self.account_id, [payload])
+        return _payload(response)
+
     def cancel_order(self, client_order_id: str) -> None:
         self._require_account()
         self._guard_sandbox()

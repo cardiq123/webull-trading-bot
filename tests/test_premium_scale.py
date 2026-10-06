@@ -97,7 +97,7 @@ def test_entry_bar_does_not_stop_on_the_spread_at_the_fill():
     assert state["targets_hit"] == 0
 
 
-def test_first_target_arms_break_even_and_the_next_bar_can_scratch_the_runner():
+def test_first_target_arms_break_even_on_the_runner_only():
     state = new_state(1.0, "scale", "premium", -0.50)
     first = apply_scale_bar(
         state,
@@ -110,7 +110,8 @@ def test_first_target_arms_break_even_and_the_next_bar_can_scratch_the_runner():
     assert state["remaining"] == 3
     assert state["sold"]["0.15"] == 2
     assert state["armed"] is True
-    assert state["stop_px"] == pytest.approx(1.0)
+    assert state["stop_px"] == pytest.approx(0.50)
+    assert state["runner_stop"] == pytest.approx(1.0)
     first_fees = option_leg_fees(2, 1.15, sell=True)
     assert state["credit"] == pytest.approx(2 * 1.15 * CONTRACT_MULTIPLIER - first_fees)
     second = apply_scale_bar(
@@ -119,13 +120,33 @@ def test_first_target_arms_break_even_and_the_next_bar_can_scratch_the_runner():
         entry_bar=False,
         terminal=None,
     )
-    assert second == "breakeven"
+    assert second is None
     assert state["runner"] == "breakeven"
+    assert state["runner_open"] == 0
+    assert state["remaining"] == 2
     assert state["targets_hit"] == 1
-    assert state["armed_flag"] == 1
-    rest_fees = option_leg_fees(3, 0.97, sell=True)
+    assert state["done"] is False
+    runner_fees = option_leg_fees(1, 0.97, sell=True)
     assert state["credit"] == pytest.approx(
-        2 * 1.15 * CONTRACT_MULTIPLIER - first_fees + 3 * 0.97 * CONTRACT_MULTIPLIER - rest_fees
+        2 * 1.15 * CONTRACT_MULTIPLIER - first_fees + 1 * 0.97 * CONTRACT_MULTIPLIER - runner_fees
+    )
+    third = apply_scale_bar(
+        state,
+        _state_quotes(open_bid=0.90, adverse_bid=0.40, favorable_bid=0.70),
+        entry_bar=False,
+        terminal=None,
+    )
+    assert third == "initial_stop"
+    assert state["runner"] == "breakeven"
+    assert state["remaining"] == 0
+    fixed_fees = option_leg_fees(2, 0.40, sell=True)
+    assert state["credit"] == pytest.approx(
+        2 * 1.15 * CONTRACT_MULTIPLIER
+        - first_fees
+        + 1 * 0.97 * CONTRACT_MULTIPLIER
+        - runner_fees
+        + 2 * 0.40 * CONTRACT_MULTIPLIER
+        - fixed_fees
     )
 
 
@@ -321,7 +342,9 @@ def test_option_scale_plan_is_four_limit_sells_and_a_bot_stop(tmp_path: Path):
     assert {payload["instrument_type"] for payload in plan["payloads"]} == {"OPTION"}
     assert {payload["position_intent"] for payload in plan["payloads"]} == {"SELL_TO_CLOSE"}
     assert plan["watch"]["breakeven_premium"] == pytest.approx(1.0)
+    assert plan["watch"]["breakeven_applies_to"] == "runner"
     assert plan["watch"]["premium_stop"] == pytest.approx(0.70)
+    assert "only the runner" in plan["note"]
     assert "OTOCO" in plan["note"]
     broker = PaperBroker(tmp_path / "paper.db", ZERO, starting_equity=10_000.0)
     broker.connect()

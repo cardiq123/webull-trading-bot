@@ -1,0 +1,2398 @@
+[
+  {
+    "name": "Chop-v2 60-minute box breakout",
+    "blurb": "283 signals on the named list, frozen chop-v2 box, no cell override. Calls and puts follow the setup. 21 DTE. This is the forward-test candidate.",
+    "window": "2025-10-13 through 2026-10-06",
+    "signals": 283,
+    "oos_signals": 139,
+    "capital": {
+      "n": 139,
+      "median_debit": 4202.992155921537,
+      "median_ask": 8.405581311843074,
+      "median_delta": 0.4374544068243359,
+      "required_20": 42052.217158715874,
+      "required_30": 63065.737550886,
+      "required_50": 105092.77833522623,
+      "required_90": 186844.6872017353,
+      "required_underlying": 68839.9723820898,
+      "fit_1000": 0
+    },
+    "equity": 42052.217158715874,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 1550.2360982859468,
+          "total_return": -0.963135449138509,
+          "cagr": -0.9883024303961012,
+          "sharpe": -8.75150310606213,
+          "sortino": -7.997377754345831,
+          "max_drawdown": -0.963135449138509,
+          "exposure": 0.0,
+          "trades": 44,
+          "win_rate": 0.18181818181818182,
+          "avg_win": 490.415386068493,
+          "avg_loss": -1234.0362263604964,
+          "profit_factor": 0.08831280198760802,
+          "expectancy": -920.4995695552257,
+          "years": 0.7419575633127995
+        },
+        "move": -0.17827033042722779,
+        "skipped": 56,
+        "extra": {
+          "targets": {
+            "0": 36,
+            "2": 1,
+            "3": 6,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 37,
+            "breakeven": 4,
+            "time_stop": 2,
+            "target": 1
+          },
+          "armed": 8,
+          "mean_delta": 0.06160946348396264,
+          "mean_capture": -0.17827033042722779,
+          "overlapped": 40
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 1549.5685225202808,
+          "total_return": -0.9631513240628476,
+          "cagr": -0.9787621511823033,
+          "sharpe": -6.689468769757372,
+          "sortino": -6.817996443496768,
+          "max_drawdown": -0.9631513240628476,
+          "exposure": 0.0,
+          "trades": 53,
+          "win_rate": 0.16981132075471697,
+          "avg_win": 1385.8767564410753,
+          "avg_loss": -1203.989532821938,
+          "profit_factor": 0.23544622553802882,
+          "expectancy": -764.2009176640676,
+          "years": 0.8569472963723477
+        },
+        "move": -0.16965783642435725,
+        "skipped": 50,
+        "extra": {
+          "targets": {
+            "0": 43,
+            "1": 1,
+            "3": 8,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 43,
+            "breakeven": 7,
+            "time_stop": 2,
+            "target": 1
+          },
+          "armed": 10,
+          "mean_delta": -0.02562316757611579,
+          "mean_capture": -0.16965783642435725,
+          "overlapped": 34
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 2891.953828328263,
+          "total_return": -0.9312294565251271,
+          "cagr": -0.9533508177366107,
+          "sharpe": -4.22340136319127,
+          "sortino": -4.718325160034127,
+          "max_drawdown": -0.9382331961394615,
+          "exposure": 0.0,
+          "trades": 45,
+          "win_rate": 0.3333333333333333,
+          "avg_win": 1035.8866756878465,
+          "avg_loss": -1823.2854488568435,
+          "profit_factor": 0.284071448147991,
+          "expectancy": -870.2280740086135,
+          "years": 0.8733744010951403
+        },
+        "move": -0.17083462681626282,
+        "skipped": 37,
+        "extra": {
+          "targets": {
+            "0": 28,
+            "1": 2,
+            "2": 3,
+            "3": 10,
+            "4": 2
+          },
+          "runner": {
+            "initial_stop": 28,
+            "breakeven": 12,
+            "time_stop": 3,
+            "target": 2
+          },
+          "armed": 17,
+          "mean_delta": 0.030658996635249208,
+          "mean_capture": -0.17083462681626282,
+          "overlapped": 57
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 1384.0034342424792,
+          "total_return": -0.9670884550743449,
+          "cagr": -0.9877978534104651,
+          "sharpe": -8.082701612149332,
+          "sortino": -7.962623849106437,
+          "max_drawdown": -0.9672993355864932,
+          "exposure": 0.0,
+          "trades": 53,
+          "win_rate": 0.1509433962264151,
+          "avg_win": 2088.674676179652,
+          "avg_loss": -1275.0580251980134,
+          "profit_factor": 0.29121807407492145,
+          "expectancy": -767.3247872542149,
+          "years": 0.7748117727583846
+        },
+        "move": -0.15946267560371166,
+        "skipped": 58,
+        "extra": {
+          "targets": {
+            "0": 45,
+            "1": 8
+          },
+          "runner": {
+            "initial_stop": 45,
+            "all_out": 8
+          },
+          "armed": 0,
+          "mean_delta": -0.008880010937933362,
+          "mean_capture": -0.15946267560371166,
+          "overlapped": 28
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 715.7198385378864,
+          "total_return": -0.9829802115822674,
+          "cagr": -0.9932121605273141,
+          "sharpe": -9.972173967791635,
+          "sortino": -8.515421927095865,
+          "max_drawdown": -0.9829802115822674,
+          "exposure": 0.0,
+          "trades": 67,
+          "win_rate": 0.14925373134328357,
+          "avg_win": 690.2371409452745,
+          "avg_loss": -846.2959426251006,
+          "profit_factor": 0.1430873399651879,
+          "expectancy": -616.9626465698207,
+          "years": 0.8158795345653662
+        },
+        "move": -0.22100106220010934,
+        "skipped": 38,
+        "extra": {
+          "targets": {
+            "0": 55,
+            "1": 1,
+            "2": 2,
+            "3": 6,
+            "4": 3
+          },
+          "runner": {
+            "initial_stop": 57,
+            "breakeven": 7,
+            "target": 3
+          },
+          "armed": 12,
+          "mean_delta": 0.031603342798564284,
+          "mean_capture": -0.22100106220010934,
+          "overlapped": 29
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 42052.217158715874,
+          "ending_equity": 2119.5413418562384,
+          "total_return": -0.9495973937864788,
+          "cagr": -0.9824326099543569,
+          "sharpe": -7.92901205873299,
+          "sortino": -7.696592339188652,
+          "max_drawdown": -0.9495973937864788,
+          "exposure": 0.0,
+          "trades": 42,
+          "win_rate": 0.16666666666666666,
+          "avg_win": 1295.1789710828614,
+          "avg_loss": -1399.9693889839905,
+          "profit_factor": 0.18502961297215514,
+          "expectancy": -950.7779956395153,
+          "years": 0.7392197125256673
+        },
+        "move": -0.16366710311398147,
+        "skipped": 67,
+        "extra": {
+          "targets": {
+            "0": 35,
+            "2": 1,
+            "3": 6
+          },
+          "runner": {
+            "initial_stop": 35,
+            "breakeven": 5,
+            "time_stop": 2
+          },
+          "armed": 7,
+          "mean_delta": -0.041123125267701566,
+          "mean_capture": -0.16366710311398147,
+          "overlapped": 30
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 139,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 139,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 42052.217158715874,
+        "ending_equity": 1568.5293696832923,
+        "total_return": -0.9627004358946578,
+        "cagr": -0.9860854543885296,
+        "sharpe": -9.821153897472916,
+        "sortino": -8.836982875930964,
+        "max_drawdown": -0.9627004358946578,
+        "exposure": 0.0,
+        "trades": 38,
+        "win_rate": 0.21052631578947367,
+        "avg_win": 678.7198384785806,
+        "avg_loss": -1530.4482165620404,
+        "profit_factor": 0.11826075196075381,
+        "expectancy": -1065.3602049745414,
+        "years": 0.7693360711841205
+      },
+      "move": -0.1718190601976616,
+      "skipped": 81,
+      "extra": {
+        "targets": {
+          "0": 30,
+          "2": 2,
+          "3": 4,
+          "4": 2
+        },
+        "runner": {
+          "initial_stop": 31,
+          "breakeven": 5,
+          "target": 2
+        },
+        "armed": 8,
+        "mean_delta": -0.0007835363888764602,
+        "mean_capture": -0.1718190601976616,
+        "overlapped": 19
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 42052.217158715874,
+        "ending_equity": 1549.5685225202808,
+        "total_return": -0.9631513240628476,
+        "cagr": -0.9787621511823033,
+        "sharpe": -6.689468769757372,
+        "sortino": -6.817996443496768,
+        "max_drawdown": -0.9631513240628476,
+        "exposure": 0.0,
+        "trades": 53,
+        "win_rate": 0.16981132075471697,
+        "avg_win": 1385.8767564410753,
+        "avg_loss": -1203.989532821938,
+        "profit_factor": 0.23544622553802882,
+        "expectancy": -764.2009176640676,
+        "years": 0.8569472963723477
+      },
+      "move": -0.16965783642435725,
+      "skipped": 50,
+      "extra": {
+        "targets": {
+          "0": 43,
+          "1": 1,
+          "3": 8,
+          "4": 1
+        },
+        "runner": {
+          "initial_stop": 43,
+          "breakeven": 7,
+          "time_stop": 2,
+          "target": 1
+        },
+        "armed": 10,
+        "mean_delta": -0.02562316757611579,
+        "mean_capture": -0.16965783642435725,
+        "overlapped": 34
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  },
+  {
+    "name": "Partial bounce, daily Dow",
+    "blurb": "2508 signals. Same bounce entry. Calls, 21 DTE. Holdout 2019-01-01 through 2026-10-06.",
+    "window": "2019-01-01 through 2026-10-06",
+    "signals": 2508,
+    "oos_signals": 1223,
+    "capital": {
+      "n": 1270,
+      "median_debit": 474.4820015780795,
+      "median_ask": 0.948561003156159,
+      "median_delta": 0.45128511803123417,
+      "required_20": 4764.043322914095,
+      "required_30": 7135.396979912832,
+      "required_50": 11878.1042939103,
+      "required_90": 17759.185483027006,
+      "required_underlying": 13002.730329069364,
+      "fit_1000": 1073
+    },
+    "equity": 4764.043322914095,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 21.475175012522392,
+          "total_return": -0.995492237673568,
+          "cagr": -0.7026069403878188,
+          "sharpe": -13.112081105927023,
+          "sortino": -10.180513167706883,
+          "max_drawdown": -0.995492237673568,
+          "exposure": 0.0,
+          "trades": 44,
+          "win_rate": 0.045454545454545456,
+          "avg_win": 172.32398706516045,
+          "avg_loss": -121.12419338171173,
+          "profit_factor": 0.06774785380902286,
+          "expectancy": -107.78563972503572,
+          "years": 4.454483230663929
+        },
+        "move": -0.376168055916896,
+        "skipped": 1166,
+        "extra": {
+          "targets": {
+            "0": 42,
+            "3": 1,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 43,
+            "target": 1
+          },
+          "armed": 2,
+          "mean_delta": 0.44028874421285613,
+          "mean_capture": -0.376168055916896,
+          "overlapped": 72
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 76.25019319629642,
+          "total_return": -0.9839946473976111,
+          "cagr": -0.9823689670462208,
+          "sharpe": -14.328732442371518,
+          "sortino": -10.659710597756936,
+          "max_drawdown": -0.9839946473976111,
+          "exposure": 0.0,
+          "trades": 23,
+          "win_rate": 0.043478260869565216,
+          "avg_win": 115.8784015691441,
+          "avg_loss": -218.34870596758836,
+          "profit_factor": 0.024122882011064422,
+          "expectancy": -203.81709259642605,
+          "years": 1.0239561943874058
+        },
+        "move": -0.29789053011902594,
+        "skipped": 1189,
+        "extra": {
+          "targets": {
+            "0": 22,
+            "3": 1
+          },
+          "runner": {
+            "initial_stop": 22,
+            "breakeven": 1
+          },
+          "armed": 1,
+          "mean_delta": 0.4239576589284156,
+          "mean_capture": -0.29789053011902594,
+          "overlapped": 11
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 99.93831210591075,
+          "total_return": -0.9790223754630384,
+          "cagr": -0.9770374544521828,
+          "sharpe": -6.898012030694202,
+          "sortino": -6.785269236685284,
+          "max_drawdown": -0.9790223754630384,
+          "exposure": 0.0,
+          "trades": 23,
+          "win_rate": 0.13043478260869565,
+          "avg_win": 211.76641088598186,
+          "avg_loss": -264.9702121733065,
+          "profit_factor": 0.11988125522623305,
+          "expectancy": -202.78717438296454,
+          "years": 1.0239561943874058
+        },
+        "move": -0.2664675461536855,
+        "skipped": 1182,
+        "extra": {
+          "targets": {
+            "0": 17,
+            "1": 3,
+            "3": 1,
+            "4": 2
+          },
+          "runner": {
+            "initial_stop": 19,
+            "breakeven": 2,
+            "target": 2
+          },
+          "armed": 6,
+          "mean_delta": 0.42854894018251244,
+          "mean_capture": -0.2664675461536855,
+          "overlapped": 18
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 85.41904202004388,
+          "total_return": -0.9820700534755434,
+          "cagr": -0.9803012905511255,
+          "sharpe": -15.639621280291792,
+          "sortino": -11.234362415226919,
+          "max_drawdown": -0.9820700534755434,
+          "exposure": 0.0,
+          "trades": 25,
+          "win_rate": 0.04,
+          "avg_win": 220.61332595740464,
+          "avg_loss": -204.1349002854773,
+          "profit_factor": 0.045030134004703654,
+          "expectancy": -187.14497123576206,
+          "years": 1.0239561943874058
+        },
+        "move": -0.28662058199642987,
+        "skipped": 1184,
+        "extra": {
+          "targets": {
+            "0": 24,
+            "1": 1
+          },
+          "runner": {
+            "initial_stop": 24,
+            "all_out": 1
+          },
+          "armed": 0,
+          "mean_delta": 0.4234260792470998,
+          "mean_capture": -0.28662058199642987,
+          "overlapped": 14
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 13.447812983257371,
+          "total_return": -0.9971772269747052,
+          "cagr": -0.9988933811189848,
+          "sharpe": -14.284227034350248,
+          "sortino": -10.61832355419595,
+          "max_drawdown": -0.9971772269747052,
+          "exposure": 0.0,
+          "trades": 25,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -190.02382039723355,
+          "profit_factor": 0.0,
+          "expectancy": -190.02382039723355,
+          "years": 0.8624229979466119
+        },
+        "move": -0.4157820597595729,
+        "skipped": 1190,
+        "extra": {
+          "targets": {
+            "0": 25
+          },
+          "runner": {
+            "initial_stop": 25
+          },
+          "armed": 0,
+          "mean_delta": 0.4383704000515361,
+          "mean_capture": -0.4157820597595729,
+          "overlapped": 8
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4764.043322914095,
+          "ending_equity": 118.77719944879638,
+          "total_return": -0.975067985029124,
+          "cagr": -0.9728189394800323,
+          "sharpe": -18.047638736526864,
+          "sortino": -11.920950450750443,
+          "max_drawdown": -0.975067985029124,
+          "exposure": 0.0,
+          "trades": 21,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -221.20314873644276,
+          "profit_factor": 0.0,
+          "expectancy": -221.20314873644276,
+          "years": 1.0239561943874058
+        },
+        "move": -0.27679877938103725,
+        "skipped": 1192,
+        "extra": {
+          "targets": {
+            "0": 21
+          },
+          "runner": {
+            "initial_stop": 21
+          },
+          "armed": 0,
+          "mean_delta": 0.4417373647573269,
+          "mean_capture": -0.27679877938103725,
+          "overlapped": 10
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 55.981008023497324,
+          "total_return": -0.9440189919765026,
+          "cagr": -0.9423547034365972,
+          "sharpe": -28.733748880496915,
+          "sortino": -13.894984392808555,
+          "max_drawdown": -0.9440189919765026,
+          "exposure": 0.0,
+          "trades": 9,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -104.8909991085003,
+          "profit_factor": 0.0,
+          "expectancy": -104.8909991085003,
+          "years": 1.0102669404517455
+        },
+        "move": -0.33785862648815623,
+        "skipped": 1209,
+        "extra": {
+          "targets": {
+            "0": 9
+          },
+          "runner": {
+            "initial_stop": 9
+          },
+          "armed": 0,
+          "mean_delta": 0.4211021827134402,
+          "mean_capture": -0.33785862648815623,
+          "overlapped": 5
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 77.66673095006449,
+          "total_return": -0.9223332690499355,
+          "cagr": -0.9202899420078419,
+          "sharpe": -7.662177581395031,
+          "sortino": -7.420857502911397,
+          "max_drawdown": -0.9309824414696641,
+          "exposure": 0.0,
+          "trades": 11,
+          "win_rate": 0.09090909090909091,
+          "avg_win": 43.22510453884905,
+          "avg_loss": -96.55583735887846,
+          "profit_factor": 0.04476695114578118,
+          "expectancy": -83.84847900453961,
+          "years": 1.0102669404517455
+        },
+        "move": -0.2860940372436513,
+        "skipped": 1200,
+        "extra": {
+          "targets": {
+            "0": 8,
+            "1": 2,
+            "3": 1
+          },
+          "runner": {
+            "initial_stop": 9,
+            "breakeven": 2
+          },
+          "armed": 3,
+          "mean_delta": 0.4111482035308942,
+          "mean_capture": -0.2860940372436513,
+          "overlapped": 12
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 4764.043322914095,
+        "ending_equity": 28.379322771116147,
+        "total_return": -0.9940430174858785,
+        "cagr": -0.842039433083202,
+        "sharpe": -16.13726444170531,
+        "sortino": -11.316726900126593,
+        "max_drawdown": -0.9940430174858785,
+        "exposure": 0.0,
+        "trades": 17,
+        "win_rate": 0.0,
+        "avg_win": 0.0,
+        "avg_loss": -278.5684705966458,
+        "profit_factor": 0.0,
+        "expectancy": -278.5684705966458,
+        "years": 2.7761806981519506
+      },
+      "move": -0.37739577261995794,
+      "skipped": 1196,
+      "extra": {
+        "targets": {
+          "0": 17
+        },
+        "runner": {
+          "initial_stop": 17
+        },
+        "armed": 0,
+        "mean_delta": 0.43263325627675303,
+        "mean_capture": -0.37739577261995794,
+        "overlapped": 8
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 4764.043322914095,
+        "ending_equity": 76.25019319629642,
+        "total_return": -0.9839946473976111,
+        "cagr": -0.9823689670462208,
+        "sharpe": -14.328732442371518,
+        "sortino": -10.659710597756936,
+        "max_drawdown": -0.9839946473976111,
+        "exposure": 0.0,
+        "trades": 23,
+        "win_rate": 0.043478260869565216,
+        "avg_win": 115.8784015691441,
+        "avg_loss": -218.34870596758836,
+        "profit_factor": 0.024122882011064422,
+        "expectancy": -203.81709259642605,
+        "years": 1.0239561943874058
+      },
+      "move": -0.29789053011902594,
+      "skipped": 1189,
+      "extra": {
+        "targets": {
+          "0": 22,
+          "3": 1
+        },
+        "runner": {
+          "initial_stop": 22,
+          "breakeven": 1
+        },
+        "armed": 1,
+        "mean_delta": 0.4239576589284156,
+        "mean_capture": -0.29789053011902594,
+        "overlapped": 11
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  },
+  {
+    "name": "A, 60-minute",
+    "blurb": "457 continuation signals. Calls, 21 DTE.",
+    "window": "2025-10-13 through 2026-10-06",
+    "signals": 457,
+    "oos_signals": 222,
+    "capital": {
+      "n": 225,
+      "median_debit": 4158.838713759277,
+      "median_ask": 8.317274427518553,
+      "median_delta": 0.44517842270517327,
+      "required_20": 41610.646354656936,
+      "required_30": 62403.40408382031,
+      "required_50": 103988.91954214702,
+      "required_90": 143430.43146906293,
+      "required_underlying": 48193.63349814196,
+      "fit_1000": 0
+    },
+    "equity": 41610.646354656936,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 1268.782044870605,
+          "total_return": -0.9695082351267392,
+          "cagr": -0.9941449451061222,
+          "sharpe": -8.828850616968703,
+          "sortino": -8.008202376900336,
+          "max_drawdown": -0.9695082351267392,
+          "exposure": 0.0,
+          "trades": 46,
+          "win_rate": 0.13043478260869565,
+          "avg_win": 1075.7081443631766,
+          "avg_loss": -1169.9028293991346,
+          "profit_factor": 0.13792275529186432,
+          "expectancy": -876.9970502127462,
+          "years": 0.6789869952087612
+        },
+        "move": -0.19314652193389978,
+        "skipped": 134,
+        "extra": {
+          "targets": {
+            "0": 39,
+            "1": 1,
+            "2": 1,
+            "3": 4,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 40,
+            "breakeven": 5,
+            "target": 1
+          },
+          "armed": 7,
+          "mean_delta": -0.0013330430615974289,
+          "mean_capture": -0.19314652193389978,
+          "overlapped": 53
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 2017.9850258109475,
+          "total_return": -0.9515031559805343,
+          "cagr": -0.9567246046290128,
+          "sharpe": -8.37996885265491,
+          "sortino": -8.187193869384945,
+          "max_drawdown": -0.958598424241104,
+          "exposure": 0.0,
+          "trades": 45,
+          "win_rate": 0.17777777777777778,
+          "avg_win": 533.995579460943,
+          "avg_loss": -1185.5304314738792,
+          "profit_factor": 0.09738974268563498,
+          "expectancy": -879.8369184187998,
+          "years": 0.9637234770704997
+        },
+        "move": -0.18353395334601685,
+        "skipped": 142,
+        "extra": {
+          "targets": {
+            "0": 35,
+            "1": 3,
+            "3": 6,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 36,
+            "breakeven": 8,
+            "target": 1
+          },
+          "armed": 10,
+          "mean_delta": 0.048895741677954824,
+          "mean_capture": -0.18353395334601685,
+          "overlapped": 28
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 1038.0039838608998,
+          "total_return": -0.9750543652935896,
+          "cagr": -0.9846073460432414,
+          "sharpe": -7.542764924331378,
+          "sortino": -7.456542067800296,
+          "max_drawdown": -0.9750543652935896,
+          "exposure": 0.0,
+          "trades": 39,
+          "win_rate": 0.28205128205128205,
+          "avg_win": 525.4650265812841,
+          "avg_loss": -1655.4556308282201,
+          "profit_factor": 0.12469841243090167,
+          "expectancy": -1040.3241633537443,
+          "years": 0.8843258042436687
+        },
+        "move": -0.21504391168799458,
+        "skipped": 136,
+        "extra": {
+          "targets": {
+            "0": 27,
+            "1": 1,
+            "2": 1,
+            "3": 9,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 26,
+            "breakeven": 11,
+            "target": 1,
+            "time_stop": 1
+          },
+          "armed": 12,
+          "mean_delta": -0.12617300952282567,
+          "mean_capture": -0.21504391168799458,
+          "overlapped": 45
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 1424.5765113707662,
+          "total_return": -0.965764134033661,
+          "cagr": -0.9779816782234861,
+          "sharpe": -7.6482837415323175,
+          "sortino": -8.853561507691156,
+          "max_drawdown": -0.965764134033661,
+          "exposure": 0.0,
+          "trades": 44,
+          "win_rate": 0.13636363636363635,
+          "avg_win": 1099.5642229831853,
+          "avg_loss": -1231.1435573996127,
+          "profit_factor": 0.1410196256849442,
+          "expectancy": -913.319769165595,
+          "years": 0.8843258042436687
+        },
+        "move": -0.18506396002545122,
+        "skipped": 149,
+        "extra": {
+          "targets": {
+            "0": 38,
+            "1": 6
+          },
+          "runner": {
+            "initial_stop": 37,
+            "all_out": 6,
+            "time_stop": 1
+          },
+          "armed": 0,
+          "mean_delta": 0.08064008353204206,
+          "mean_capture": -0.18506396002545122,
+          "overlapped": 25
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 694.4119018062974,
+          "total_return": -0.9833116771153309,
+          "cagr": -0.9858666313254846,
+          "sharpe": -6.224279790495923,
+          "sortino": -6.560674068837502,
+          "max_drawdown": -0.9833116771153309,
+          "exposure": 0.0,
+          "trades": 78,
+          "win_rate": 0.14102564102564102,
+          "avg_win": 616.2480486294816,
+          "avg_loss": -711.8651192205213,
+          "profit_factor": 0.14212671758780496,
+          "expectancy": -524.5671083698799,
+          "years": 0.9609856262833676
+        },
+        "move": -0.23403351203132358,
+        "skipped": 95,
+        "extra": {
+          "targets": {
+            "0": 66,
+            "1": 1,
+            "3": 7,
+            "4": 4
+          },
+          "runner": {
+            "initial_stop": 69,
+            "breakeven": 5,
+            "target": 4
+          },
+          "armed": 12,
+          "mean_delta": 0.06796795623305156,
+          "mean_capture": -0.23403351203132358,
+          "overlapped": 41
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 41610.646354656936,
+          "ending_equity": 2177.3483791452727,
+          "total_return": -0.9476732862886281,
+          "cagr": -0.9984235249947542,
+          "sharpe": -11.827846431076354,
+          "sortino": -9.624054343232604,
+          "max_drawdown": -0.9476732862886281,
+          "exposure": 0.0,
+          "trades": 32,
+          "win_rate": 0.1875,
+          "avg_win": 302.4608284145117,
+          "avg_loss": -1586.4639594614896,
+          "profit_factor": 0.04399636833523382,
+          "expectancy": -1232.2905617347392,
+          "years": 0.45722108145106094
+        },
+        "move": -0.18855989018343056,
+        "skipped": 156,
+        "extra": {
+          "targets": {
+            "0": 26,
+            "2": 3,
+            "3": 3
+          },
+          "runner": {
+            "initial_stop": 27,
+            "breakeven": 4,
+            "time_stop": 1
+          },
+          "armed": 6,
+          "mean_delta": 0.02656533450525962,
+          "mean_capture": -0.18855989018343056,
+          "overlapped": 31
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 222,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 222,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 41610.646354656936,
+        "ending_equity": 1868.4012775340655,
+        "total_return": -0.9550979991608576,
+        "cagr": -0.9991982749788227,
+        "sharpe": -7.393135676403139,
+        "sortino": -7.084858775081694,
+        "max_drawdown": -0.9550979991608576,
+        "exposure": 0.0,
+        "trades": 49,
+        "win_rate": 0.20408163265306123,
+        "avg_win": 884.1878594109851,
+        "avg_loss": -1245.746760800839,
+        "profit_factor": 0.1819911099754021,
+        "expectancy": -811.066226063732,
+        "years": 0.4353182751540041
+      },
+      "move": -0.17247951374906376,
+      "skipped": 129,
+      "extra": {
+        "targets": {
+          "0": 38,
+          "1": 1,
+          "2": 2,
+          "3": 6,
+          "4": 2
+        },
+        "runner": {
+          "initial_stop": 40,
+          "breakeven": 5,
+          "time_stop": 2,
+          "target": 2
+        },
+        "armed": 11,
+        "mean_delta": 0.120666972932088,
+        "mean_capture": -0.17247951374906376,
+        "overlapped": 43
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 41610.646354656936,
+        "ending_equity": 2017.9850258109475,
+        "total_return": -0.9515031559805343,
+        "cagr": -0.9567246046290128,
+        "sharpe": -8.37996885265491,
+        "sortino": -8.187193869384945,
+        "max_drawdown": -0.958598424241104,
+        "exposure": 0.0,
+        "trades": 45,
+        "win_rate": 0.17777777777777778,
+        "avg_win": 533.995579460943,
+        "avg_loss": -1185.5304314738792,
+        "profit_factor": 0.09738974268563498,
+        "expectancy": -879.8369184187998,
+        "years": 0.9637234770704997
+      },
+      "move": -0.18353395334601685,
+      "skipped": 142,
+      "extra": {
+        "targets": {
+          "0": 35,
+          "1": 3,
+          "3": 6,
+          "4": 1
+        },
+        "runner": {
+          "initial_stop": 36,
+          "breakeven": 8,
+          "target": 1
+        },
+        "armed": 10,
+        "mean_delta": 0.048895741677954824,
+        "mean_capture": -0.18353395334601685,
+        "overlapped": 28
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  },
+  {
+    "name": "B, 60-minute",
+    "blurb": "235 failed-breakout signals. Calls and puts follow the setup. 21 DTE.",
+    "window": "2025-10-13 through 2026-10-06",
+    "signals": 235,
+    "oos_signals": 121,
+    "capital": {
+      "n": 112,
+      "median_debit": 4039.314873646107,
+      "median_ask": 8.078226747292213,
+      "median_delta": -0.44032173281801557,
+      "required_20": 40415.30946588093,
+      "required_30": 60610.460305434,
+      "required_50": 101000.76198454009,
+      "required_90": 179268.8661832327,
+      "required_underlying": 64266.93207081175,
+      "fit_1000": 0
+    },
+    "equity": 40415.30946588093,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 1500.7265488016837,
+          "total_return": -0.9628673745510073,
+          "cagr": -0.9887602045077675,
+          "sharpe": -6.472925463355754,
+          "sortino": -6.907495862545355,
+          "max_drawdown": -0.9628673745510073,
+          "exposure": 0.0,
+          "trades": 48,
+          "win_rate": 0.14583333333333334,
+          "avg_win": 873.9496346032348,
+          "avg_loss": -1098.3470819341928,
+          "profit_factor": 0.13585042076333614,
+          "expectancy": -810.7204774391512,
+          "years": 0.7337440109514032
+        },
+        "move": -0.17590025041475688,
+        "skipped": 48,
+        "extra": {
+          "targets": {
+            "0": 39,
+            "1": 2,
+            "2": 1,
+            "3": 4,
+            "4": 2
+          },
+          "runner": {
+            "initial_stop": 41,
+            "breakeven": 3,
+            "time_stop": 2,
+            "target": 2
+          },
+          "armed": 9,
+          "mean_delta": -0.05470012165154022,
+          "mean_capture": -0.17590025041475688,
+          "overlapped": 17
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 1261.943347650033,
+          "total_return": -0.9687756109175564,
+          "cagr": -0.9876782237907704,
+          "sharpe": -12.860417774081295,
+          "sortino": -10.353871349870477,
+          "max_drawdown": -0.9687756109175564,
+          "exposure": 0.0,
+          "trades": 39,
+          "win_rate": 0.10256410256410256,
+          "avg_win": 623.0694133628081,
+          "avg_loss": -1189.8755363337752,
+          "profit_factor": 0.05984485837498113,
+          "expectancy": -1003.9324645700231,
+          "years": 0.7885010266940452
+        },
+        "move": -0.20949187735255365,
+        "skipped": 69,
+        "extra": {
+          "targets": {
+            "0": 34,
+            "1": 1,
+            "2": 1,
+            "3": 2,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 34,
+            "breakeven": 4,
+            "target": 1
+          },
+          "armed": 5,
+          "mean_delta": -0.08196558989234258,
+          "mean_capture": -0.20949187735255365,
+          "overlapped": 13
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 1091.4626313958029,
+          "total_return": -0.9729938321438012,
+          "cagr": -0.9895859694309042,
+          "sharpe": -7.827265833835001,
+          "sortino": -7.673771874203033,
+          "max_drawdown": -0.9739900661525676,
+          "exposure": 0.0,
+          "trades": 34,
+          "win_rate": 0.20588235294117646,
+          "avg_win": 688.0026715841872,
+          "avg_loss": -1634.8098346509053,
+          "profit_factor": 0.10910814164596513,
+          "expectancy": -1156.583730426033,
+          "years": 0.7912388774811773
+        },
+        "move": -0.240334209348427,
+        "skipped": 64,
+        "extra": {
+          "targets": {
+            "0": 26,
+            "2": 2,
+            "3": 5,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 26,
+            "breakeven": 7,
+            "target": 1
+          },
+          "armed": 8,
+          "mean_delta": -0.16011663255697817,
+          "mean_capture": -0.240334209348427,
+          "overlapped": 23
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 1521.879086018212,
+          "total_return": -0.962343995230248,
+          "cagr": -0.986753341499176,
+          "sharpe": -11.309024907419037,
+          "sortino": -10.133650919630032,
+          "max_drawdown": -0.962343995230248,
+          "exposure": 0.0,
+          "trades": 37,
+          "win_rate": 0.08108108108108109,
+          "avg_win": 1026.089167726757,
+          "avg_loss": -1234.4617024424408,
+          "profit_factor": 0.07334150531050887,
+          "expectancy": -1051.1737940503438,
+          "years": 0.758384668035592
+        },
+        "move": -0.21539876172813052,
+        "skipped": 71,
+        "extra": {
+          "targets": {
+            "0": 34,
+            "1": 3
+          },
+          "runner": {
+            "initial_stop": 34,
+            "all_out": 3
+          },
+          "armed": 0,
+          "mean_delta": -0.08591641119408268,
+          "mean_capture": -0.21539876172813052,
+          "overlapped": 13
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 758.5750208632194,
+          "total_return": -0.9812305032204784,
+          "cagr": -0.9854971429945475,
+          "sharpe": -11.174199736379796,
+          "sortino": -9.230319838382611,
+          "max_drawdown": -0.9812305032204784,
+          "exposure": 0.0,
+          "trades": 64,
+          "win_rate": 0.125,
+          "avg_win": 314.0273830671224,
+          "avg_loss": -753.017026956334,
+          "profit_factor": 0.059575086774865234,
+          "expectancy": -619.6364757034019,
+          "years": 0.9390828199863107
+        },
+        "move": -0.2166414378171351,
+        "skipped": 43,
+        "extra": {
+          "targets": {
+            "0": 53,
+            "2": 3,
+            "3": 6,
+            "4": 2
+          },
+          "runner": {
+            "initial_stop": 58,
+            "breakeven": 4,
+            "target": 2
+          },
+          "armed": 11,
+          "mean_delta": -0.0572840704936733,
+          "mean_capture": -0.2166414378171351,
+          "overlapped": 8
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 40415.30946588093,
+          "ending_equity": 1946.827943057034,
+          "total_return": -0.9518294436245609,
+          "cagr": -0.9786466860437613,
+          "sharpe": -15.898647382712907,
+          "sortino": -11.430504875330563,
+          "max_drawdown": -0.9518294436245609,
+          "exposure": 0.0,
+          "trades": 27,
+          "win_rate": 0.07407407407407407,
+          "avg_win": 1208.6438601974323,
+          "avg_loss": -1635.4307697287502,
+          "profit_factor": 0.05912296051017291,
+          "expectancy": -1424.7585749194031,
+          "years": 0.7885010266940452
+        },
+        "move": -0.22254934748318717,
+        "skipped": 85,
+        "extra": {
+          "targets": {
+            "0": 25,
+            "3": 1,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 25,
+            "breakeven": 1,
+            "target": 1
+          },
+          "armed": 2,
+          "mean_delta": -0.050966258793689434,
+          "mean_capture": -0.22254934748318717,
+          "overlapped": 9
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 121,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1000.0,
+          "total_return": 0.0,
+          "cagr": 0.0,
+          "sharpe": 0.0,
+          "sortino": 0.0,
+          "max_drawdown": 0.0,
+          "exposure": 0.0,
+          "trades": 0,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 0.0,
+          "years": 0.0
+        },
+        "move": NaN,
+        "skipped": 121,
+        "extra": {
+          "targets": {},
+          "runner": {},
+          "armed": 0,
+          "mean_delta": null,
+          "mean_capture": null,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 40415.30946588093,
+        "ending_equity": 1896.073478415132,
+        "total_return": -0.9530852663638313,
+        "cagr": -0.9812527119111081,
+        "sharpe": -9.360814742137565,
+        "sortino": -8.30535464054188,
+        "max_drawdown": -0.9530852663638313,
+        "exposure": 0.0,
+        "trades": 41,
+        "win_rate": 0.14634146341463414,
+        "avg_win": 1148.112656491165,
+        "avg_loss": -1297.3689121832224,
+        "profit_factor": 0.15170651207460606,
+        "expectancy": -939.4935606698975,
+        "years": 0.7693360711841205
+      },
+      "move": -0.20322229704595451,
+      "skipped": 66,
+      "extra": {
+        "targets": {
+          "0": 35,
+          "2": 1,
+          "3": 4,
+          "4": 1
+        },
+        "runner": {
+          "initial_stop": 36,
+          "breakeven": 4,
+          "target": 1
+        },
+        "armed": 6,
+        "mean_delta": 0.07734732856217626,
+        "mean_capture": -0.20322229704595451,
+        "overlapped": 11
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 40415.30946588093,
+        "ending_equity": 1261.943347650033,
+        "total_return": -0.9687756109175564,
+        "cagr": -0.9876782237907704,
+        "sharpe": -12.860417774081295,
+        "sortino": -10.353871349870477,
+        "max_drawdown": -0.9687756109175564,
+        "exposure": 0.0,
+        "trades": 39,
+        "win_rate": 0.10256410256410256,
+        "avg_win": 623.0694133628081,
+        "avg_loss": -1189.8755363337752,
+        "profit_factor": 0.05984485837498113,
+        "expectancy": -1003.9324645700231,
+        "years": 0.7885010266940452
+      },
+      "move": -0.20949187735255365,
+      "skipped": 69,
+      "extra": {
+        "targets": {
+          "0": 34,
+          "1": 1,
+          "2": 1,
+          "3": 2,
+          "4": 1
+        },
+        "runner": {
+          "initial_stop": 34,
+          "breakeven": 4,
+          "target": 1
+        },
+        "armed": 5,
+        "mean_delta": -0.08196558989234258,
+        "mean_capture": -0.20949187735255365,
+        "overlapped": 13
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  },
+  {
+    "name": "C, daily Dow",
+    "blurb": "1838 signals. Same daily entries. Calls, 21 DTE.",
+    "window": "2019-01-01 through 2026-10-06",
+    "signals": 1838,
+    "oos_signals": 853,
+    "capital": {
+      "n": 967,
+      "median_debit": 423.09960570539664,
+      "median_ask": 0.8457962114107932,
+      "median_delta": 0.4505664375296911,
+      "required_20": 4250.177025093069,
+      "required_30": 6364.623995115164,
+      "required_50": 10593.517935159354,
+      "required_90": 15755.173346401049,
+      "required_underlying": 11076.139250773247,
+      "fit_1000": 858
+    },
+    "equity": 4250.177025093069,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 27.088023493423602,
+          "total_return": -0.9936266128837703,
+          "cagr": -0.9890545684722498,
+          "sharpe": -15.953160707729646,
+          "sortino": -11.252677060407713,
+          "max_drawdown": -0.9936266128837703,
+          "exposure": 0.0,
+          "trades": 42,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -100.54973813332488,
+          "profit_factor": 0.0,
+          "expectancy": -100.54973813332488,
+          "years": 1.1197809719370295
+        },
+        "move": -0.36299238133756195,
+        "skipped": 902,
+        "extra": {
+          "targets": {
+            "0": 42
+          },
+          "runner": {
+            "initial_stop": 42
+          },
+          "armed": 0,
+          "mean_delta": 0.4543190818190689,
+          "mean_capture": -0.36299238133756195,
+          "overlapped": 35
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 110.23941377836687,
+          "total_return": -0.9740623947832024,
+          "cagr": -0.9741271943394659,
+          "sharpe": -11.465375804061772,
+          "sortino": -9.36168777031466,
+          "max_drawdown": -0.9740623947832024,
+          "exposure": 0.0,
+          "trades": 29,
+          "win_rate": 0.10344827586206896,
+          "avg_win": 94.32110166790362,
+          "avg_loss": -170.11157370455427,
+          "profit_factor": 0.06397685825601704,
+          "expectancy": -142.75646935567934,
+          "years": 0.999315537303217
+        },
+        "move": -0.25883435515009756,
+        "skipped": 805,
+        "extra": {
+          "targets": {
+            "0": 24,
+            "1": 2,
+            "3": 3
+          },
+          "runner": {
+            "initial_stop": 26,
+            "breakeven": 3
+          },
+          "armed": 5,
+          "mean_delta": 0.44479659218082934,
+          "mean_capture": -0.25883435515009756,
+          "overlapped": 19
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 68.81704632325003,
+          "total_return": -0.983808428233235,
+          "cagr": -0.9811957750932474,
+          "sharpe": -5.219467540933997,
+          "sortino": -5.321545224659913,
+          "max_drawdown": -0.983808428233235,
+          "exposure": 0.0,
+          "trades": 22,
+          "win_rate": 0.3181818181818182,
+          "avg_win": 87.01938160894876,
+          "avg_loss": -319.36637666883064,
+          "profit_factor": 0.12715504109862075,
+          "expectancy": -190.06181721680994,
+          "years": 1.0376454483230664
+        },
+        "move": -0.2230885948286378,
+        "skipped": 795,
+        "extra": {
+          "targets": {
+            "0": 14,
+            "2": 1,
+            "3": 4,
+            "4": 3
+          },
+          "runner": {
+            "initial_stop": 15,
+            "breakeven": 4,
+            "target": 3
+          },
+          "armed": 8,
+          "mean_delta": 0.44982503576367316,
+          "mean_capture": -0.2230885948286378,
+          "overlapped": 36
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 68.8915654705284,
+          "total_return": -0.9837908950465375,
+          "cagr": -0.9811761518958769,
+          "sharpe": -10.000451362725153,
+          "sortino": -8.847619450123718,
+          "max_drawdown": -0.9837908950465375,
+          "exposure": 0.0,
+          "trades": 33,
+          "win_rate": 0.15151515151515152,
+          "avg_win": 231.16507657618394,
+          "avg_loss": -190.61110151798067,
+          "profit_factor": 0.2165638707887058,
+          "expectancy": -126.7056199885618,
+          "years": 1.0376454483230664
+        },
+        "move": -0.23380975767702777,
+        "skipped": 799,
+        "extra": {
+          "targets": {
+            "0": 28,
+            "1": 5
+          },
+          "runner": {
+            "initial_stop": 28,
+            "all_out": 5
+          },
+          "armed": 0,
+          "mean_delta": 0.4404046510999126,
+          "mean_capture": -0.23380975767702777,
+          "overlapped": 21
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 14.611622675644076,
+          "total_return": -0.9965621143332674,
+          "cagr": -0.9957764854350671,
+          "sharpe": -14.887389394069865,
+          "sortino": -10.859184613064174,
+          "max_drawdown": -0.9965621143332674,
+          "exposure": 0.0,
+          "trades": 35,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -121.01615435478357,
+          "profit_factor": 0.0,
+          "expectancy": -121.01615435478357,
+          "years": 1.0376454483230664
+        },
+        "move": -0.3878577134839286,
+        "skipped": 800,
+        "extra": {
+          "targets": {
+            "0": 35
+          },
+          "runner": {
+            "initial_stop": 35
+          },
+          "armed": 0,
+          "mean_delta": 0.4173627600822649,
+          "mean_capture": -0.3878577134839286,
+          "overlapped": 10
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4250.177025093069,
+          "ending_equity": 143.93704739222449,
+          "total_return": -0.9661338700617834,
+          "cagr": -0.9662123053658266,
+          "sharpe": -11.395177728231541,
+          "sortino": -9.343086269961267,
+          "max_drawdown": -0.9661338700617834,
+          "exposure": 0.0,
+          "trades": 24,
+          "win_rate": 0.125,
+          "avg_win": 121.54324837896009,
+          "avg_loss": -212.89855823036783,
+          "profit_factor": 0.0815567815081502,
+          "expectancy": -171.09333240420187,
+          "years": 0.999315537303217
+        },
+        "move": -0.2424986717146869,
+        "skipped": 807,
+        "extra": {
+          "targets": {
+            "0": 21,
+            "3": 3
+          },
+          "runner": {
+            "initial_stop": 22,
+            "breakeven": 2
+          },
+          "armed": 3,
+          "mean_delta": 0.45047751942555037,
+          "mean_capture": -0.2424986717146869,
+          "overlapped": 22
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 67.66113738825379,
+          "total_return": -0.9323388626117463,
+          "cagr": -0.9324635611952177,
+          "sharpe": -37.583924873861015,
+          "sortino": -14.623583032569888,
+          "max_drawdown": -0.9323388626117463,
+          "exposure": 0.0,
+          "trades": 8,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -116.54235782646829,
+          "profit_factor": 0.0,
+          "expectancy": -116.54235782646829,
+          "years": 0.999315537303217
+        },
+        "move": -0.40855099286420754,
+        "skipped": 845,
+        "extra": {
+          "targets": {
+            "0": 8
+          },
+          "runner": {
+            "initial_stop": 8
+          },
+          "armed": 0,
+          "mean_delta": 0.42738601190566994,
+          "mean_capture": -0.40855099286420754,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 96.66665103069747,
+          "total_return": -0.9033333489693025,
+          "cagr": -0.9948456403219712,
+          "sharpe": -10.079930884495843,
+          "sortino": -8.796409881689137,
+          "max_drawdown": -0.9033333489693025,
+          "exposure": 0.0,
+          "trades": 10,
+          "win_rate": 0.2,
+          "avg_win": 67.06660315187162,
+          "avg_loss": -129.68331940913072,
+          "profit_factor": 0.12928918587495225,
+          "expectancy": -90.33333489693025,
+          "years": 0.44353182751540043
+        },
+        "move": -0.26668931685962316,
+        "skipped": 837,
+        "extra": {
+          "targets": {
+            "0": 7,
+            "2": 1,
+            "3": 1,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 9,
+            "target": 1
+          },
+          "armed": 3,
+          "mean_delta": 0.4552544882761665,
+          "mean_capture": -0.26668931685962316,
+          "overlapped": 6
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 4250.177025093069,
+        "ending_equity": 87.98425609877577,
+        "total_return": -0.9792986843655415,
+        "cagr": -0.8620423447374244,
+        "sharpe": -16.364474396371413,
+        "sortino": -11.498871947725537,
+        "max_drawdown": -0.9792986843655415,
+        "exposure": 0.0,
+        "trades": 20,
+        "win_rate": 0.1,
+        "avg_win": 156.3037408907228,
+        "avg_loss": -248.60001393198542,
+        "profit_factor": 0.0698595388089676,
+        "expectancy": -208.10963844971457,
+        "years": 1.9575633127994525
+      },
+      "move": -0.30208816059216154,
+      "skipped": 826,
+      "extra": {
+        "targets": {
+          "0": 18,
+          "3": 2
+        },
+        "runner": {
+          "initial_stop": 19,
+          "breakeven": 1
+        },
+        "armed": 2,
+        "mean_delta": 0.4459770077473009,
+        "mean_capture": -0.30208816059216154,
+        "overlapped": 7
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 4250.177025093069,
+        "ending_equity": 110.23941377836687,
+        "total_return": -0.9740623947832024,
+        "cagr": -0.9741271943394659,
+        "sharpe": -11.465375804061772,
+        "sortino": -9.36168777031466,
+        "max_drawdown": -0.9740623947832024,
+        "exposure": 0.0,
+        "trades": 29,
+        "win_rate": 0.10344827586206896,
+        "avg_win": 94.32110166790362,
+        "avg_loss": -170.11157370455427,
+        "profit_factor": 0.06397685825601704,
+        "expectancy": -142.75646935567934,
+        "years": 0.999315537303217
+      },
+      "move": -0.25883435515009756,
+      "skipped": 805,
+      "extra": {
+        "targets": {
+          "0": 24,
+          "1": 2,
+          "3": 3
+        },
+        "runner": {
+          "initial_stop": 26,
+          "breakeven": 3
+        },
+        "armed": 5,
+        "mean_delta": 0.44479659218082934,
+        "mean_capture": -0.25883435515009756,
+        "overlapped": 19
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  },
+  {
+    "name": "D, daily Dow",
+    "blurb": "292 signals. Same daily entries. Calls and puts follow the setup. 21 DTE.",
+    "window": "2019-01-01 through 2026-10-06",
+    "signals": 292,
+    "oos_signals": 116,
+    "capital": {
+      "n": 171,
+      "median_debit": 399.91525499668916,
+      "median_ask": 0.7994275099933783,
+      "median_delta": 0.3906055237895409,
+      "required_20": 4018.314414101005,
+      "required_30": 6016.842018567692,
+      "required_50": 10013.897227501053,
+      "required_90": 15701.756873330663,
+      "required_underlying": 9764.555678869649,
+      "fit_1000": 149
+    },
+    "equity": 4018.314414101005,
+    "sized": [
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 51.07378984784289,
+          "total_return": -0.9872897477438263,
+          "cagr": -0.6224313617381055,
+          "sharpe": -18.144515117990895,
+          "sortino": -11.947418625017965,
+          "max_drawdown": -0.9872897477438263,
+          "exposure": 0.0,
+          "trades": 40,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -99.18101560632903,
+          "profit_factor": 0.0,
+          "expectancy": -99.18101560632903,
+          "years": 4.48186173853525
+        },
+        "move": -0.3431710409112995,
+        "skipped": 131,
+        "extra": {
+          "targets": {
+            "0": 40
+          },
+          "runner": {
+            "initial_stop": 40
+          },
+          "armed": 0,
+          "mean_delta": 0.13459676422995828,
+          "mean_capture": -0.3431710409112995,
+          "overlapped": 5
+        },
+        "label": "scale, premium stop -20%, 21 DTE, in sample",
+        "role": "in sample"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 178.15666743407343,
+          "total_return": -0.9556638308817028,
+          "cagr": -0.6766661227678944,
+          "sharpe": -17.223857372696706,
+          "sortino": -11.75260938683288,
+          "max_drawdown": -0.9556638308817028,
+          "exposure": 0.0,
+          "trades": 17,
+          "win_rate": 0.058823529411764705,
+          "avg_win": 13.121143365447551,
+          "avg_loss": -240.82993062702366,
+          "profit_factor": 0.003405189123317595,
+          "expectancy": -225.8916321568783,
+          "years": 2.759753593429158
+        },
+        "move": -0.33258685538061045,
+        "skipped": 98,
+        "extra": {
+          "targets": {
+            "0": 16,
+            "3": 1
+          },
+          "runner": {
+            "initial_stop": 17
+          },
+          "armed": 1,
+          "mean_delta": 0.14454881282161836,
+          "mean_capture": -0.33258685538061045,
+          "overlapped": 1
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 224.66445901335067,
+          "total_return": -0.9440898755396139,
+          "cagr": -0.6450493027741144,
+          "sharpe": -11.89072220663801,
+          "sortino": -9.642372965475253,
+          "max_drawdown": -0.9457084420147199,
+          "exposure": 0.0,
+          "trades": 19,
+          "win_rate": 0.10526315789473684,
+          "avg_win": 88.1370540599695,
+          "avg_loss": -233.5249448945643,
+          "profit_factor": 0.04440238788283376,
+          "expectancy": -199.66578710987653,
+          "years": 2.784394250513347
+        },
+        "move": -0.3444208208969919,
+        "skipped": 95,
+        "extra": {
+          "targets": {
+            "0": 16,
+            "2": 1,
+            "3": 2
+          },
+          "runner": {
+            "initial_stop": 18,
+            "breakeven": 1
+          },
+          "armed": 3,
+          "mean_delta": 0.0808558067577168,
+          "mean_capture": -0.3444208208969919,
+          "overlapped": 2
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 175.76326555046427,
+          "total_return": -0.9562594542294454,
+          "cagr": -0.6782468769494272,
+          "sharpe": -16.401953406853966,
+          "sortino": -11.51953206900216,
+          "max_drawdown": -0.9562594542294454,
+          "exposure": 0.0,
+          "trades": 19,
+          "win_rate": 0.05263157894736842,
+          "avg_win": 303.5720429802286,
+          "avg_loss": -230.34017730726495,
+          "profit_factor": 0.07321828825547953,
+          "expectancy": -202.23953413423897,
+          "years": 2.759753593429158
+        },
+        "move": -0.3103237098023656,
+        "skipped": 97,
+        "extra": {
+          "targets": {
+            "0": 18,
+            "1": 1
+          },
+          "runner": {
+            "initial_stop": 18,
+            "all_out": 1
+          },
+          "armed": 0,
+          "mean_delta": 0.18251803275297032,
+          "mean_capture": -0.3103237098023656,
+          "overlapped": 0
+        },
+        "label": "all-out +30%, premium stop -20%, 21 DTE",
+        "role": "comparison"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 21.1208628879399,
+          "total_return": -0.994743850104456,
+          "cagr": -0.8506926309477842,
+          "sharpe": -14.199796439118904,
+          "sortino": -10.583660593265089,
+          "max_drawdown": -0.994743850104456,
+          "exposure": 0.0,
+          "trades": 22,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -181.69061596423023,
+          "profit_factor": 0.0,
+          "expectancy": -181.69061596423023,
+          "years": 2.759753593429158
+        },
+        "move": -0.46035201651536445,
+        "skipped": 94,
+        "extra": {
+          "targets": {
+            "0": 22
+          },
+          "runner": {
+            "initial_stop": 22
+          },
+          "armed": 0,
+          "mean_delta": 0.17881873240745028,
+          "mean_capture": -0.46035201651536445,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 5 DTE",
+        "role": "sensitivity"
+      },
+      {
+        "metrics": {
+          "starting_equity": 4018.314414101005,
+          "ending_equity": 234.45312112224144,
+          "total_return": -0.9416538635454951,
+          "cagr": -0.6428398336074755,
+          "sharpe": -17.949691618831565,
+          "sortino": -11.955630472439086,
+          "max_drawdown": -0.9416538635454951,
+          "exposure": 0.0,
+          "trades": 17,
+          "win_rate": 0.058823529411764705,
+          "avg_win": 30.84664190953481,
+          "avg_loss": -238.41924593051866,
+          "profit_factor": 0.00808623948046446,
+          "expectancy": -222.58007605757433,
+          "years": 2.759753593429158
+        },
+        "move": -0.292956908132733,
+        "skipped": 98,
+        "extra": {
+          "targets": {
+            "0": 16,
+            "3": 1
+          },
+          "runner": {
+            "initial_stop": 17
+          },
+          "armed": 1,
+          "mean_delta": 0.19497425099644586,
+          "mean_capture": -0.292956908132733,
+          "overlapped": 1
+        },
+        "label": "scale, premium stop -20%, 35 DTE",
+        "role": "sensitivity"
+      }
+    ],
+    "cash": [
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 184.9257980166234,
+          "total_return": -0.8150742019833765,
+          "cagr": -0.45750508461693906,
+          "sharpe": -31.93430790875397,
+          "sortino": -14.215049122094358,
+          "max_drawdown": -0.8150742019833765,
+          "exposure": 0.0,
+          "trades": 7,
+          "win_rate": 0.0,
+          "avg_win": 0.0,
+          "avg_loss": -116.43917171191096,
+          "profit_factor": 0.0,
+          "expectancy": -116.43917171191096,
+          "years": 2.759753593429158
+        },
+        "move": -0.3530230417199781,
+        "skipped": 109,
+        "extra": {
+          "targets": {
+            "0": 7
+          },
+          "runner": {
+            "initial_stop": 7
+          },
+          "armed": 0,
+          "mean_delta": 0.250597916637513,
+          "mean_capture": -0.3530230417199781,
+          "overlapped": 0
+        },
+        "label": "scale, premium stop -20%, 21 DTE",
+        "role": "gate, $1,000"
+      },
+      {
+        "metrics": {
+          "starting_equity": 1000.0,
+          "ending_equity": 115.53716390107155,
+          "total_return": -0.8844628360989284,
+          "cagr": -0.5425158067416134,
+          "sharpe": -8.867207576316545,
+          "sortino": -7.8174240037607845,
+          "max_drawdown": -0.8844628360989284,
+          "exposure": 0.0,
+          "trades": 8,
+          "win_rate": 0.125,
+          "avg_win": 123.80168063456989,
+          "avg_loss": -144.03778810478548,
+          "profit_factor": 0.12278690619367776,
+          "expectancy": -110.55785451236605,
+          "years": 2.759753593429158
+        },
+        "move": -0.2849863180208819,
+        "skipped": 107,
+        "extra": {
+          "targets": {
+            "0": 6,
+            "2": 1,
+            "4": 1
+          },
+          "runner": {
+            "initial_stop": 7,
+            "target": 1
+          },
+          "armed": 2,
+          "mean_delta": 0.02141415636863006,
+          "mean_capture": -0.2849863180208819,
+          "overlapped": 1
+        },
+        "label": "scale, premium stop -30%, 21 DTE",
+        "role": "sensitivity, $1,000"
+      }
+    ],
+    "random": {
+      "metrics": {
+        "starting_equity": 4018.314414101005,
+        "ending_equity": 304.837278501774,
+        "total_return": -0.9241380222931177,
+        "cagr": -0.5709965755675508,
+        "sharpe": -14.240138763926266,
+        "sortino": -10.779674521787637,
+        "max_drawdown": -0.9241380222931177,
+        "exposure": 0.0,
+        "trades": 21,
+        "win_rate": 0.047619047619047616,
+        "avg_win": 91.84094883680291,
+        "avg_loss": -190.2659042218017,
+        "profit_factor": 0.024134894061139747,
+        "expectancy": -176.83224455234432,
+        "years": 3.047227926078029
+      },
+      "move": -0.29928379976943387,
+      "skipped": 95,
+      "extra": {
+        "targets": {
+          "0": 19,
+          "1": 1,
+          "3": 1
+        },
+        "runner": {
+          "initial_stop": 19,
+          "breakeven": 2
+        },
+        "armed": 2,
+        "mean_delta": 0.046034688857008066,
+        "mean_capture": -0.29928379976943387,
+        "overlapped": 0
+      },
+      "label": "random entries, same -20% ladder, 21 DTE",
+      "role": "random"
+    },
+    "gate": {
+      "metrics": {
+        "starting_equity": 4018.314414101005,
+        "ending_equity": 178.15666743407343,
+        "total_return": -0.9556638308817028,
+        "cagr": -0.6766661227678944,
+        "sharpe": -17.223857372696706,
+        "sortino": -11.75260938683288,
+        "max_drawdown": -0.9556638308817028,
+        "exposure": 0.0,
+        "trades": 17,
+        "win_rate": 0.058823529411764705,
+        "avg_win": 13.121143365447551,
+        "avg_loss": -240.82993062702366,
+        "profit_factor": 0.003405189123317595,
+        "expectancy": -225.8916321568783,
+        "years": 2.759753593429158
+      },
+      "move": -0.33258685538061045,
+      "skipped": 98,
+      "extra": {
+        "targets": {
+          "0": 16,
+          "3": 1
+        },
+        "runner": {
+          "initial_stop": 17
+        },
+        "armed": 1,
+        "mean_delta": 0.14454881282161836,
+        "mean_capture": -0.33258685538061045,
+        "overlapped": 1
+      },
+      "label": "scale, premium stop -20%, 21 DTE",
+      "role": "gate"
+    }
+  }
+]
