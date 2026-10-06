@@ -1842,3 +1842,446 @@ The bounce label is the 15% trail: out-of-sample expectancy $13.63, profit facto
 
 Not added to `config/optional_strategies.json`. The published A-D books are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_EXITS_END -->
+
+<!-- CHART_READS_SCALE_START -->
+## Options scale-out
+
+DOES NOT CHANGE THE GATE. This is a pre-registered options exit, scored on the same bounce and A-D entries. Nothing was sent to a broker. `live_trading_enabled` stays false. The dual-momentum order path does not call it. The ordinary simulator is unchanged when this contract count is absent.
+
+The ladder, fixed before the score: buy 5 contracts, sell 2 at +15% of the premium paid, sell 1 at +20%, sell 1 at +30%, and leave 1 runner with a limit at +100%. After the +15% tier fills, the remaining contracts stop at the entry ask, which is 0% on the premium before sell-side fees. Before that fill, the initial stop is a premium stop at -20%, -30%, or -50%, or the setup stop on the underlying. The comparisons on the same five-contract entries are an all-out sell at +30% with those same stops, the percent and ATR trails, and the brackets at the next level and at 1.5R, 2R, and 3R. A limit fills at the limit. A stop that gaps through fills at the worse bid. If one bar trades both, the stop fills. The book's time stop still exits the remainder.
+
+Webull's options trade page lists `MARKET`, `LIMIT`, `STOP_LOSS`, and `STOP_LOSS_LIMIT`. It does not list `TRAILING_STOP_LOSS`, and `OTO`, `OCO`, and `OTOCO` are equity-only. The execution plan therefore builds four separate option `LIMIT` sells, one per tier. A resting option stop beside those limits could sell the same contracts twice, so the initial stop and the break-even stop are bot-managed watches. The limits are DAY orders. The paper book does not rest them, because that book fills equity prices. No option order is sent.
+
+Costs are the modeled spread on each fill and the per-contract ORF, OCC, and CAT fees on the buy and on every sell ticket, plus the sell-side TAF and SEC fee. Webull's listed US options commission is $0. A finished ladder is one five-contract buy and four sell tickets (2, then 1, then 1, then the runner). Expectancy is dollars per closed five-contract position after those costs. Average capture is that P&L divided by the premium paid, before fees are taken out of the denominator. Options are Black-Scholes on trailing realized volatility times 1.15, with the same haircut as the other call books. They are not quotes. Hourly calls are 3 DTE. Daily calls are 45 DTE. The book delta is 0.45 unless the row says 0.20.
+
+Sizing (a) uses one account per book: the in-sample median of the equity that puts a -30% premium stop at about 2% of the account, and at least the five-lot debit. Every row in that regime, including the other stops and the trails, uses that same equity. The -20% stop then risks less than 2%, and the -50% stop risks more. The 90th percentile of that required capital is reported and was not used. Sizing (b) is a $1,000 account. A five-lot is taken only when its debit fits. One (b) row keeps delta 0.45. The other uses delta 0.20, further out of the money, so more names fit and the contract needs a larger underlying move to reach the same premium percent. Short-dated contracts have less time for that move.
+
+### Partial bounce, daily Dow
+
+2508 signals. Same bounce entry and underlying stop. Calls, 45 DTE.
+
+In-sample five-lot quotes: 1270. Median debit $670.87, median ask $1.34, median delta 0.45. Median capital at a -20% stop $6,728.11, at -30% $10,081.40, at -50% $16,787.98, and at the underlying stop $14,602.10. The sized account is the -30% median, $10,081.40. The unused 90th percentile at -30% is $25,481.64.
+Out of sample, 227 of 1207 book-delta five-lots fit in $1,000 (median debit $2,470.21, median delta 0.45). At delta 0.20, 714 of 1207 fit (median debit $811.98, median ask $1.62, median delta 0.20).
+
+Sized account, $10,081.40, delta 0.45
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 39 | 10.3% | -23.5% | $-253.75 | 0.07 | -8.33 | -98.2% | $185.10 | $40.62 | 1145 |
+| scale, premium stop -30% | 35 | 28.6% | -19.7% | $-283.02 | 0.18 | -4.66 | -98.3% | $175.85 | $46.94 | 1110 |
+| scale, premium stop -50% | 36 | 36.1% | -26.0% | $-275.85 | 0.25 | -3.52 | -98.8% | $150.94 | $41.30 | 1087 |
+| scale, underlying stop | 37 | 37.8% | -19.2% | $-270.86 | 0.31 | -2.80 | -99.5% | $59.63 | $42.86 | 1081 |
+| all-out +30%, premium stop -20% | 39 | 7.7% | -23.7% | $-254.06 | 0.08 | -8.24 | -98.3% | $173.13 | $41.69 | 1145 |
+| all-out +30%, premium stop -30% | 39 | 33.3% | -14.3% | $-253.34 | 0.29 | -4.63 | -98.0% | $201.11 | $45.96 | 1110 |
+| all-out +30%, premium stop -50% | 57 | 45.6% | -15.6% | $-174.92 | 0.63 | -1.83 | -99.2% | $111.20 | $63.67 | 997 |
+| all-out +30%, underlying stop | 60 | 41.7% | -13.9% | $-166.99 | 0.63 | -1.77 | -99.5% | $61.93 | $123.85 | 987 |
+| bracket, next level | 44 | 31.8% | -18.3% | $-224.15 | 0.28 | -1.00 | -98.3% | $218.92 | $9.76 | 1085 |
+| trail 5% | 30 | 20.0% | -16.5% | $-331.65 | 0.48 | -0.48 | -99.2% | $131.80 | $207.19 | 1036 |
+| trail 10% | 30 | 26.7% | -26.5% | $-332.72 | 0.47 | -0.45 | -99.4% | $99.80 | $233.57 | 982 |
+| trail 15% | 26 | 26.9% | -22.6% | $-380.80 | 0.43 | -0.44 | -98.7% | $180.63 | $696.51 | 1021 |
+| trail 1.5 ATR | 28 | 25.0% | -21.2% | $-354.68 | 0.15 | -0.71 | -98.9% | $150.49 | $38.22 | 1110 |
+| trail 2 ATR | 31 | 29.0% | -16.6% | $-322.05 | 0.32 | -0.40 | -99.3% | $97.86 | $124.62 | 1042 |
+| trail 3 ATR | 21 | 14.3% | -25.2% | $-474.00 | 0.25 | -0.39 | -99.1% | $127.32 | $143.40 | 1056 |
+| bracket 1.5R | 84 | 27.4% | +2.4% | $-117.84 | 0.83 | -0.13 | -99.3% | $182.76 | $101.99 | 685 |
+| bracket 2R | 84 | 27.4% | +2.4% | $-117.84 | 0.83 | -0.13 | -99.3% | $182.76 | $101.99 | 685 |
+| bracket 3R | 84 | 27.4% | +2.4% | $-117.84 | 0.83 | -0.13 | -99.3% | $182.76 | $101.99 | 685 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -20%, $-253.75 on 39 trades, win rate 10.3%, average capture -23.5%, max drawdown -98.2%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -20% expectancy $-254.06 on 39 trades. That label is not a new default.
+35 hit 0, 1 hit 1, 1 hit 2, 1 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 3. Armed after the first target: 4.
+
+$1,000 account, delta 0.45, five contracts only when the debit fits
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 8 | 0.0% | -31.1% | $-102.13 | 0.00 | -32.06 | -81.7% | $182.92 | $14.54 | 1214 |
+| scale, premium stop -30% | 9 | 22.2% | -22.0% | $-94.86 | 0.17 | -5.95 | -85.4% | $146.30 | $38.16 | 1205 |
+| scale, premium stop -50% | 8 | 50.0% | -19.9% | $-100.45 | 0.22 | -3.63 | -80.4% | $196.39 | $54.35 | 1199 |
+| scale, underlying stop | 11 | 54.5% | -13.9% | $-78.90 | 0.26 | -3.40 | -86.8% | $132.05 | $34.30 | 1180 |
+| all-out +30%, premium stop -20% | 8 | 0.0% | -31.1% | $-102.13 | 0.00 | -32.06 | -81.7% | $182.92 | $14.54 | 1214 |
+| all-out +30%, premium stop -30% | 14 | 35.7% | -13.1% | $-62.81 | 0.56 | -3.97 | -92.5% | $120.63 | $63.54 | 1194 |
+| all-out +30%, premium stop -50% | 11 | 36.4% | -20.9% | $-81.62 | 0.33 | -2.95 | -89.8% | $102.15 | $32.21 | 1185 |
+| all-out +30%, underlying stop | 20 | 50.0% | -7.4% | $-39.63 | 0.76 | -0.55 | -89.5% | $207.40 | $7.28 | 1137 |
+| bracket, next level | 9 | 22.2% | -16.5% | $-94.24 | 0.17 | -0.69 | -84.8% | $151.86 | $42.65 | 1201 |
+| trail 5% | 7 | 28.6% | -21.8% | $-130.65 | 0.23 | -0.34 | -91.5% | $85.43 | $32.74 | 1176 |
+| trail 10% | 13 | 38.5% | -12.2% | $-68.66 | 0.67 | -0.10 | -96.0% | $107.38 | $28.33 | 1111 |
+| trail 15% | 13 | 38.5% | -12.2% | $-68.66 | 0.67 | -0.10 | -96.0% | $107.38 | $37.34 | 1111 |
+| trail 1.5 ATR | 6 | 0.0% | -37.5% | $-146.00 | 0.00 | -0.91 | -87.6% | $123.99 | $35.45 | 1209 |
+| trail 2 ATR | 11 | 27.3% | -16.1% | $-77.27 | 0.39 | -0.03 | -85.0% | $149.98 | $56.80 | 1150 |
+| trail 3 ATR | 6 | 33.3% | -25.6% | $-156.60 | 0.23 | -0.46 | -94.0% | $60.40 | $13.09 | 1183 |
+| bracket 1.5R | 7 | 28.6% | -15.1% | $-119.98 | 0.25 | -0.54 | -84.0% | $160.15 | $43.42 | 1191 |
+| bracket 2R | 7 | 28.6% | -15.1% | $-119.98 | 0.25 | -0.54 | -84.0% | $160.15 | $43.42 | 1191 |
+| bracket 3R | 7 | 28.6% | -15.1% | $-119.98 | 0.25 | -0.54 | -84.0% | $160.15 | $43.42 | 1191 |
+
+Highest out-of-sample scale expectancy in this regime: scale, underlying stop, $-78.90 on 11 trades, win rate 54.5%, average capture -13.9%, max drawdown -86.8%. It does not clear the old gate. The paired all-out row is all-out +30%, underlying stop expectancy $-39.63 on 20 trades. That label is not a new default.
+6 hit 0, 0 hit 1, 2 hit 2, 2 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 4. Armed after the first target: 5.
+
+$1,000 account, delta 0.20
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 12 | 0.0% | -32.4% | $-80.34 | 0.00 | -35.96 | -96.4% | $35.90 | $17.74 | 1206 |
+| scale, premium stop -30% | 13 | 7.7% | -33.9% | $-74.16 | 0.03 | -15.48 | -96.4% | $35.94 | $22.87 | 1203 |
+| scale, premium stop -50% | 24 | 41.7% | -20.3% | $-39.45 | 0.41 | -2.27 | -95.7% | $53.31 | $11.67 | 1139 |
+| scale, underlying stop | 22 | 31.8% | -23.5% | $-44.18 | 0.38 | -3.81 | -97.2% | $28.08 | $27.16 | 1163 |
+| all-out +30%, premium stop -20% | 12 | 0.0% | -32.4% | $-80.34 | 0.00 | -35.96 | -96.4% | $35.90 | $17.74 | 1206 |
+| all-out +30%, premium stop -30% | 15 | 13.3% | -28.4% | $-64.49 | 0.13 | -11.50 | -96.7% | $32.68 | $16.98 | 1199 |
+| all-out +30%, premium stop -50% | 18 | 38.9% | -22.7% | $-53.67 | 0.43 | -3.98 | -97.9% | $34.00 | $25.98 | 1168 |
+| all-out +30%, underlying stop | 24 | 50.0% | -11.6% | $-40.05 | 0.56 | -2.08 | -97.2% | $38.86 | $22.86 | 1139 |
+| bracket, next level | 19 | 26.3% | -16.2% | $-51.67 | 0.36 | -0.73 | -98.5% | $18.34 | $27.24 | 1180 |
+| trail 5% | 14 | 28.6% | -32.2% | $-70.78 | 0.53 | -0.55 | -99.5% | $9.13 | $11.73 | 1114 |
+| trail 10% | 13 | 30.8% | -38.7% | $-76.02 | 0.53 | -0.39 | -99.5% | $11.78 | $23.62 | 1098 |
+| trail 15% | 13 | 30.8% | -38.7% | $-76.02 | 0.53 | -0.39 | -99.5% | $11.78 | $24.99 | 1098 |
+| trail 1.5 ATR | 13 | 30.8% | -25.5% | $-75.14 | 0.28 | -0.58 | -98.7% | $23.12 | $20.06 | 1179 |
+| trail 2 ATR | 20 | 35.0% | -18.0% | $-49.16 | 0.62 | -0.40 | -99.1% | $16.76 | $7.35 | 1105 |
+| trail 3 ATR | 12 | 25.0% | -35.9% | $-82.51 | 0.44 | -0.58 | -99.5% | $9.92 | $24.46 | 1113 |
+| bracket 1.5R | 66 | 22.7% | +13.7% | $-14.48 | 0.96 | 0.17 | -99.5% | $44.40 | $8.09 | 844 |
+| bracket 2R | 66 | 22.7% | +13.7% | $-14.48 | 0.96 | 0.17 | -99.5% | $44.40 | $8.09 | 844 |
+| bracket 3R | 66 | 22.7% | +13.7% | $-14.48 | 0.96 | 0.17 | -99.5% | $44.40 | $8.09 | 844 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -50%, $-39.45 on 24 trades, win rate 41.7%, average capture -20.3%, max drawdown -95.7%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -50% expectancy $-53.67 on 18 trades. That label is not a new default.
+11 hit 0, 6 hit 1, 0 hit 2, 4 hit 3, 3 hit 4. Runner +100%: 3. Runner stopped at break-even: 10. Armed after the first target: 13.
+
+### A, 60-minute
+
+457 continuation signals. Calls, 3 DTE. The 5-minute and 15-minute books stay out.
+
+In-sample five-lot quotes: 225. Median debit $1,547.81, median ask $3.10, median delta 0.43. Median capital at a -20% stop $15,498.17, at -30% $23,236.04, at -50% $38,711.76, and at the underlying stop $27,003.95. The sized account is the -30% median, $23,236.04. The unused 90th percentile at -30% is $56,803.29.
+Out of sample, 18 of 222 book-delta five-lots fit in $1,000 (median debit $2,059.29, median delta 0.44). At delta 0.20, 165 of 222 fit (median debit $668.20, median ask $1.34, median delta 0.19).
+
+Sized account, $23,236.04, delta 0.45
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 56 | 12.5% | -24.7% | $-410.29 | 0.13 | -7.11 | -98.9% | $259.58 | $510.57 | 123 |
+| scale, premium stop -30% | 40 | 25.0% | -30.5% | $-571.44 | 0.12 | -6.81 | -98.4% | $378.39 | $172.68 | 154 |
+| scale, premium stop -50% | 35 | 28.6% | -36.0% | $-654.69 | 0.11 | -7.45 | -98.6% | $322.04 | $531.82 | 160 |
+| scale, underlying stop | 41 | 34.1% | -27.0% | $-554.63 | 0.17 | -5.47 | -97.9% | $496.34 | $294.73 | 148 |
+| all-out +30%, premium stop -20% | 56 | 12.5% | -23.8% | $-411.32 | 0.16 | -7.12 | -99.1% | $202.29 | $500.75 | 123 |
+| all-out +30%, premium stop -30% | 41 | 24.4% | -31.9% | $-556.09 | 0.23 | -6.61 | -98.1% | $436.48 | $166.89 | 158 |
+| all-out +30%, premium stop -50% | 35 | 31.4% | -35.9% | $-651.54 | 0.19 | -5.62 | -98.2% | $431.97 | $507.13 | 161 |
+| all-out +30%, underlying stop | 34 | 32.4% | -33.1% | $-671.96 | 0.19 | -6.17 | -98.3% | $389.28 | $272.70 | 162 |
+| bracket, next level | 35 | 8.6% | -16.7% | $-650.00 | 0.31 | -1.36 | -97.9% | $486.19 | $179.87 | 150 |
+| trail 5% | 52 | 13.5% | -9.7% | $-443.20 | 0.55 | -1.00 | -99.2% | $189.39 | $37,234.56 | 48 |
+| trail 10% | 66 | 10.6% | -9.6% | $-62.82 | 0.95 | 0.62 | -75.7% | $19,090.14 | $74,342.46 | 0 |
+| trail 15% | 66 | 10.6% | -7.6% | $-10.95 | 0.99 | 0.64 | -71.7% | $22,513.15 | $74,366.17 | 0 |
+| trail 1.5 ATR | 34 | 2.9% | -38.4% | $-669.08 | 0.01 | -4.20 | -97.9% | $487.18 | $347.95 | 164 |
+| trail 2 ATR | 105 | 8.6% | -9.8% | $-216.33 | 0.74 | -0.31 | -98.4% | $520.93 | $164.88 | 15 |
+| trail 3 ATR | 89 | 11.2% | -12.0% | $-253.27 | 0.75 | 0.41 | -98.1% | $694.80 | $247.17 | 9 |
+| bracket 1.5R | 28 | 14.3% | -29.9% | $-822.65 | 0.33 | -1.89 | -99.2% | $201.89 | $71,159.30 | 148 |
+| bracket 2R | 28 | 14.3% | -29.9% | $-822.65 | 0.33 | -1.89 | -99.2% | $201.89 | $71,159.30 | 148 |
+| bracket 3R | 28 | 14.3% | -29.9% | $-822.65 | 0.33 | -1.89 | -99.2% | $201.89 | $71,159.30 | 148 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -20%, $-410.29 on 56 trades, win rate 12.5%, average capture -24.7%, max drawdown -98.9%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -20% expectancy $-411.32 on 56 trades. That label is not a new default.
+48 hit 0, 0 hit 1, 1 hit 2, 3 hit 3, 4 hit 4. Runner +100%: 4. Runner stopped at break-even: 4. Armed after the first target: 8.
+
+$1,000 account, delta 0.45, five contracts only when the debit fits
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 6 | 33.3% | -15.0% | $-105.10 | 0.42 | -6.99 | -75.0% | $369.38 | $392.16 | 210 |
+| scale, premium stop -30% | 8 | 50.0% | -7.9% | $-76.12 | 0.53 | -3.82 | -73.5% | $391.01 | $284.60 | 207 |
+| scale, premium stop -50% | 6 | 66.7% | -10.0% | $-102.39 | 0.52 | -3.76 | -77.4% | $385.67 | $331.08 | 209 |
+| scale, underlying stop | 7 | 57.1% | -9.2% | $-102.39 | 0.47 | -1.89 | -83.4% | $283.25 | $305.22 | 208 |
+| all-out +30%, premium stop -20% | 6 | 33.3% | -10.5% | $-97.54 | 0.47 | -6.04 | -73.2% | $414.75 | $392.16 | 211 |
+| all-out +30%, premium stop -30% | 8 | 37.5% | -12.5% | $-87.93 | 0.55 | -7.13 | -80.9% | $296.58 | $284.60 | 208 |
+| all-out +30%, premium stop -50% | 7 | 57.1% | -12.4% | $-114.61 | 0.59 | -3.56 | -89.3% | $197.74 | $331.08 | 210 |
+| all-out +30%, underlying stop | 5 | 60.0% | -7.5% | $-100.87 | 0.63 | -0.73 | -73.1% | $495.64 | $291.46 | 211 |
+| bracket, next level | 4 | 25.0% | -7.0% | $-130.46 | 0.62 | 0.33 | -78.1% | $478.16 | $502.78 | 208 |
+| trail 5% | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | 1.00 | -99.5% | $4.67 | $156.17 | 210 |
+| trail 10% | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | 1.00 | -99.5% | $4.67 | $235.59 | 210 |
+| trail 15% | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | 1.00 | -99.5% | $4.67 | $235.59 | 210 |
+| trail 1.5 ATR | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | -1.80 | -99.5% | $4.67 | $207.01 | 214 |
+| trail 2 ATR | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | -1.80 | -99.5% | $4.67 | $78.46 | 214 |
+| trail 3 ATR | 5 | 0.0% | -33.2% | $-199.07 | 0.00 | -1.80 | -99.5% | $4.67 | $21.75 | 214 |
+| bracket 1.5R | 4 | 25.0% | -15.7% | $-221.46 | 0.49 | 0.11 | -95.0% | $114.16 | $291.46 | 205 |
+| bracket 2R | 4 | 25.0% | -15.7% | $-221.46 | 0.49 | 0.11 | -95.0% | $114.16 | $291.46 | 205 |
+| bracket 3R | 4 | 25.0% | -15.7% | $-221.46 | 0.49 | 0.11 | -95.0% | $114.16 | $291.46 | 205 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -30%, $-76.12 on 8 trades, win rate 50.0%, average capture -7.9%, max drawdown -73.5%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -30% expectancy $-87.93 on 8 trades. That label is not a new default.
+4 hit 0, 0 hit 1, 1 hit 2, 1 hit 3, 2 hit 4. Runner +100%: 2. Runner stopped at break-even: 2. Armed after the first target: 4.
+
+$1,000 account, delta 0.20
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 8 | 0.0% | -34.7% | $-111.87 | 0.00 | -38.70 | -89.5% | $105.04 | $177.96 | 206 |
+| scale, premium stop -30% | 7 | 14.3% | -32.1% | $-119.99 | 0.10 | -13.70 | -84.0% | $160.06 | $102.19 | 208 |
+| scale, premium stop -50% | 5 | 20.0% | -42.1% | $-178.95 | 0.06 | -12.43 | -89.5% | $105.23 | $105.35 | 215 |
+| scale, underlying stop | 10 | 40.0% | -18.1% | $-93.33 | 0.28 | -2.10 | -93.3% | $66.67 | $66.23 | 208 |
+| all-out +30%, premium stop -20% | 8 | 0.0% | -34.7% | $-111.87 | 0.00 | -38.70 | -89.5% | $105.04 | $107.87 | 206 |
+| all-out +30%, premium stop -30% | 7 | 14.3% | -32.9% | $-122.20 | 0.08 | -15.72 | -85.5% | $144.57 | $102.19 | 209 |
+| all-out +30%, premium stop -50% | 4 | 25.0% | -40.5% | $-196.89 | 0.06 | -10.48 | -83.5% | $212.43 | $105.35 | 216 |
+| all-out +30%, underlying stop | 9 | 44.4% | -18.1% | $-100.69 | 0.32 | -4.33 | -90.6% | $93.81 | $66.23 | 204 |
+| bracket, next level | 6 | 0.0% | -44.6% | $-158.13 | 0.00 | -0.25 | -94.9% | $51.22 | $165.61 | 202 |
+| trail 5% | 4 | 50.0% | +6.2% | $-211.66 | 0.40 | 0.42 | -94.7% | $153.37 | $89.89 | 208 |
+| trail 10% | 3 | 66.7% | +14.3% | $-287.61 | 0.40 | 0.44 | -95.2% | $137.16 | $89.89 | 206 |
+| trail 15% | 3 | 66.7% | +14.3% | $-287.61 | 0.40 | 0.44 | -95.2% | $137.16 | $89.89 | 206 |
+| trail 1.5 ATR | 4 | 0.0% | -52.0% | $-215.35 | 0.00 | -1.96 | -86.1% | $138.60 | $62.71 | 217 |
+| trail 2 ATR | 5 | 0.0% | -42.4% | $-165.36 | 0.00 | -2.31 | -82.7% | $173.19 | $16.00 | 212 |
+| trail 3 ATR | 40 | 7.5% | +7.0% | $-24.60 | 0.90 | 0.40 | -99.8% | $16.08 | $68.11 | 137 |
+| bracket 1.5R | 7 | 28.6% | -27.6% | $-136.86 | 0.45 | 0.41 | -98.5% | $42.01 | $66.13 | 196 |
+| bracket 2R | 7 | 28.6% | -27.6% | $-136.86 | 0.45 | 0.41 | -98.5% | $42.01 | $66.13 | 196 |
+| bracket 3R | 7 | 28.6% | -27.6% | $-136.86 | 0.45 | 0.41 | -98.5% | $42.01 | $66.13 | 196 |
+
+Highest out-of-sample scale expectancy in this regime: scale, underlying stop, $-93.33 on 10 trades, win rate 40.0%, average capture -18.1%, max drawdown -93.3%. It does not clear the old gate. The paired all-out row is all-out +30%, underlying stop expectancy $-100.69 on 9 trades. That label is not a new default.
+6 hit 0, 0 hit 1, 0 hit 2, 0 hit 3, 4 hit 4. Runner +100%: 4. Runner stopped at break-even: 0. Armed after the first target: 4.
+
+### B, 60-minute
+
+235 failed-breakout signals. Calls and puts follow the setup direction. 3 DTE.
+
+In-sample five-lot quotes: 112. Median debit $1,518.86, median ask $3.04, median delta -0.43. Median capital at a -20% stop $15,208.72, at -30% $22,801.87, at -50% $37,988.18, and at the underlying stop $43,409.77. The sized account is the -30% median, $22,801.87. The unused 90th percentile at -30% is $74,109.44.
+Out of sample, 13 of 121 book-delta five-lots fit in $1,000 (median debit $1,828.65, median delta 0.42). At delta 0.20, 93 of 121 fit (median debit $613.95, median ask $1.23, median delta 0.18).
+
+Sized account, $22,801.87, delta 0.45
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 42 | 19.0% | -23.1% | $-531.16 | 0.05 | -8.40 | -97.8% | $492.97 | $596.11 | 66 |
+| scale, premium stop -30% | 34 | 26.5% | -27.5% | $-657.50 | 0.07 | -9.32 | -98.0% | $447.00 | $587.17 | 76 |
+| scale, premium stop -50% | 33 | 33.3% | -30.9% | $-682.57 | 0.10 | -9.62 | -98.8% | $277.18 | $62.94 | 73 |
+| scale, underlying stop | 36 | 38.9% | -27.5% | $-622.11 | 0.10 | -6.22 | -98.2% | $405.87 | $521.34 | 67 |
+| all-out +30%, premium stop -20% | 42 | 16.7% | -22.4% | $-532.42 | 0.11 | -7.67 | -98.1% | $440.22 | $456.62 | 64 |
+| all-out +30%, premium stop -30% | 30 | 20.0% | -31.8% | $-745.34 | 0.09 | -13.18 | -98.1% | $441.61 | $567.16 | 80 |
+| all-out +30%, premium stop -50% | 33 | 36.4% | -30.0% | $-677.37 | 0.19 | -5.02 | -98.1% | $448.81 | $558.60 | 77 |
+| all-out +30%, underlying stop | 36 | 41.7% | -24.0% | $-619.09 | 0.20 | -4.79 | -97.7% | $514.54 | $441.47 | 66 |
+| bracket, next level | 28 | 7.1% | -30.4% | $-807.17 | 0.35 | -0.60 | -99.3% | $201.23 | $36,032.83 | 72 |
+| trail 5% | 29 | 10.3% | -16.1% | $-780.35 | 0.17 | 1.01 | -100.0% | $171.60 | $19,995.68 | 64 |
+| trail 10% | 50 | 16.0% | +1.3% | $-448.04 | 0.62 | -0.10 | -98.9% | $399.81 | $18,635.64 | 8 |
+| trail 15% | 51 | 15.7% | -0.3% | $-424.53 | 0.63 | 0.06 | -96.8% | $1,150.70 | $19,979.04 | 5 |
+| trail 1.5 ATR | 38 | 5.3% | -13.1% | $-590.05 | 0.17 | -3.15 | -98.3% | $379.88 | $552.03 | 69 |
+| trail 2 ATR | 38 | 7.9% | -8.4% | $-590.34 | 0.21 | -3.04 | -98.4% | $368.97 | $587.42 | 71 |
+| trail 3 ATR | 35 | 5.7% | -11.2% | $-638.43 | 0.19 | -3.16 | -98.0% | $456.68 | $266.31 | 73 |
+| bracket 1.5R | 21 | 9.5% | -66.5% | $-1,083.10 | 0.01 | -2.49 | -99.8% | $56.81 | $34,254.41 | 82 |
+| bracket 2R | 21 | 9.5% | -66.5% | $-1,083.10 | 0.01 | -2.49 | -99.8% | $56.81 | $34,254.41 | 82 |
+| bracket 3R | 21 | 9.5% | -66.5% | $-1,083.10 | 0.01 | -2.49 | -99.8% | $56.81 | $34,254.41 | 82 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -20%, $-531.16 on 42 trades, win rate 19.0%, average capture -23.1%, max drawdown -97.8%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -20% expectancy $-532.42 on 42 trades. That label is not a new default.
+32 hit 0, 2 hit 1, 2 hit 2, 5 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 9. Armed after the first target: 10.
+
+$1,000 account, delta 0.45, five contracts only when the debit fits
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 3 | 0.0% | -23.5% | $-157.45 | 0.00 | -10.03 | -54.5% | $527.64 | $528.37 | 118 |
+| scale, premium stop -30% | 4 | 0.0% | -25.4% | $-163.39 | 0.00 | -13.08 | -70.1% | $346.43 | $583.72 | 117 |
+| scale, premium stop -50% | 3 | 0.0% | -22.5% | $-156.80 | 0.00 | -9.01 | -54.3% | $529.59 | $186.08 | 118 |
+| scale, underlying stop | 5 | 20.0% | -22.3% | $-137.13 | 0.08 | -2.97 | -72.9% | $314.33 | $298.64 | 114 |
+| all-out +30%, premium stop -20% | 4 | 25.0% | -20.0% | $-122.46 | 0.30 | -10.20 | -57.7% | $510.15 | $528.37 | 117 |
+| all-out +30%, premium stop -30% | 3 | 33.3% | -26.4% | $-153.79 | 0.31 | -9.43 | -55.4% | $538.63 | $539.46 | 118 |
+| all-out +30%, premium stop -50% | 3 | 33.3% | -28.3% | $-167.61 | 0.29 | -10.07 | -58.8% | $497.18 | $422.62 | 118 |
+| all-out +30%, underlying stop | 3 | 66.7% | -5.5% | $-213.13 | 0.40 | -1.91 | -74.8% | $360.60 | $277.51 | 118 |
+| bracket, next level | 1 | 0.0% | -100.0% | $-690.50 | 0.00 | -0.83 | -75.2% | $309.50 | $75.81 | 119 |
+| trail 5% | 11 | 9.1% | +19.4% | $-63.42 | 0.85 | 0.33 | -93.9% | $302.35 | $261.85 | 105 |
+| trail 10% | 11 | 9.1% | +19.4% | $-63.42 | 0.85 | 0.33 | -93.9% | $302.35 | $261.85 | 105 |
+| trail 15% | 11 | 9.1% | +19.4% | $-63.42 | 0.85 | 0.33 | -93.9% | $302.35 | $261.85 | 105 |
+| trail 1.5 ATR | 14 | 7.1% | +13.8% | $-41.75 | 0.87 | 0.54 | -91.6% | $415.45 | $428.76 | 103 |
+| trail 2 ATR | 14 | 7.1% | +11.8% | $-59.50 | 0.83 | 0.23 | -96.6% | $166.97 | $403.11 | 104 |
+| trail 3 ATR | 12 | 8.3% | +18.8% | $-44.86 | 0.88 | 0.44 | -90.7% | $461.72 | $287.22 | 108 |
+| bracket 1.5R | 1 | 0.0% | -100.0% | $-690.50 | 0.00 | -0.83 | -75.2% | $309.50 | $75.81 | 119 |
+| bracket 2R | 1 | 0.0% | -100.0% | $-690.50 | 0.00 | -0.83 | -75.2% | $309.50 | $75.81 | 119 |
+| bracket 3R | 1 | 0.0% | -100.0% | $-690.50 | 0.00 | -0.83 | -75.2% | $309.50 | $75.81 | 119 |
+
+Highest out-of-sample scale expectancy in this regime: scale, underlying stop, $-137.13 on 5 trades, win rate 20.0%, average capture -22.3%, max drawdown -72.9%. It does not clear the old gate. The paired all-out row is all-out +30%, underlying stop expectancy $-213.13 on 3 trades. That label is not a new default.
+1 hit 0, 1 hit 1, 2 hit 2, 1 hit 3, 0 hit 4. Runner +100%: 0. Runner stopped at break-even: 4. Armed after the first target: 4.
+
+$1,000 account, delta 0.20
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 5 | 0.0% | -40.4% | $-167.55 | 0.00 | -39.77 | -83.8% | $162.24 | $157.30 | 113 |
+| scale, premium stop -30% | 6 | 50.0% | -19.2% | $-132.23 | 0.32 | -6.84 | -79.7% | $206.61 | $102.44 | 111 |
+| scale, premium stop -50% | 4 | 25.0% | -39.4% | $-211.39 | 0.19 | -71.22 | -84.6% | $154.45 | $181.79 | 112 |
+| scale, underlying stop | 5 | 60.0% | -30.3% | $-186.18 | 0.20 | -6.02 | -93.2% | $69.11 | $173.20 | 110 |
+| all-out +30%, premium stop -20% | 5 | 0.0% | -40.4% | $-167.55 | 0.00 | -39.77 | -83.8% | $162.24 | $157.30 | 113 |
+| all-out +30%, premium stop -30% | 10 | 40.0% | -16.6% | $-85.15 | 0.30 | -8.48 | -85.2% | $148.49 | $146.31 | 106 |
+| all-out +30%, premium stop -50% | 4 | 25.0% | -40.9% | $-219.74 | 0.16 | -67.00 | -87.9% | $121.03 | $47.98 | 112 |
+| all-out +30%, underlying stop | 7 | 57.1% | -23.3% | $-128.49 | 0.40 | -4.74 | -90.8% | $100.54 | $12.84 | 107 |
+| bracket, next level | 3 | 0.0% | -81.0% | $-313.48 | 0.00 | -2.05 | -94.0% | $59.55 | $6.53 | 111 |
+| trail 5% | 6 | 0.0% | -31.3% | $-148.61 | 0.00 | -2.62 | -89.2% | $108.32 | $191.13 | 106 |
+| trail 10% | 6 | 0.0% | -31.3% | $-148.61 | 0.00 | -2.62 | -89.2% | $108.32 | $191.13 | 106 |
+| trail 15% | 6 | 0.0% | -31.3% | $-148.61 | 0.00 | -2.62 | -89.2% | $108.32 | $191.13 | 106 |
+| trail 1.5 ATR | 7 | 0.0% | -27.3% | $-122.28 | 0.00 | -2.38 | -85.6% | $144.06 | $94.51 | 109 |
+| trail 2 ATR | 6 | 0.0% | -30.6% | $-145.93 | 0.00 | -2.40 | -87.6% | $124.42 | $137.04 | 109 |
+| trail 3 ATR | 6 | 0.0% | -31.3% | $-148.61 | 0.00 | -2.62 | -89.2% | $108.32 | $127.25 | 109 |
+| bracket 1.5R | 2 | 0.0% | -91.4% | $-446.60 | 0.00 | -1.75 | -89.3% | $106.80 | $16.60 | 112 |
+| bracket 2R | 2 | 0.0% | -91.4% | $-446.60 | 0.00 | -1.75 | -89.3% | $106.80 | $16.60 | 112 |
+| bracket 3R | 2 | 0.0% | -91.4% | $-446.60 | 0.00 | -1.75 | -89.3% | $106.80 | $16.60 | 112 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -30%, $-132.23 on 6 trades, win rate 50.0%, average capture -19.2%, max drawdown -79.7%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -30% expectancy $-85.15 on 10 trades. That label is not a new default.
+3 hit 0, 0 hit 1, 0 hit 2, 1 hit 3, 2 hit 4. Runner +100%: 2. Runner stopped at break-even: 1. Armed after the first target: 3.
+
+### C, daily Dow
+
+1838 signals. Same daily entries. Calls, 45 DTE.
+
+In-sample five-lot quotes: 967. Median debit $598.24, median ask $1.20, median delta 0.45. Median capital at a -20% stop $6,001.75, at -30% $8,991.90, at -50% $14,972.18, and at the underlying stop $13,011.29. The sized account is the -30% median, $8,991.90. The unused 90th percentile at -30% is $22,692.28.
+Out of sample, 168 of 838 book-delta five-lots fit in $1,000 (median debit $2,245.17, median delta 0.45). At delta 0.20, 509 of 838 fit (median debit $760.05, median ask $1.52, median delta 0.20).
+
+Sized account, $8,991.90, delta 0.45
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 41 | 17.1% | -21.3% | $-214.18 | 0.12 | -8.68 | -97.7% | $210.37 | $16.62 | 776 |
+| scale, premium stop -30% | 41 | 29.3% | -22.2% | $-215.99 | 0.22 | -4.83 | -98.5% | $136.47 | $45.72 | 747 |
+| scale, premium stop -50% | 52 | 53.8% | -15.9% | $-169.03 | 0.39 | -2.33 | -97.8% | $202.18 | $70.35 | 648 |
+| scale, underlying stop | 44 | 54.5% | -16.0% | $-199.02 | 0.28 | -1.37 | -98.1% | $235.09 | $76.80 | 685 |
+| all-out +30%, premium stop -20% | 39 | 7.7% | -24.5% | $-227.15 | 0.10 | -8.13 | -98.5% | $132.92 | $30.50 | 785 |
+| all-out +30%, premium stop -30% | 54 | 29.6% | -17.7% | $-162.63 | 0.40 | -3.34 | -97.8% | $210.14 | $45.13 | 727 |
+| all-out +30%, premium stop -50% | 62 | 54.8% | -9.5% | $-141.79 | 0.57 | -1.21 | -98.0% | $200.75 | $39.27 | 613 |
+| all-out +30%, underlying stop | 42 | 59.5% | -7.9% | $-210.10 | 0.44 | -0.71 | -98.3% | $167.64 | $73.40 | 638 |
+| bracket, next level | 41 | 19.5% | -20.3% | $-213.82 | 0.20 | -1.12 | -97.9% | $225.19 | $136.03 | 733 |
+| trail 5% | 45 | 24.4% | -14.5% | $-195.47 | 0.72 | -0.25 | -98.7% | $195.78 | $42.40 | 473 |
+| trail 10% | 10 | 20.0% | -66.4% | $-880.18 | 0.03 | -0.52 | -98.4% | $190.12 | $7,725.10 | 720 |
+| trail 15% | 10 | 30.0% | -33.1% | $-894.50 | 0.26 | -0.58 | -99.6% | $46.93 | $18,156.01 | 703 |
+| trail 1.5 ATR | 29 | 13.8% | -22.4% | $-304.11 | 0.10 | -1.17 | -98.2% | $172.58 | $34.65 | 726 |
+| trail 2 ATR | 48 | 25.0% | -18.7% | $-184.22 | 0.65 | -0.44 | -99.0% | $149.21 | $99.56 | 520 |
+| trail 3 ATR | 16 | 37.5% | -32.4% | $-547.79 | 0.20 | -0.68 | -98.1% | $227.33 | $125.67 | 676 |
+| bracket 1.5R | 19 | 21.1% | -29.2% | $-468.28 | 0.35 | 0.14 | -99.2% | $94.59 | $49.81 | 625 |
+| bracket 2R | 19 | 21.1% | -29.2% | $-468.28 | 0.35 | 0.14 | -99.2% | $94.59 | $49.81 | 625 |
+| bracket 3R | 19 | 21.1% | -29.2% | $-468.28 | 0.35 | 0.14 | -99.2% | $94.59 | $49.81 | 625 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -50%, $-169.03 on 52 trades, win rate 53.8%, average capture -15.9%, max drawdown -97.8%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -50% expectancy $-141.79 on 62 trades. That label is not a new default.
+22 hit 0, 4 hit 1, 10 hit 2, 8 hit 3, 8 hit 4. Runner +100%: 8. Runner stopped at break-even: 22. Armed after the first target: 30.
+
+$1,000 account, delta 0.45, five contracts only when the debit fits
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 8 | 25.0% | -22.0% | $-101.44 | 0.11 | -10.32 | -82.5% | $188.50 | $27.98 | 842 |
+| scale, premium stop -30% | 11 | 36.4% | -19.9% | $-73.09 | 0.27 | -4.53 | -82.7% | $196.06 | $30.58 | 829 |
+| scale, premium stop -50% | 16 | 56.2% | -8.4% | $-50.42 | 0.55 | -1.69 | -88.9% | $193.34 | $28.59 | 802 |
+| scale, underlying stop | 6 | 33.3% | -31.7% | $-139.44 | 0.11 | -6.92 | -85.6% | $163.37 | $18.18 | 837 |
+| all-out +30%, premium stop -20% | 7 | 0.0% | -29.5% | $-119.86 | 0.00 | -12.54 | -84.9% | $160.95 | $27.98 | 842 |
+| all-out +30%, premium stop -30% | 17 | 41.2% | -14.0% | $-45.33 | 0.61 | -2.19 | -87.6% | $229.44 | $28.51 | 801 |
+| all-out +30%, premium stop -50% | 11 | 45.5% | -16.8% | $-73.28 | 0.55 | -2.34 | -89.5% | $193.91 | $28.36 | 803 |
+| all-out +30%, underlying stop | 14 | 50.0% | -11.5% | $-59.94 | 0.61 | -1.10 | -93.4% | $160.80 | $25.32 | 772 |
+| bracket, next level | 16 | 31.2% | -14.7% | $-55.41 | 0.35 | -0.44 | -90.2% | $113.39 | $17.97 | 811 |
+| trail 5% | 7 | 28.6% | -11.2% | $-131.01 | 0.64 | -0.09 | -96.8% | $82.95 | $24.22 | 767 |
+| trail 10% | 3 | 33.3% | -48.3% | $-312.00 | 0.05 | -0.34 | -95.0% | $63.99 | $6.20 | 797 |
+| trail 15% | 3 | 33.3% | -48.3% | $-312.00 | 0.05 | -0.34 | -95.0% | $63.99 | $19.37 | 797 |
+| trail 1.5 ATR | 12 | 16.7% | -9.2% | $-68.32 | 0.48 | -0.30 | -92.9% | $180.13 | $17.23 | 795 |
+| trail 2 ATR | 9 | 22.2% | +2.6% | $-92.44 | 0.65 | -0.23 | -94.1% | $168.02 | $21.21 | 787 |
+| trail 3 ATR | 3 | 33.3% | -43.0% | $-285.20 | 0.05 | -0.18 | -88.7% | $144.40 | $12.49 | 802 |
+| bracket 1.5R | 5 | 20.0% | -44.6% | $-179.33 | 0.05 | -0.18 | -91.9% | $103.33 | $18.88 | 800 |
+| bracket 2R | 5 | 20.0% | -44.6% | $-179.33 | 0.05 | -0.18 | -91.9% | $103.33 | $18.88 | 800 |
+| bracket 3R | 5 | 20.0% | -44.6% | $-179.33 | 0.05 | -0.18 | -91.9% | $103.33 | $18.88 | 800 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -50%, $-50.42 on 16 trades, win rate 56.2%, average capture -8.4%, max drawdown -88.9%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -50% expectancy $-73.28 on 11 trades. That label is not a new default.
+5 hit 0, 2 hit 1, 4 hit 2, 2 hit 3, 3 hit 4. Runner +100%: 3. Runner stopped at break-even: 8. Armed after the first target: 11.
+
+$1,000 account, delta 0.20
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 14 | 0.0% | -34.7% | $-69.04 | 0.00 | -25.07 | -96.7% | $33.44 | $18.91 | 832 |
+| scale, premium stop -30% | 16 | 25.0% | -26.4% | $-59.93 | 0.14 | -8.34 | -95.9% | $41.14 | $20.01 | 819 |
+| scale, premium stop -50% | 21 | 42.9% | -19.7% | $-46.14 | 0.24 | -4.18 | -97.5% | $30.96 | $21.02 | 792 |
+| scale, underlying stop | 17 | 41.2% | -28.1% | $-57.42 | 0.22 | -2.01 | -98.4% | $23.89 | $26.33 | 758 |
+| all-out +30%, premium stop -20% | 14 | 0.0% | -34.7% | $-69.04 | 0.00 | -25.07 | -96.7% | $33.44 | $18.91 | 832 |
+| all-out +30%, premium stop -30% | 15 | 20.0% | -28.8% | $-64.14 | 0.21 | -6.81 | -96.2% | $37.94 | $17.14 | 819 |
+| all-out +30%, premium stop -50% | 12 | 25.0% | -37.0% | $-81.12 | 0.22 | -6.06 | -97.5% | $26.53 | $17.02 | 809 |
+| all-out +30%, underlying stop | 13 | 38.5% | -33.5% | $-74.14 | 0.21 | -2.35 | -96.7% | $36.15 | $26.35 | 768 |
+| bracket, next level | 20 | 20.0% | -22.5% | $-49.74 | 0.14 | -0.90 | -99.5% | $5.28 | $16.49 | 793 |
+| trail 5% | 11 | 18.2% | -46.7% | $-85.85 | 0.47 | -0.17 | -97.3% | $55.63 | $8.49 | 730 |
+| trail 10% | 4 | 0.0% | -98.1% | $-249.66 | 0.00 | -0.06 | -99.9% | $1.34 | $6.16 | 783 |
+| trail 15% | 4 | 0.0% | -98.1% | $-249.66 | 0.00 | -0.06 | -99.9% | $1.34 | $24.13 | 783 |
+| trail 1.5 ATR | 16 | 18.8% | -13.6% | $-59.76 | 0.37 | -0.23 | -97.0% | $43.82 | $5.31 | 778 |
+| trail 2 ATR | 7 | 0.0% | -61.8% | $-137.57 | 0.00 | -0.75 | -96.8% | $37.00 | $27.82 | 797 |
+| trail 3 ATR | 5 | 0.0% | -93.5% | $-194.55 | 0.00 | -0.38 | -97.3% | $27.26 | $8.23 | 791 |
+| bracket 1.5R | 7 | 0.0% | -74.7% | $-138.95 | 0.00 | -0.41 | -97.3% | $27.38 | $18.39 | 778 |
+| bracket 2R | 7 | 0.0% | -74.7% | $-138.95 | 0.00 | -0.41 | -97.3% | $27.38 | $18.39 | 778 |
+| bracket 3R | 7 | 0.0% | -74.7% | $-138.95 | 0.00 | -0.41 | -97.3% | $27.38 | $18.39 | 778 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -50%, $-46.14 on 21 trades, win rate 42.9%, average capture -19.7%, max drawdown -97.5%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -50% expectancy $-81.12 on 12 trades. That label is not a new default.
+9 hit 0, 1 hit 1, 5 hit 2, 5 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 11. Armed after the first target: 12.
+
+### D, daily Dow
+
+292 signals. Same daily entries. Calls and puts follow the setup direction. 45 DTE.
+
+In-sample five-lot quotes: 171. Median debit $568.30, median ask $1.14, median delta 0.41. Median capital at a -20% stop $5,702.34, at -30% $8,542.80, at -50% $14,223.71, and at the underlying stop $11,328.60. The sized account is the -30% median, $8,542.80. The unused 90th percentile at -30% is $23,475.75.
+Out of sample, 30 of 114 book-delta five-lots fit in $1,000 (median debit $2,334.12, median delta 0.42). At delta 0.20, 64 of 114 fit (median debit $777.41, median ask $1.55, median delta 0.17).
+
+Sized account, $8,542.80, delta 0.45
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 28 | 3.6% | -28.2% | $-292.15 | 0.01 | -19.02 | -95.8% | $362.50 | $196.87 | 87 |
+| scale, premium stop -30% | 29 | 24.1% | -27.3% | $-280.93 | 0.15 | -5.98 | -95.4% | $395.83 | $211.57 | 83 |
+| scale, premium stop -50% | 19 | 26.3% | -38.3% | $-437.78 | 0.04 | -5.37 | -97.4% | $225.05 | $169.05 | 94 |
+| scale, underlying stop | 36 | 27.8% | -24.5% | $-224.53 | 0.17 | -4.19 | -94.6% | $459.83 | $201.11 | 73 |
+| all-out +30%, premium stop -20% | 30 | 3.3% | -27.1% | $-271.73 | 0.04 | -18.07 | -95.4% | $390.99 | $219.47 | 86 |
+| all-out +30%, premium stop -30% | 27 | 14.8% | -28.5% | $-301.25 | 0.16 | -8.20 | -95.2% | $409.04 | $257.16 | 86 |
+| all-out +30%, premium stop -50% | 25 | 28.0% | -33.6% | $-324.60 | 0.25 | -5.26 | -95.4% | $427.75 | $226.42 | 89 |
+| all-out +30%, underlying stop | 28 | 17.9% | -31.0% | $-295.39 | 0.20 | -6.40 | -96.9% | $271.94 | $158.10 | 85 |
+| bracket, next level | 35 | 17.1% | -17.3% | $-235.02 | 0.52 | -0.10 | -96.3% | $317.06 | $107.09 | 62 |
+| trail 5% | 43 | 18.6% | -16.1% | $-190.71 | 0.50 | -0.16 | -96.1% | $342.06 | $16.96 | 51 |
+| trail 10% | 23 | 13.0% | -31.6% | $-360.55 | 0.28 | -0.87 | -97.5% | $250.22 | $194.50 | 76 |
+| trail 15% | 40 | 22.5% | -6.5% | $-120.95 | 0.78 | 0.25 | -94.0% | $3,704.91 | $14.43 | 31 |
+| trail 1.5 ATR | 41 | 12.2% | -20.2% | $-197.76 | 0.36 | -0.88 | -95.2% | $434.84 | $257.24 | 69 |
+| trail 2 ATR | 21 | 9.5% | -34.9% | $-387.37 | 0.13 | -1.11 | -95.2% | $407.98 | $194.97 | 90 |
+| trail 3 ATR | 28 | 10.7% | -29.7% | $-291.40 | 0.35 | -0.75 | -95.7% | $383.56 | $362.95 | 76 |
+| bracket 1.5R | 20 | 5.0% | -26.6% | $-408.67 | 0.24 | -0.76 | -95.7% | $369.49 | $215.03 | 93 |
+| bracket 2R | 20 | 5.0% | -26.6% | $-408.67 | 0.24 | -0.76 | -95.7% | $369.49 | $215.03 | 93 |
+| bracket 3R | 20 | 5.0% | -26.6% | $-408.67 | 0.24 | -0.76 | -95.7% | $369.49 | $215.03 | 93 |
+
+Highest out-of-sample scale expectancy in this regime: scale, underlying stop, $-224.53 on 36 trades, win rate 27.8%, average capture -24.5%, max drawdown -94.6%. It does not clear the old gate. The paired all-out row is all-out +30%, underlying stop expectancy $-295.39 on 28 trades. That label is not a new default.
+23 hit 0, 5 hit 1, 5 hit 2, 2 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 12. Armed after the first target: 13.
+
+$1,000 account, delta 0.45, five contracts only when the debit fits
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 6 | 0.0% | -32.0% | $-128.45 | 0.00 | -30.08 | -77.1% | $229.30 | $89.66 | 110 |
+| scale, premium stop -30% | 8 | 37.5% | -22.2% | $-97.26 | 0.22 | -5.19 | -80.0% | $221.89 | $129.50 | 107 |
+| scale, premium stop -50% | 7 | 42.9% | -29.5% | $-125.66 | 0.20 | -4.57 | -88.0% | $120.38 | $88.35 | 108 |
+| scale, underlying stop | 9 | 44.4% | -22.4% | $-89.20 | 0.25 | -2.58 | -82.3% | $197.22 | $93.69 | 106 |
+| all-out +30%, premium stop -20% | 6 | 0.0% | -32.0% | $-128.45 | 0.00 | -30.08 | -77.1% | $229.30 | $89.66 | 110 |
+| all-out +30%, premium stop -30% | 7 | 28.6% | -22.8% | $-91.33 | 0.35 | -4.18 | -65.3% | $360.68 | $184.08 | 109 |
+| all-out +30%, premium stop -50% | 5 | 20.0% | -44.5% | $-169.35 | 0.15 | -7.02 | -84.7% | $153.27 | $193.75 | 111 |
+| all-out +30%, underlying stop | 5 | 20.0% | -36.7% | $-140.58 | 0.17 | -6.76 | -70.3% | $297.12 | $208.65 | 111 |
+| bracket, next level | 13 | 23.1% | -1.7% | $-45.79 | 0.82 | 0.04 | -89.1% | $404.69 | $52.32 | 102 |
+| trail 5% | 11 | 27.3% | -7.1% | $-53.58 | 0.58 | -0.16 | -73.7% | $410.63 | $41.99 | 102 |
+| trail 10% | 9 | 33.3% | -10.3% | $-80.92 | 0.52 | -0.16 | -80.9% | $271.73 | $24.92 | 102 |
+| trail 15% | 9 | 33.3% | -10.3% | $-80.92 | 0.52 | -0.16 | -80.9% | $271.73 | $19.65 | 102 |
+| trail 1.5 ATR | 10 | 20.0% | -13.3% | $-59.29 | 0.23 | -0.35 | -66.7% | $407.07 | $63.87 | 105 |
+| trail 2 ATR | 9 | 22.2% | -18.3% | $-86.11 | 0.31 | -0.24 | -81.0% | $225.00 | $57.59 | 105 |
+| trail 3 ATR | 8 | 25.0% | -13.2% | $-112.53 | 0.46 | -0.26 | -93.7% | $99.79 | $53.39 | 104 |
+| bracket 1.5R | 13 | 15.4% | -2.6% | $-49.07 | 0.82 | 0.04 | -90.1% | $362.05 | $9.26 | 101 |
+| bracket 2R | 13 | 15.4% | -2.6% | $-49.07 | 0.82 | 0.04 | -90.1% | $362.05 | $9.26 | 101 |
+| bracket 3R | 13 | 15.4% | -2.6% | $-49.07 | 0.82 | 0.04 | -90.1% | $362.05 | $9.26 | 101 |
+
+Highest out-of-sample scale expectancy in this regime: scale, underlying stop, $-89.20 on 9 trades, win rate 44.4%, average capture -22.4%, max drawdown -82.3%. It does not clear the old gate. The paired all-out row is all-out +30%, underlying stop expectancy $-140.58 on 5 trades. That label is not a new default.
+5 hit 0, 0 hit 1, 3 hit 2, 0 hit 3, 1 hit 4. Runner +100%: 1. Runner stopped at break-even: 3. Armed after the first target: 4.
+
+$1,000 account, delta 0.20
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| scale, premium stop -20% | 11 | 0.0% | -32.8% | $-83.53 | 0.00 | -26.96 | -91.9% | $81.14 | $28.36 | 105 |
+| scale, premium stop -30% | 13 | 15.4% | -32.3% | $-70.78 | 0.06 | -9.86 | -92.0% | $79.91 | $41.05 | 101 |
+| scale, premium stop -50% | 12 | 25.0% | -32.5% | $-76.71 | 0.06 | -7.73 | -92.1% | $79.47 | $35.10 | 102 |
+| scale, underlying stop | 11 | 36.4% | -24.2% | $-83.96 | 0.08 | -5.36 | -92.4% | $76.45 | $14.05 | 103 |
+| all-out +30%, premium stop -20% | 11 | 0.0% | -32.8% | $-83.53 | 0.00 | -26.96 | -91.9% | $81.14 | $28.36 | 105 |
+| all-out +30%, premium stop -30% | 12 | 16.7% | -27.5% | $-76.53 | 0.16 | -8.85 | -91.8% | $81.69 | $19.52 | 103 |
+| all-out +30%, premium stop -50% | 5 | 20.0% | -50.3% | $-181.85 | 0.04 | -2.87 | -90.9% | $90.76 | $56.98 | 110 |
+| all-out +30%, underlying stop | 3 | 0.0% | -78.5% | $-303.81 | 0.00 | -3.17 | -91.1% | $88.56 | $40.17 | 112 |
+| bracket, next level | 3 | 0.0% | -78.5% | $-303.81 | 0.00 | -0.33 | -91.1% | $88.56 | $37.14 | 112 |
+| trail 5% | 16 | 6.2% | -26.1% | $-57.24 | 0.56 | -0.07 | -96.0% | $84.23 | $34.53 | 96 |
+| trail 10% | 5 | 0.0% | -72.9% | $-181.75 | 0.00 | -0.41 | -90.9% | $91.24 | $41.99 | 108 |
+| trail 15% | 5 | 0.0% | -73.1% | $-182.94 | 0.00 | -0.41 | -91.5% | $85.32 | $16.52 | 108 |
+| trail 1.5 ATR | 10 | 0.0% | -32.9% | $-89.64 | 0.00 | -0.59 | -89.6% | $103.63 | $22.06 | 104 |
+| trail 2 ATR | 3 | 0.0% | -80.9% | $-330.04 | 0.00 | -0.39 | -99.0% | $9.87 | $27.62 | 113 |
+| trail 3 ATR | 15 | 6.7% | -31.7% | $-60.13 | 0.56 | -0.06 | -95.4% | $98.03 | $14.98 | 93 |
+| bracket 1.5R | 3 | 0.0% | -78.5% | $-303.81 | 0.00 | -0.33 | -91.1% | $88.56 | $35.78 | 112 |
+| bracket 2R | 3 | 0.0% | -78.5% | $-303.81 | 0.00 | -0.33 | -91.1% | $88.56 | $35.78 | 112 |
+| bracket 3R | 3 | 0.0% | -78.5% | $-303.81 | 0.00 | -0.33 | -91.1% | $88.56 | $35.78 | 112 |
+
+Highest out-of-sample scale expectancy in this regime: scale, premium stop -30%, $-70.78 on 13 trades, win rate 15.4%, average capture -32.3%, max drawdown -92.0%. It does not clear the old gate. The paired all-out row is all-out +30%, premium stop -30% expectancy $-76.53 on 12 trades. That label is not a new default.
+10 hit 0, 0 hit 1, 2 hit 2, 1 hit 3, 0 hit 4. Runner +100%: 0. Runner stopped at break-even: 3. Armed after the first target: 3.
+
+Every sized-account scale row loses money, and none clears the old gate. The -20% premium stop does not lose 20%. When the bar's adverse extreme prices the option through the stop, the fill is that bid, not the stop limit, so a wide bar can take most of the premium. The account then cannot buy the next five-lot, which is why the skip count is large. On the bounce, with the account at $10,081.40, the -20% ladder closed 39 out-of-sample trades: 35 at the initial stop, 3 runners at break-even, and 1 runner at +100%. Expectancy was -$253.75, win rate 10.3%, average capture -23.5%, max drawdown -98.2%, ending $185.10. The paired all-out row was -$254.06 on 39 trades. Hourly A, hourly B, daily C, and daily D are the same shape: the highest scale expectancy in each sized regime is negative, the runner rarely reaches +100%, and a first target usually ends at break-even. The trails and the brackets, on the same five contracts, also lose money. A $1,000 account fits five book-delta contracts on 227 of 1,207 bounce signals, 18 of 222 hourly A signals, 13 of 121 hourly B signals, 168 of 838 daily C signals, and 30 of 114 daily D signals. Delta 0.20 fits more often (714, 165, 93, 509, and 64 of those same signals) because the premium is cheaper. The contract still needs a larger underlying move to reach +15% of premium, and the 3 DTE hourly book has little time for that move. Those cheaper rows lose money as well.
+
+Not added to `config/optional_strategies.json`. The published A-D books and the earlier exit labels are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_SCALE_END -->

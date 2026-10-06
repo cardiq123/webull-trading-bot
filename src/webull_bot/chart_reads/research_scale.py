@@ -352,6 +352,23 @@ def render(books: list[dict]) -> str:
                 lines.append(_dist(best["oos_extra"]))
             lines.append("")
     lines.append(
+        "Every sized-account scale row loses money, and none clears the old gate. The -20% premium stop does not "
+        "lose 20%. When the bar's adverse extreme prices the option through the stop, the fill is that bid, not the "
+        "stop limit, so a wide bar can take most of the premium. The account then cannot buy the next five-lot, "
+        "which is why the skip count is large. On the bounce, with the account at $10,081.40, the -20% ladder "
+        "closed 39 out-of-sample trades: 35 at the initial stop, 3 runners at break-even, and 1 runner at +100%. "
+        "Expectancy was -$253.75, win rate 10.3%, average capture -23.5%, max drawdown -98.2%, ending $185.10. "
+        "The paired all-out row was -$254.06 on 39 trades. Hourly A, hourly B, daily C, and daily D are the same "
+        "shape: the highest scale expectancy in each sized regime is negative, the runner rarely reaches +100%, "
+        "and a first target usually ends at break-even. The trails and the brackets, on the same five contracts, "
+        "also lose money. A $1,000 account fits five book-delta contracts on 227 of 1,207 bounce signals, 18 of 222 "
+        "hourly A signals, 13 of 121 hourly B signals, 168 of 838 daily C signals, and 30 of 114 daily D signals. "
+        "Delta 0.20 fits more often (714, 165, 93, 509, and 64 of those same signals) because the premium is cheaper. "
+        "The contract still needs a larger underlying move to reach +15% of premium, and the 3 DTE hourly book has "
+        "little time for that move. Those cheaper rows lose money as well."
+    )
+    lines.append("")
+    lines.append(
         "Not added to `config/optional_strategies.json`. The published A-D books and the earlier exit labels are unchanged. "
         "The default book is still dual momentum."
     )
