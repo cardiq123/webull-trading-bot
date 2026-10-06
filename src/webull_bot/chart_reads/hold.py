@@ -83,8 +83,18 @@ def attempt_counts(frame: pd.DataFrame) -> dict:
     return counts
 
 
-def scan_chop_holds(frame: pd.DataFrame, *, symbol: str = "", counts: dict | None = None) -> list[HoldMark]:
-    """Causal scan. Bar t does not use a later bar, except the next open as the fill."""
+def scan_chop_holds(
+    frame: pd.DataFrame,
+    *,
+    symbol: str = "",
+    counts: dict | None = None,
+    chop: pd.Series | None = None,
+) -> list[HoldMark]:
+    """Causal scan. Bar t does not use a later bar, except the next open as the fill.
+
+    ``chop`` replaces the pullback flag. The default is the frozen flag in
+    ``chop.py``. Callers that pass a series keep the rest of this sequence.
+    """
     bars = rth(frame)
     if bars is None or len(bars) < WARMUP + 2:
         return []
@@ -101,7 +111,10 @@ def scan_chop_holds(frame: pd.DataFrame, *, symbol: str = "", counts: dict | Non
     close = bars["close"].to_numpy(dtype=float)
     width = feat["atr"].to_numpy(dtype=float)
     vwap = feat["vwap"].to_numpy(dtype=float)
-    chop = feat["chop"].to_numpy(dtype=bool)
+    if chop is None:
+        flags = feat["chop"].to_numpy(dtype=bool)
+    else:
+        flags = chop.reindex(index).fillna(False).to_numpy(dtype=bool)
     upper = bands["upper"].to_numpy(dtype=float)
     lower = bands["lower"].to_numpy(dtype=float)
     std = bands["std"].to_numpy(dtype=float)
@@ -146,7 +159,7 @@ def scan_chop_holds(frame: pd.DataFrame, *, symbol: str = "", counts: dict | Non
             close,
             width,
             vwap,
-            chop,
+            flags,
             upper,
             lower,
             std,

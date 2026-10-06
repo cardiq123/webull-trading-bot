@@ -493,3 +493,98 @@ def _flipped(high, low, close) -> list[tuple[float, ...]]:
         active = still
         rows.append(tuple(prices[-FLIP_KEEP:]))
     return rows
+
+
+# Longer swing memory. Frozen from the request to keep confirmed swings for
+# about 250 daily bars and merge prices within about 0.5 ATR, weighted by
+# how often price tagged them. This does not replace ``_horizontal``.
+HISTORY_BARS = 250
+MERGE_ATR = 0.50
+
+
+def merge_weighted(items: list[tuple[float, int]], tolerance: float) -> list[tuple[float, int]]:
+    """Touch-weighted clusters. Two prices merge when they are within ``tolerance``.
+
+    The cluster price is the touch-weighted mean. Touches add. A chain of
+    prices stays one cluster only while each new price is within
+    ``tolerance`` of the current weighted mean, so distant steps do not
+    collapse into one line.
+    """
+    usable = [(float(price), int(touches)) for price, touches in items if np.isfinite(price) and touches > 0]
+    if not usable or not np.isfinite(tolerance) or tolerance <= 0:
+        return []
+    usable.sort(key=lambda item: item[0])
+    clusters: list[list[tuple[float, int]]] = [[usable[0]]]
+    for price, touches in usable[1:]:
+        weight = sum(count for _, count in clusters[-1])
+        mean = sum(level * count for level, count in clusters[-1]) / weight
+        if abs(price - mean) <= tolerance:
+            clusters[-1].append((price, touches))
+        else:
+            clusters.append([(price, touches)])
+    merged = []
+    for group in clusters:
+        weight = sum(count for _, count in group)
+        mean = sum(level * count for level, count in group) / weight
+        merged.append((float(mean), int(weight)))
+    return merged
+
+
+def merged_swings(frame: pd.DataFrame, as_of: int | None = None) -> list[dict]:
+    """Confirmed swings in the last 250 bars, merged within 0.5 ATR.
+
+    A pivot is known once its right-hand bars have closed. Touches are
+    bars in the lookback whose range reaches the pivot, then recounted
+    against the merged price. The list is sorted by price.
+    """
+    if frame is None or len(frame) < PIVOT_LEFT + PIVOT_RIGHT + 2:
+        return []
+    index = len(frame) - 1 if as_of is None else int(as_of)
+    if index < 0 or index >= len(frame):
+        return []
+    high = frame["high"].to_numpy(dtype=float)
+    low = frame["low"].to_numpy(dtype=float)
+    width = atr(frame).to_numpy(dtype=float)
+    scale = width[index]
+    if not np.isfinite(scale) or scale <= 0:
+        return []
+    tolerance = MERGE_ATR * scale
+    start = max(0, index - HISTORY_BARS)
+    highs = _pivot_points(confirmed_pivot_high(frame["high"], PIVOT_LEFT, PIVOT_RIGHT), PIVOT_RIGHT)
+    lows = _pivot_points(confirmed_pivot_low(frame["low"], PIVOT_LEFT, PIVOT_RIGHT), PIVOT_RIGHT)
+    members: list[tuple[float, int, str]] = []
+    for pivot_index, price, confirm in highs:
+        if confirm > index or pivot_index < start or pivot_index > index:
+            continue
+        touches = _touches(high, low, price, max(pivot_index, start), index, tolerance)
+        if touches > 0:
+            members.append((float(price), touches, "high"))
+    for pivot_index, price, confirm in lows:
+        if confirm > index or pivot_index < start or pivot_index > index:
+            continue
+        touches = _touches(high, low, price, max(pivot_index, start), index, tolerance)
+        if touches > 0:
+            members.append((float(price), touches, "low"))
+    merged = merge_weighted([(price, touches) for price, touches, _kind in members], tolerance)
+    rows = []
+    for price, _weight in merged:
+        touches = _touches(high, low, price, start, index, tolerance)
+        kinds = [kind for level, _touches, kind in members if abs(level - price) <= tolerance]
+        rows.append(
+            {
+                "price": float(price),
+                "touches": int(touches),
+                "highs": sum(1 for kind in kinds if kind == "high"),
+                "lows": sum(1 for kind in kinds if kind == "low"),
+            }
+        )
+    rows.sort(key=lambda row: row["price"])
+    return rows
+
+
+def _touches(high, low, price: float, start: int, end: int, tolerance: float) -> int:
+    count = 0
+    for index in range(start, end + 1):
+        if low[index] <= price + tolerance and high[index] >= price - tolerance:
+            count += 1
+    return count
