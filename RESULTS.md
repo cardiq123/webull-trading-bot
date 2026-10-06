@@ -1529,3 +1529,37 @@ Example chop windows: `reports/setups/readCHOP_AAPL_1d.png` (2015-04-01 through 
 
 Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades still apply to the published defaults. Chop was not in that gate. It does not join the optional list or the registry. The default book is still dual momentum.
 <!-- CHART_READS_CHOP_END -->
+
+<!-- CHART_READS_SPY_REF_START -->
+## SPY daily, Oct 6 2026 chart
+
+REFERENCE ONLY. This does not change the gate, the chop rule, or the level rule. Nothing was sent to a broker.
+
+The thinkorswim chart is a 1-year daily SPY as of 2026-10-06. Price is 781.03 at a high of 781.62. The 9 and 20 EMAs are tight under price. The 200 EMA is near 725.4 and rising. VWAP is on the chart. RSI(14) is 64. MACD(12, 26, 9) is about +2.45 and just crossing up. The year's low, 629.28, was a V-bottom with RSI oversold. After the rally, price chopped for weeks in about a 755-775 band on declining volume, then broke out. The drawn horizontals are about 781, 768, 760, 752, a thick zone at 740/735, then 700, 690, 683, 675, 655, and 632.
+
+Yahoo's adjusted daily bar on 2026-10-06 has a high of 781.62 and a close of 780.66. The 9 EMA is 770.37 and the 20 EMA is 767.36, both under the close. The 200 EMA is 722.13 and rose 9.58 points over the prior 20 sessions. RSI(14) is 63.7. The MACD line is 2.91 and the histogram is 1.15, up from 0.50 the day before. The adjusted low of the last 252 sessions is 626.11 on 2026-03-30. March 27's low was 629.92. RSI on 2026-03-30 was 27.7. Older Yahoo prices sit a few points under the thinkorswim labels because the series is split- and dividend-adjusted. The October 6 high matches.
+
+The chop flag does not mark that sideways stretch. In the last 252 sessions it is on for 2 bars: 2026-02-19, 2026-02-25. From 2026-08-01 through 2026-10-05 (45 sessions) the high was 777.44 on 2026-08-13 and the low was 746.95 on 2026-08-03, with closes from 752.18 to 775.95. The range was narrow on 87% of those bars, and close had crossed the 20-bar VWAP at least three times on 69% of them. The 9 and 20 EMAs were within 0.35 ATR on 58% of the bars and the 20 EMA's 10-bar slope was inside 0.50 ATR on 53%, but they changed order only 3 times in the whole stretch, so the tangled-EMA leg stays off and the four-way flag never turns on (0 chop bars). Relative volume was under 0.80 on 24% of the bars. Median volume in the stretch was 42.7 million shares, against 51.0 million from the March low through July. The October 6 breakout bar is not chop. The rule was left as scored.
+
+The live horizontal set on 2026-10-06 is the last 6 confirmed pivot highs and the last 6 confirmed pivot lows inside 120 bars, which reaches back to 2026-04-16: 777.44, 775.14, 774.93, 773.38, 760.15, 757.60, 753.71, 752.87, 747.74, 737.68, 727.29, 714.81. A pivot is confirmed four bars after it prints, so the October 6 high is not in the set yet. The 781 row is that unfinished high. The other rows are the nearest confirmed swing in the last 252 sessions.
+
+| Drawn | Nearest swing | Date | Kind | In the live set |
+|---|---:|---|---|---|
+| 781 | 781.62 | 2026-10-06 | high, not confirmed | no |
+| 768 | 773.38 | 2026-08-28 | high | yes |
+| 760 | 760.15 | 2026-08-20 | low | yes |
+| 752 | 752.87 | 2026-06-15 | high | yes |
+| 740/735 | 737.68 | 2026-07-08 | low | yes |
+| 700 | 698.74 | 2026-04-23 | low | no |
+| 690 | 690.70 | 2026-01-13 | high | no |
+| 683 | 682.34 | 2025-10-29 | high | no |
+| 675 | 674.55 | 2026-01-02 | low | no |
+| 655 | 654.15 | 2025-11-07 | low | no |
+| 632 | 626.11 | 2026-03-30 | low | no |
+
+760.15 is the drawn 760 line, 752.87 is the drawn 752 line, and 737.68 sits in the 740/735 zone. 768 has no confirmed pivot at that price. The nearest swing is the August 28 high at 773.38, about five points higher, and that high is in the live set. 698.74 is still inside the 120-bar window and is the April 23 low, near 700, but six later pivot lows are newer, so the keeper drops it. The January and November swings, and the March low, are older than 120 bars, so they are not targets on this close. They are the same kind of swing the drawing uses.
+
+The chart is `reports/setups/readSPY_chop_levels_1d.png`. Gold bands are detected chop. Solid gold lines are the live horizontal set. Dotted lines are the other confirmed swings in the year. Dashed lines are the thinkorswim prices.
+
+The published A-D books are unchanged. Chop and this level set stay off the optional list and off the registry. The default book is still dual momentum.
+<!-- CHART_READS_SPY_REF_END -->
