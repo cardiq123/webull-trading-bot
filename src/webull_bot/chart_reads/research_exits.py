@@ -182,22 +182,6 @@ def _score_book(spec: dict) -> dict:
     stock_rows = []
     option_rows = []
     grid = exit_grid(spec["base"])
-    for label, params in grid:
-        print(f"  {label}", flush=True)
-        stock = _score_cell(
-            spec["setups"], spec["frames"], spec["daily"], params, "stock",
-            spec["window"], spec["is_window"], spec["oos_window"],
-        )
-        stock["label"] = label
-        stock["role"] = "baseline" if label == "level target" else "candidate"
-        option = _score_cell(
-            spec["setups"], spec["frames"], spec["daily"], params, "single",
-            spec["window"], spec["is_window"], spec["oos_window"],
-        )
-        option["label"] = label
-        option["role"] = "option"
-        stock_rows.append(stock)
-        option_rows.append(option)
     published = None
     if spec.get("published") is not None:
         print("  published exit", flush=True)
@@ -210,7 +194,26 @@ def _score_book(spec: dict) -> dict:
         published["beats"] = False
         note = _check(spec["name"], published["oos"], PUBLISHED.get(spec["name"]))
     else:
-        note = _check(spec["name"], stock_rows[0]["oos"], spec.get("level_check"))
+        note = ""
+    for label, params in grid:
+        print(f"  {label} stock", flush=True)
+        stock = _score_cell(
+            spec["setups"], spec["frames"], spec["daily"], params, "stock",
+            spec["window"], spec["is_window"], spec["oos_window"],
+        )
+        stock["label"] = label
+        stock["role"] = "baseline" if label == "level target" else "candidate"
+        if label == "level target" and spec.get("level_check") is not None:
+            note = _check(spec["name"], stock["oos"], spec.get("level_check"))
+        print(f"  {label} calls", flush=True)
+        option = _score_cell(
+            spec["setups"], spec["frames"], spec["daily"], params, "single",
+            spec["window"], spec["is_window"], spec["oos_window"],
+        )
+        option["label"] = label
+        option["role"] = "option"
+        stock_rows.append(stock)
+        option_rows.append(option)
     baseline = stock_rows[0]["oos"]
     for row in stock_rows[1:]:
         row["beats"] = beats_baseline(baseline, row["oos"])
