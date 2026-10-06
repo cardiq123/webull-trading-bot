@@ -930,4 +930,195 @@ SPY buy and hold, whole shares that fit in $1,000, 2019-01-01 through 2026-10-06
 Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades. The named list carries survivorship_bias, which blocks it. The Dow stock book and the named-list spread book would both have to clear the gates. Under 300 trades the sample is anecdotal. This does not join the optional list or the registry.
 <!-- CHART_READS_C_END -->
 
+<!-- CHART_READS_D_START -->
+## Setup D: three breakout types
+
+DOES NOT PASS. Dow point-in-time stock, out of sample, ended at $919.45 on 73 trades (profit factor 0.92, Sharpe -0.03). The same signals as 45 DTE calls ended at $435.61 with 93 skipped because the contract did not fit the risk cap. The named large-cap list is a survivorship diagnostic: stock ended at $1,174.40, and SPY/QQQ debit spreads ended at $1,000.00. The 15-minute and 60-minute books are inside the free Yahoo intraday cap, so they are anecdotal. It is not optional and not the default book.
+
+Rules, frozen before this score. A descending triangle is a flat support with at least two confirmed pivot lows and at least two lower highs. It is a short only, through the support. An ascending triangle is a flat resistance and higher lows. It is a long only, through the resistance. A range has both sides flat, at least two touches each, and may break either way. Pivots are 4 bars on each side. The pattern is 15 to 80 bars long and must still be open (the sloped side has not crossed the flat side). The flat side's prices sit within 0.50 ATR. The sloped side rises or falls at least 0.75 ATR, which is what separates it from a second flat side. Three touches on the flat side is a grid cell. The trigger is a close at least 0.25 ATR beyond the level on a confirming candle (body at least half the range, close in the outer third), or that same candle within the next 3 bars if the first close through is not itself confirming. A retest that holds is the other grid cell, not the default. The fill is the next open. The stop is the signal bar's high on a short and its low on a long. The retest variant uses the retest extreme instead. The target is the pattern height measured from the broken level when that distance is at least 0.5R, otherwise 2R. Daily holds trail the 20 EMA for up to 30 sessions and do not flatten at the close. A close the other way through the sloped side cancels the triangle. Nothing was sent to a broker.
+
+Dow membership follows the point-in-time list. Yahoo returned no usable daily history for: DWDP, KFT, UTX, WBA. The named book (SPY, QQQ, IWM, UNH, AAPL, AMD, NVDA, TSLA, MSFT, META) is a survivorship diagnostic. SPY and QQQ debit spreads are the options expression that can fit a $1,000 account. Singles are 45 DTE, delta 0.45, whole contracts, skipped when the debit is above 20% of equity. Prices are Black-Scholes on trailing realized volatility times 1.15. They are not quotes. The 15-minute and 60-minute runs use the same pivot rules on the named list. Fifteen-minute trades flatten the same session. Sixty-minute trades can be held for 5 sessions. Both clocks are short samples.
+
+### Dow point-in-time, three breakout types
+
+42 symbols, 292 signals (164 long, 128 short; lower highs + flat support, breakdown 79, higher lows + flat resistance, breakout 121, horizontal range 92). In sample 2010-01-01 through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+Flags, out of sample: stock [oos_profit_factor_below_1, oos_sharpe_negative, anecdotal_sample], single [insufficient_trades, oos_profit_factor_below_1, oos_sharpe_negative, oos_drawdown_beyond_30, anecdotal_sample], spread [insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample]. In-sample stock grid fragile: False.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Stock, full sample | 172 | 28.5% | $53.27 | $-20.99 | $0.17 | 1.01 | -48.2% | 0.07 | $1,028.76 | no | 0.59 | 0 | 4 |
+| Stock, in sample | 99 | 29.3% | $54.88 | $-21.04 | $1.20 | 1.08 | -36.8% | 0.17 | $1,118.89 | no | 0.02 | 0 | 2 |
+| Stock, out of sample | 73 | 27.4% | $45.53 | $-18.70 | $-1.10 | 0.92 | -26.3% | -0.03 | $919.45 | no | 1.00 | 0 | 2 |
+| Stock, random entries, out of sample | 98 | 37.8% | $17.94 | $-14.25 | $-2.10 | 0.76 | -26.9% | -0.27 | $794.46 | no | 1.00 | 0 | 0 |
+| 30-60 DTE single, full sample | 46 | 19.6% | $93.68 | $-43.13 | $-16.37 | 0.53 | -78.9% | -0.27 | $247.19 | no | 1.00 | 0 | 206 |
+| 30-60 DTE single, in sample | 46 | 19.6% | $93.68 | $-43.13 | $-16.37 | 0.53 | -78.9% | -0.37 | $247.19 | no | 1.00 | 0 | 90 |
+| 30-60 DTE single, out of sample | 19 | 15.8% | $184.06 | $-69.79 | $-29.70 | 0.49 | -70.8% | -0.55 | $435.61 | no | 1.00 | 0 | 93 |
+| 30-60 DTE single, random entries, out of sample | 11 | 9.1% | $1.16 | $-41.16 | $-37.31 | 0.00 | -41.0% | -0.63 | $589.59 | no | 1.00 | 0 | 104 |
+| Debit spread, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| Debit spread, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| Debit spread, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| Debit spread, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| Stock, walk-forward | 134 | 29.9% | $45.59 | $-23.16 | $-2.63 | 0.84 | -40.2% | -0.19 | $675.83 | no | n/a | 0 | 5 |
+| 30-60 DTE single, walk-forward | 41 | 14.6% | $149.30 | $-60.36 | $-29.67 | 0.42 | -83.5% | -0.62 | $216.95 | no | n/a | 0 | 237 |
+| Debit spread, walk-forward | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+
+Signal grid, in-sample fractional stock:
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| default | 99 | 29.3% | $54.88 | $-21.04 | $1.20 | 1.08 | -36.8% | 0.17 | $1,118.89 | no | 0.02 | 0 | 2 |
+| pivot 3/3 | 85 | 25.9% | $29.95 | $-15.47 | $-3.71 | 0.68 | -37.0% | -0.41 | $684.41 | no | 1.00 | 0 | 2 |
+| touch 0.25 | 43 | 25.6% | $36.75 | $-19.20 | $-4.88 | 0.66 | -31.0% | -0.29 | $789.95 | no | 1.00 | 0 | 0 |
+| touch 1.0 | 182 | 37.9% | $60.83 | $-26.77 | $6.44 | 1.39 | -25.4% | 0.68 | $2,171.99 | no | 0.00 | 0 | 3 |
+| buffer 0.1 | 90 | 25.6% | $53.57 | $-19.73 | $-1.00 | 0.93 | -37.4% | -0.05 | $910.35 | no | 1.00 | 0 | 1 |
+| buffer 0.5 | 97 | 30.9% | $50.94 | $-21.86 | $0.65 | 1.04 | -36.8% | 0.12 | $1,063.33 | no | 0.14 | 0 | 2 |
+| 3 flat touches | 58 | 25.9% | $39.72 | $-16.42 | $-1.90 | 0.84 | -34.4% | -0.13 | $889.94 | no | 1.00 | 0 | 0 |
+| span 10 | 151 | 30.5% | $44.65 | $-19.88 | $-0.22 | 0.98 | -40.6% | 0.04 | $966.47 | no | 1.00 | 0 | 2 |
+| span 30 | 10 | 40.0% | $77.56 | $-23.77 | $16.76 | 2.18 | -5.0% | 0.45 | $1,167.62 | no | 0.00 | 0 | 0 |
+| retest | 51 | 29.4% | $70.46 | $-23.71 | $3.98 | 1.24 | -19.8% | 0.27 | $1,203.11 | no | 0.00 | 0 | 2 |
+
+### Named large caps plus SPY and QQQ, survivorship diagnostic
+
+10 symbols, 89 signals (43 long, 46 short; lower highs + flat support, breakdown 26, higher lows + flat resistance, breakout 28, horizontal range 35). In sample 2010-01-01 through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+Flags, out of sample: stock [survivorship_bias, oos_sharpe_below_0_40, oos_drawdown_beyond_30, anecdotal_sample], single [survivorship_bias, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_negative, anecdotal_sample], spread [insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample]. In-sample stock grid fragile: False.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Stock, full sample | 66 | 37.9% | $86.44 | $-35.00 | $11.00 | 1.51 | -34.6% | 0.38 | $1,725.88 | no | 0.00 | 0 | 3 |
+| Stock, in sample | 31 | 38.7% | $81.16 | $-25.34 | $15.88 | 2.02 | -12.0% | 0.53 | $1,492.40 | no | 0.00 | 0 | 0 |
+| Stock, out of sample | 35 | 37.1% | $62.13 | $-28.79 | $4.98 | 1.28 | -30.9% | 0.25 | $1,174.40 | no | 0.00 | 0 | 3 |
+| Stock, random entries, out of sample | 48 | 37.5% | $25.36 | $-18.41 | $-2.00 | 0.83 | -19.6% | -0.09 | $904.23 | no | 1.00 | 0 | 0 |
+| 30-60 DTE single, full sample | 15 | 20.0% | $69.23 | $-67.65 | $-40.27 | 0.26 | -63.0% | -0.42 | $395.94 | no | 1.00 | 0 | 71 |
+| 30-60 DTE single, in sample | 15 | 20.0% | $69.23 | $-67.65 | $-40.27 | 0.26 | -63.0% | -0.57 | $395.94 | no | 1.00 | 0 | 22 |
+| 30-60 DTE single, out of sample | 1 | 0.0% | $0.00 | $-44.68 | $-44.68 | 0.00 | -4.5% | -0.50 | $955.32 | no | n/a | 0 | 48 |
+| 30-60 DTE single, random entries, out of sample | 4 | 0.0% | $0.00 | $-79.56 | $-79.56 | 0.00 | -31.8% | -0.62 | $681.75 | no | n/a | 0 | 45 |
+| Debit spread, full sample | 1 | 0.0% | $0.00 | $-90.37 | $-90.37 | 0.00 | -11.0% | -0.24 | $909.63 | no | n/a | 0 | 10 |
+| Debit spread, in sample | 1 | 0.0% | $0.00 | $-90.37 | $-90.37 | 0.00 | -11.0% | -0.33 | $909.63 | no | n/a | 0 | 0 |
+| Debit spread, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| Debit spread, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| Stock, walk-forward | 25 | 32.0% | $64.15 | $-26.51 | $2.51 | 1.14 | -30.9% | 0.13 | $1,057.21 | no | n/a | 0 | 1 |
+| 30-60 DTE single, walk-forward | 1 | 0.0% | $0.00 | $-44.68 | $-44.68 | 0.00 | -4.5% | -0.50 | $955.32 | no | n/a | 0 | 48 |
+| Debit spread, walk-forward | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+
+Signal grid, in-sample fractional stock:
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| default | 31 | 38.7% | $81.16 | $-25.34 | $15.88 | 2.02 | -12.0% | 0.53 | $1,492.40 | no | 0.00 | 0 | 0 |
+| pivot 3/3 | 24 | 25.0% | $53.31 | $-24.70 | $-5.20 | 0.72 | -23.6% | -0.19 | $875.19 | no | 1.00 | 0 | 1 |
+| touch 0.25 | 10 | 30.0% | $50.82 | $-18.33 | $2.41 | 1.19 | -7.5% | 0.08 | $1,024.12 | no | 0.00 | 0 | 0 |
+| touch 1.0 | 84 | 35.7% | $85.34 | $-33.72 | $8.80 | 1.41 | -26.6% | 0.48 | $1,739.50 | no | 0.00 | 0 | 1 |
+| buffer 0.1 | 28 | 39.3% | $77.44 | $-26.36 | $14.42 | 1.90 | -13.7% | 0.47 | $1,403.81 | no | 0.00 | 0 | 1 |
+| buffer 0.5 | 31 | 35.5% | $63.84 | $-24.09 | $7.11 | 1.46 | -14.5% | 0.31 | $1,220.54 | no | 0.00 | 0 | 0 |
+| 3 flat touches | 12 | 33.3% | $101.23 | $-25.73 | $16.59 | 1.97 | -10.0% | 0.35 | $1,199.05 | no | 0.00 | 0 | 0 |
+| span 10 | 60 | 31.7% | $71.26 | $-26.71 | $4.31 | 1.24 | -21.2% | 0.29 | $1,258.89 | no | 0.00 | 0 | 1 |
+| span 30 | 1 | 0.0% | $0.00 | $-13.28 | $-13.28 | 0.00 | -2.5% | -0.19 | $986.72 | no | n/a | 0 | 0 |
+| retest | 16 | 25.0% | $93.52 | $-25.27 | $4.43 | 1.23 | -20.5% | 0.14 | $1,070.86 | no | 0.00 | 0 | 0 |
+
+Sensitivities on the Dow out-of-sample window. These were not used to pick the default.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| stock: risk 10% | 73 | 27.4% | $45.53 | $-18.70 | $-1.10 | 0.92 | -26.3% | -0.03 | $919.45 | no | 1.00 | 0 | 2 |
+| stock: risk 25% | 73 | 27.4% | $45.53 | $-18.70 | $-1.10 | 0.92 | -26.3% | -0.03 | $919.45 | no | 1.00 | 0 | 2 |
+| stock: target 1.5R | 73 | 27.4% | $40.61 | $-18.19 | $-2.08 | 0.84 | -29.2% | -0.12 | $848.14 | no | 1.00 | 0 | 2 |
+| stock: no EMA trail | 71 | 31.0% | $38.37 | $-21.46 | $-2.92 | 0.80 | -35.1% | -0.17 | $792.57 | no | 1.00 | 0 | 2 |
+| stock: target 2R only | 72 | 27.8% | $53.53 | $-20.31 | $0.20 | 1.01 | -18.7% | 0.07 | $1,014.72 | no | 0.51 | 0 | 2 |
+| stock: cash account, T+1 | 73 | 27.4% | $45.53 | $-18.70 | $-1.10 | 0.92 | -26.3% | -0.03 | $919.45 | no | 1.00 | 0 | 2 |
+| single: 30 DTE | 20 | 15.0% | $193.16 | $-68.91 | $-29.60 | 0.49 | -70.9% | -0.48 | $407.99 | no | 1.00 | 0 | 93 |
+| single: 60 DTE | 19 | 15.8% | $174.12 | $-62.39 | $-25.05 | 0.52 | -63.9% | -0.43 | $524.09 | no | 1.00 | 0 | 93 |
+| single: delta 0.40 | 24 | 16.7% | $245.34 | $-77.22 | $-23.46 | 0.64 | -77.6% | -0.28 | $436.93 | no | 1.00 | 0 | 87 |
+| single: delta 0.50 | 18 | 16.7% | $184.06 | $-67.62 | $-25.67 | 0.54 | -64.0% | -0.37 | $537.89 | no | 1.00 | 0 | 93 |
+| single: IV 1.00x realized | 21 | 14.3% | $191.12 | $-66.47 | $-29.67 | 0.48 | -72.9% | -0.52 | $376.92 | no | 1.00 | 0 | 91 |
+| single: IV 1.30x realized | 20 | 15.0% | $174.70 | $-61.77 | $-26.30 | 0.50 | -67.4% | -0.50 | $474.02 | no | 1.00 | 0 | 92 |
+| single: doubled bid/ask | 15 | 13.3% | $246.50 | $-78.29 | $-34.98 | 0.48 | -66.2% | -0.49 | $475.26 | no | 1.00 | 0 | 100 |
+| single: cash account, T+1 | 19 | 15.8% | $184.06 | $-69.79 | $-29.70 | 0.49 | -70.8% | -0.55 | $435.61 | no | 1.00 | 0 | 93 |
+| spread: $2 wide | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: $10 wide | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: 30 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: 60 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: IV 1.00x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: IV 1.30x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: doubled bid/ask | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| spread: cash account, T+1 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+
+Sensitivities on the named-list out-of-sample window, same rule.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| stock: risk 10% | 35 | 37.1% | $62.13 | $-28.79 | $4.98 | 1.28 | -30.9% | 0.25 | $1,174.40 | no | 0.00 | 0 | 3 |
+| stock: risk 25% | 35 | 37.1% | $62.13 | $-28.79 | $4.98 | 1.28 | -30.9% | 0.25 | $1,174.40 | no | 0.00 | 0 | 3 |
+| stock: target 1.5R | 35 | 37.1% | $61.12 | $-28.76 | $4.62 | 1.26 | -30.9% | 0.24 | $1,161.81 | no | 0.00 | 0 | 3 |
+| stock: no EMA trail | 35 | 34.3% | $72.98 | $-30.44 | $5.02 | 1.25 | -32.1% | 0.25 | $1,175.78 | no | 0.00 | 0 | 3 |
+| stock: target 2R only | 36 | 30.6% | $31.94 | $-25.08 | $-7.66 | 0.56 | -33.9% | -0.32 | $724.35 | no | 1.00 | 0 | 3 |
+| stock: cash account, T+1 | 35 | 37.1% | $62.13 | $-28.79 | $4.98 | 1.28 | -30.9% | 0.25 | $1,174.40 | no | 0.00 | 0 | 3 |
+| single: 30 DTE | 1 | 0.0% | $0.00 | $-46.39 | $-46.39 | 0.00 | -4.6% | -0.51 | $953.61 | no | n/a | 0 | 48 |
+| single: 60 DTE | 1 | 0.0% | $0.00 | $-46.07 | $-46.07 | 0.00 | -4.6% | -0.49 | $953.93 | no | n/a | 0 | 48 |
+| single: delta 0.40 | 1 | 0.0% | $0.00 | $-42.57 | $-42.57 | 0.00 | -4.3% | -0.48 | $957.43 | no | n/a | 0 | 48 |
+| single: delta 0.50 | 1 | 0.0% | $0.00 | $-47.47 | $-47.47 | 0.00 | -4.7% | -0.50 | $952.53 | no | n/a | 0 | 48 |
+| single: IV 1.00x realized | 1 | 0.0% | $0.00 | $-46.69 | $-46.69 | 0.00 | -4.7% | -0.51 | $953.31 | no | n/a | 0 | 48 |
+| single: IV 1.30x realized | 1 | 0.0% | $0.00 | $-45.05 | $-45.05 | 0.00 | -4.5% | -0.50 | $954.95 | no | n/a | 0 | 48 |
+| single: doubled bid/ask | 1 | 0.0% | $0.00 | $-63.01 | $-63.01 | 0.00 | -6.3% | -0.46 | $936.99 | no | n/a | 0 | 48 |
+| single: cash account, T+1 | 1 | 0.0% | $0.00 | $-44.68 | $-44.68 | 0.00 | -4.5% | -0.50 | $955.32 | no | n/a | 0 | 48 |
+| spread: $2 wide | 1 | 0.0% | $0.00 | $-179.79 | $-179.79 | 0.00 | -18.0% | -0.36 | $820.21 | no | n/a | 0 | 9 |
+| spread: $10 wide | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: 30 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: 60 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: IV 1.00x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: IV 1.30x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: doubled bid/ask | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+| spread: cash account, T+1 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 10 |
+
+### 60-minute, anecdotal
+
+10 symbols, 47 signals (20 long, 27 short; lower highs + flat support, breakdown 18, higher lows + flat resistance, breakout 13, horizontal range 16). 493 sessions, 2024-10-17 through 2026-10-06. In sample through 2025-12-19. Out of sample 2025-12-22 through 2026-10-06.
+
+Flags, out of sample: stock [short_sample, survivorship_bias, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_negative, anecdotal_sample], single [short_sample, survivorship_bias, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample], spread [short_sample, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample]. In-sample stock grid fragile: False.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Stock, full sample | 38 | 21.1% | $12.54 | $-11.80 | $-6.67 | 0.28 | -26.0% | -1.66 | $746.37 | no | 1.00 | 0 | 0 |
+| Stock, in sample | 22 | 18.2% | $13.90 | $-12.00 | $-7.29 | 0.26 | -16.8% | -2.36 | $839.57 | no | 1.00 | 0 | 0 |
+| Stock, out of sample | 16 | 25.0% | $13.32 | $-13.69 | $-6.94 | 0.32 | -12.5% | -1.23 | $888.99 | no | 1.00 | 0 | 0 |
+| Stock, random entries, out of sample | 16 | 37.5% | $2.31 | $-7.08 | $-3.56 | 0.20 | -5.7% | -1.49 | $943.10 | no | 1.00 | 0 | 0 |
+| 30-60 DTE single, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 47 |
+| 30-60 DTE single, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 30 |
+| 30-60 DTE single, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 17 |
+| 30-60 DTE single, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 17 |
+| Debit spread, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 6 |
+| Debit spread, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 4 |
+| Debit spread, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 2 |
+| Debit spread, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 2 |
+
+### 15-minute, anecdotal
+
+10 symbols, 16 signals (10 long, 6 short; lower highs + flat support, breakdown 5, higher lows + flat resistance, breakout 8, horizontal range 3). 38 sessions, 2026-08-13 through 2026-10-06. In sample through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06.
+
+Flags, out of sample: stock [short_sample, survivorship_bias, insufficient_trades, anecdotal_sample], single [short_sample, survivorship_bias, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample], spread [short_sample, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample]. In-sample stock grid fragile: False.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Stock, full sample | 12 | 41.7% | $5.90 | $-5.22 | $-0.59 | 0.81 | -2.1% | -0.77 | $992.98 | no | 1.00 | 0 | 0 |
+| Stock, in sample | 6 | 33.3% | $4.50 | $-5.39 | $-2.10 | 0.42 | -1.6% | -2.83 | $987.42 | no | 1.00 | 0 | 0 |
+| Stock, out of sample | 6 | 50.0% | $6.92 | $-5.04 | $0.94 | 1.37 | -1.0% | 1.35 | $1,005.63 | no | 0.00 | 0 | 0 |
+| Stock, random entries, out of sample | 8 | 25.0% | $0.85 | $-4.29 | $-3.00 | 0.07 | -2.4% | -9.69 | $975.98 | no | 1.00 | 0 | 0 |
+| 30-60 DTE single, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 16 |
+| 30-60 DTE single, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 8 |
+| 30-60 DTE single, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 8 |
+| 30-60 DTE single, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 8 |
+| Debit spread, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 4 |
+| Debit spread, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 4 |
+| Debit spread, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+| Debit spread, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1,000.00 | no | n/a | 0 | 0 |
+
+Charts: `reports/setups/readD_1d_Dd_BA_2026-09-22.png`, `reports/setups/readD_1d_Da_NVDA_2026-08-07.png`, `reports/setups/readD_1d_Dr_QQQ_2026-04-14.png`, `reports/setups/readD_60m_Dd_AAPL_2026-08-11.png`, `reports/setups/readD_60m_Da_META_2026-10-05.png`, `reports/setups/readD_60m_Dr_TSLA_2026-09-03.png`, `reports/setups/readD_15m_Dd_UNH_2026-09-22.png`, `reports/setups/readD_15m_Da_TSLA_2026-09-30.png`, `reports/setups/readD_15m_Dr_MSFT_2026-09-30.png`.
+
+SPY buy and hold, whole shares that fit in $1,000, 2019-01-01 through 2026-10-06: 4 shares, ending $3,242.23, Sharpe 0.95, max drawdown -30.7%.
+
+Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades. The named list carries survivorship_bias, which blocks it. The Dow stock book and the named-list spread book would both have to clear the gates. The intraday clocks carry short_sample. Under 300 trades the sample is anecdotal. This does not join the optional list or the registry.
+<!-- CHART_READS_D_END -->
+
+
 

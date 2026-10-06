@@ -129,6 +129,70 @@ def daily_grid() -> list[dict]:
     return cells
 
 
+# Daily setup D, from the three-breakout diagram. Frozen before scoring.
+# Descending triangles break down only. Ascending triangles break up only.
+# A horizontal range may break either way. Three flat-side touches and a
+# retest are grid variants, not the default.
+BREAKOUT_DEFAULTS: dict = {
+    "pivot_left": 4,
+    "pivot_right": 4,
+    "min_span": 15,
+    "max_span": 80,
+    "max_wait": 20,
+    "min_flat_touches": 2,
+    "min_slope_pivots": 2,
+    "touch_atr": 0.50,
+    "min_slope_atr": 0.75,
+    "min_height_atr": 1.0,
+    "max_height_atr": 40.0,
+    "break_buffer_atr": 0.25,
+    "confirm_bars": 3,
+    "require_retest": False,
+    "retest_bars": 10,
+    "strong_body": 0.50,
+    "strong_close_frac": 2.0 / 3.0,
+    "reward_r": 2.0,
+    "target_mode": "level",
+    "level_source": "reference",
+    "trail": "ema20",
+    "flatten_eod": False,
+    "max_hold_sessions": 30,
+    "pdt_prospective": False,
+    "risk_fraction": 0.20,
+    "max_positions": 1,
+    "account": "margin_pdt",
+    "expression": "stock",
+    "delta": 0.45,
+    "dte": 45,
+    "spread_width": 5.0,
+    "spread_dte": 45,
+    "iv_premium": 1.15,
+    "spread_multiplier": 1.0,
+}
+
+_BREAKOUT_GRID = (
+    ("pivot_left", 3, {"pivot_right": 3}),
+    ("touch_atr", 0.25, {}),
+    ("touch_atr", 1.00, {}),
+    ("break_buffer_atr", 0.10, {}),
+    ("break_buffer_atr", 0.50, {}),
+    ("min_flat_touches", 3, {}),
+    ("min_span", 10, {}),
+    ("min_span", 30, {}),
+    ("require_retest", True, {}),
+)
+
+
+def breakout_grid() -> list[dict]:
+    cells = [dict(BREAKOUT_DEFAULTS)]
+    for key, value, extra in _BREAKOUT_GRID:
+        cell = dict(BREAKOUT_DEFAULTS)
+        cell[key] = value
+        cell.update(extra)
+        cells.append(cell)
+    return cells
+
+
 def htf_allows(labels: list[str], direction: str, kind: str) -> bool:
     """Higher-timeframe gate.
 
