@@ -394,3 +394,133 @@ No paper-versus-backtest mismatch remained on the stock and ETF rules, and no re
 
 Run it again with `python -m webull_bot paper-sim`. That command stays on the local paper broker. See the README for the sandbox account settings, which this run did not use.
 <!-- PAPER_SIM_END -->
+
+<!-- MTF_VWAP_START -->
+## Multi-timeframe VWAP test
+
+Rules, scored on the pre-registered default and not on a mined neighbor: trend alignment on weekly, daily, and the execution bar (15-minute also requires 60-minute and, when the file is present, 5-minute); a session VWAP test that wicks into VWAP and closes back with the trend, at a pivot or prior-day zone; the next 15-minute or 60-minute bar confirms; entry at the following open. Longs buy a call. Shorts buy a put. Delta 0.50, 14 DTE (inside 7-30), premium stop -50%, premium target +50%, also exit on a close back through VWAP, through the setup extreme, at the next level, or after 2 sessions. One position. One contract must cost at most 25% of a $1,000 account or the trade is skipped. Webull option fees and a bid/ask haircut (4% at-the-money, 8% otherwise, 12% when the mid is under $1). Margin account under $25,000: at most 3 day trades in 5 sessions. The signal grid changes one rule at a time (majority alignment, daily EMA 10, no zone, trendline, same-bar confirmation, VWAP bands). DTE, delta, premium targets, IV, and spreads are sensitivities.
+
+**DOES NOT PASS.** The default option book (delta 0.50, 14 DTE, one contract, at most 25% of $1,000) took no trades. The 15-minute file, 2026-08-13 through 2026-10-06 (38 sessions), found 1 long signal and skipped it because one contract cost more than the cap. The 60-minute file, 2024-10-17 through 2026-10-06 (493 sessions), found 6 signals (2 long, 4 short) and skipped all 6 for the same reason. Ending equity stayed $1,000. Equity never fell under $100. No day trade was blocked, because nothing opened. Both windows are under 300 trades, so they are anecdotal. Both sit inside Yahoo's free intraday cap, which this project does not treat as a durable edge.
+
+The only option fills were the rough 0-7 DTE sensitivities on the hourly out-of-sample half. Three DTE lost its one trade and ended at $973.33. Zero DTE lost both trades to the premium stop and ended at $651.01. Those prices are a Black-Scholes sketch from realized volatility, and they are especially rough inside a week. IV at 1.0x and 1.3x, and a doubled spread, still could not buy a 14 DTE contract under the cap.
+
+The same hourly signals as stock, still capped at 25% of $1,000, made 2 trades on the full sample and the out-of-sample half ended at $999.71 (profit factor 0.00). Allowing one whole share up to the full $1,000 made 5 trades and ended at $992.89 (Sharpe -0.53, profit factor 0.32, ruin estimate 1). The out-of-sample half of that looser stock book ended at $1,002.26 on 3 trades. A random-entry book with the same exits ended at $1,001.38 on 3 trades. One SPY share bought and held over that out-of-sample window ended at $1,126.37. The 15-minute stock comparison is one trade for $1.32. A Binance BTC hourly proxy, with a New York 09:30 VWAP pasted on, found 0 signals.
+
+The in-sample grid did not produce a positive option Sharpe on any cell. Looser cells found more signals (majority alignment skipped 30 in-sample contracts) and still could not buy one. Walk-forward on the hourly file filled nothing. Not added to the optional list. The default book is still dual momentum. Nothing was sent to a broker.
+
+### 15-minute execution, weekly daily 60m 15m and 5m trend
+
+Sessions 2026-08-13 through 2026-10-06 (38 sessions). In sample 2026-08-13 to 2026-09-14. Out of sample 2026-09-15 to 2026-10-06. Signals 1 (1 long, 0 short). Flags: short_sample, parameter_fragile, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample. Walk-forward needs 40 sessions, so that row is an empty window, not a tested fold. The fragile flag is the in-sample grid: every cell's option Sharpe is zero because the contracts did not fit.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Options, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| Options, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| Options, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| Options, walk-forward | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| Options, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| Stock, 25% cap, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| Stock, whole shares up to $1,000, out of sample | 1 | 100.0% | $1.32 | $0.00 | $1.32 | n/a | 0.0% | 4.10 | $1001.32 | no | n/a | 0 | 0 |
+| Stock, whole shares up to $1,000, full sample | 1 | 100.0% | $1.32 | $0.00 | $1.32 | n/a | 0.0% | 2.61 | $1001.32 | no | n/a | 0 | 0 |
+| SPY buy and hold, whole shares, out of sample | 1 | 100.0% | $21.67 | $0.00 | $21.67 | n/a | -1.1% | 4.30 | $1021.67 | no | n/a | 0 | 0 |
+
+Signal grid, in-sample option book (one change from the default per row):
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| default | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| alignment=majority | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| ema_daily=10 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| require_zone=False | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| use_trendline=True | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| confirm=same | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| use_bands=True | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+
+Sensitivities on the out-of-sample window. These are not grid cells and were not used to pick parameters.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| 0-7 DTE (3, flat at the close) | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| 0 DTE, flat at the close | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| 21 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| delta 0.40 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| delta 0.60 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| premium stop -30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| premium target +30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| premium target +100% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| IV 1.00x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| IV 1.30x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| doubled bid/ask | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| premium cap 20% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| premium cap 30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| max 2 positions | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| cash account, T+1 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| 5-minute reclaim | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+
+### 60-minute execution, daily and weekly trend
+
+Sessions 2024-10-17 through 2026-10-06 (493 sessions). In sample 2024-10-17 to 2025-10-10. Out of sample 2025-10-13 to 2026-10-06. Signals 6 (2 long, 4 short). Flags: short_sample, parameter_fragile, insufficient_trades, oos_profit_factor_below_1, oos_sharpe_below_0_40, anecdotal_sample.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Options, full sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 6 |
+| Options, in sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| Options, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| Options, walk-forward | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+| Options, random entries, out of sample | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| Stock, 25% cap, out of sample | 1 | 0.0% | $0.00 | $-0.29 | $-0.29 | 0.00 | -0.0% | -1.01 | $999.71 | no | n/a | 0 | 2 |
+| Stock, whole shares up to $1,000, out of sample | 3 | 66.7% | $1.70 | $-1.14 | $0.75 | 2.98 | -0.1% | 0.69 | $1002.26 | no | n/a | 0 | 0 |
+| Stock, whole shares up to $1,000, full sample | 5 | 40.0% | $1.70 | $-3.50 | $-1.42 | 0.32 | -1.1% | -0.53 | $992.89 | no | 1.00 | 0 | 0 |
+| SPY buy and hold, whole shares, out of sample | 1 | 100.0% | $126.37 | $0.00 | $126.37 | n/a | -5.9% | 1.47 | $1126.37 | no | n/a | 0 | 0 |
+
+Signal grid, in-sample option book (one change from the default per row):
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| default | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| alignment=majority | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 30 |
+| ema_daily=10 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 1 |
+| require_zone=False | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 13 |
+| use_trendline=True | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| confirm=same | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 8 |
+| use_bands=True | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 7 |
+
+Sensitivities on the out-of-sample window. These are not grid cells and were not used to pick parameters.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| 0-7 DTE (3, flat at the close) | 1 | 0.0% | $0.00 | $-26.67 | $-26.67 | 0.00 | -2.7% | -1.01 | $973.33 | no | n/a | 0 | 2 |
+| 0 DTE, flat at the close | 2 | 0.0% | $0.00 | $-174.49 | $-174.49 | 0.00 | -34.9% | -1.41 | $651.01 | no | n/a | 0 | 1 |
+| 21 DTE | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| delta 0.40 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| delta 0.60 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| premium stop -30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| premium target +30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| premium target +100% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| IV 1.00x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| IV 1.30x realized | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| doubled bid/ask | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| premium cap 20% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| premium cap 30% | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| max 2 positions | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+| cash account, T+1 | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 3 |
+
+Stock shorts in the comparison book are a research baseline. They are not sent as orders. A share that costs more than the cap is skipped, same as a contract. The whole-share column lets the $1,000 account buy one share when the share itself fits, so the signal can be read when the 25% cap blocks every name.
+
+0-7 DTE prices are a Black-Scholes sketch from recent realized volatility. They are not a quote, and they get worse as expiry approaches zero.
+
+### Binance BTC proxy
+
+Proxy. BTCUSDT hourly bars from data.binance.vision. Session VWAP is reset at 09:30 America/New_York, which is not a crypto session. Not a stock result and not gated.
+
+Sessions 2024-09-30 through 2026-10-05 (736). Signals 0.
+
+| Book | Trades | Win rate | Avg win | Avg loss | Expectancy | PF | Max DD | Sharpe | Ending | Bust | Ruin est. | PDT blocked | Premium skipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|
+| Options, second half, proxy | 0 | 0.0% | $0.00 | $0.00 | $0.00 | n/a | 0.0% | 0.00 | $1000.00 | no | n/a | 0 | 0 |
+
+Example charts of detected tests are in `reports/setups/`: `vwap15_1_AMD_long_2026-10-01.png`, `vwap60_1_AAPL_long_2026-09-21.png`, `vwap60_2_AMD_long_2026-09-22.png`, `vwap60_3_QQQ_short_2025-04-16.png`, `vwap60_4_SPY_short_2025-04-16.png`. The VWAP line is the full session, not a line rebuilt from the first plotted bar. The orange dot is the test wick (the low on a long, the high on a short). The green dot is the confirmation close.
+
+The 15-minute book cannot pass: the file is shorter than 300 trades can honestly support. The 60-minute book is the bigger sample and is still the free Yahoo hourly cap, which this project does not select from. Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%. Out-of-sample profit factor on the 60-minute default is n/a.
+
+<!-- MTF_VWAP_END -->
