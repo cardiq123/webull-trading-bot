@@ -610,7 +610,7 @@ def _save_nvda(hourly, flag, check, levels, path: Path) -> None:
     vol.bar(
         xs,
         window["volume"].to_numpy(dtype=float),
-        color=["#3d9e57" if row.close >= row.open else "#d64545" for row in window.itertuples()],
+        color=["#3d9e57" if close_px >= open_px else "#d64545" for open_px, close_px in zip(window["open"], window["close"])],
         width=0.7,
     )
     entry = "no hold entry" if not check["marks"] else f"{len(check['marks'])} hold entries"

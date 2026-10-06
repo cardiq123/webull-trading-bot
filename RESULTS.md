@@ -2315,3 +2315,172 @@ Charts: `reports/setups/readHOLD_NVDA_60m.png` and `reports/setups/readHOLD_NVDA
 
 Not added to `config/optional_strategies.json`. The published A-D books, the bounce, and the earlier exit labels are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_HOLD_END -->
+
+<!-- CHART_READS_CHOP_V2_START -->
+## Chop v2
+
+DOES NOT CHANGE THE GATE. The v1 chop flag is unchanged. This flag drops the tangled-EMA requirement. Quiet volume is relative volume under 0.85, or a declining 20-bar average versus the 60-bar average while the bar is still at most 1.20 times its own average. Narrow range is ATR at or under 0.85 times its prior 120-bar average, or Bollinger bandwidth in the bottom 20% of 120 bars, or a 10-bar box inside 1.5 ATR. Rotation is three crosses of VWAP or of that box midpoint in 20 bars, or a stacked 9/20 EMA flag within 0.75 ATR and 1.5 ATR of price. The grid changes one of those round numbers at a time. The default above is the gated cell. A cell chosen on earlier data is a sensitivity. Nothing was sent to a broker. Live trading stays off.
+
+SPY daily, 2026-08-01 through 2026-10-05, the 755-775 stretch. Chop v2 is on for 17 of 45 bars. 17 of those closes sit inside 755-775. The longest run is 7 bars. That is enough of a run inside the band to call the stretch marked. The threshold was not moved after this check.
+
+NVDA 60-minute, 2026-09-09 through 2026-10-06. The window high is $243.37 against the annotated $243.37. The last close is $242.17 against $241.37. Friday trades $233.60 to $237.87 and closes $233.99. Chop v2 is on for 68 of 135 bars, 68 of them before Friday and 0 on or after Friday inside 232.5-235. The longest such pullback run is 0 bars. The annotated pullback is not marked as a six-bar chop zone. Hold entries in the window: 0. The rule was not retuned.
+
+Merged swings keep every confirmed pivot in the last 250 daily bars and collapse prices within 0.5 ATR, weighted by touches. The old 120-bar set of six highs and six lows is unchanged.
+
+| Drawn | Nearest merged swing | Touches | Distance | Within 0.5 ATR |
+|---|---:|---:|---:|---|
+| 781 | 775.05 | 17 | 5.95 | no |
+| 768 | 775.05 | 17 | 7.05 | no |
+| 760 | 758.35 | 19 | 1.65 | yes |
+| 752 | 753.15 | 20 | 1.15 | yes |
+| 740/735 | 737.68 | 35 | 0.18 | yes |
+| 700 | 698.74 | 4 | 1.26 | yes |
+| 690 | 691.41 | 20 | 1.41 | yes |
+| 683 | 682.12 | 52 | 0.88 | yes |
+| 675 | 676.56 | 59 | 1.56 | yes |
+| 655 | 654.15 | 29 | 0.85 | yes |
+| 632 | 626.11 | 1 | 5.89 | no |
+
+SPY ATR on the last bar is $6.76. A hit is a merged swing within 0.5 ATR of the drawn line.
+
+Time in chop, default cell, named list, daily bars from 2023-01-01 through 2026-10-06.
+
+| Symbol | Bars | Chop bars | Share |
+|---|---:|---:|---:|
+| AAPL | 943 | 188 | 19.9% |
+| AMD | 943 | 190 | 20.1% |
+| IWM | 943 | 248 | 26.3% |
+| META | 943 | 160 | 17.0% |
+| MSFT | 943 | 147 | 15.6% |
+| NVDA | 943 | 151 | 16.0% |
+| QQQ | 943 | 151 | 16.0% |
+| SPY | 943 | 187 | 19.8% |
+| TSLA | 943 | 231 | 24.5% |
+| UNH | 943 | 215 | 22.8% |
+
+Dow daily holdout, median 19.0% of bars, 42 symbols.
+
+Named list, 60-minute regular hours, the whole Yahoo window.
+
+| Symbol | Bars | Chop bars | Share |
+|---|---:|---:|---:|
+| AAPL | 3417 | 852 | 24.9% |
+| AMD | 3417 | 847 | 24.8% |
+| IWM | 3416 | 786 | 23.0% |
+| META | 3418 | 917 | 26.8% |
+| MSFT | 3418 | 808 | 23.6% |
+| NVDA | 3417 | 928 | 27.2% |
+| QQQ | 3417 | 845 | 24.7% |
+| SPY | 3416 | 870 | 25.5% |
+| TSLA | 3417 | 921 | 27.0% |
+| UNH | 3417 | 807 | 23.6% |
+
+### Breakout, chop pullback, hold, resume
+
+**Chop-hold v2, 60-minute, 2025-10-13 through 2026-10-06.** 0 signals.
+
+| Exit | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| level target | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| trail 15% | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| bracket 2R | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+The gate reads the level-target row. It does not clear profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, and 300 trades.
+Walk-forward on the level target, cell chosen inside each training fold: 0 trades, win 0.0%, expectancy $0.00, profit factor n/a, Sharpe 0.00, max drawdown 0.0%, ending $1,000.00. Cells: default, default, default.
+
+**Chop-hold v2, 15-minute, 2026-08-13 through 2026-10-06.** 0 signals.
+
+| Exit | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| level target | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| trail 15% | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| bracket 2R | 0 | 0.0% | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+The gate reads the level-target row. It does not clear profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, and 300 trades.
+
+60-minute counts on the full sample: {'breakouts': 139, 'rejected': 3, 'chop_runs': 34, 'hold_breaks': 17, 'signals': 1}. 15-minute counts: {'breakouts': 4, 'rejected': 0, 'chop_runs': 3, 'hold_breaks': 2, 'signals': 0}.
+
+### Chop-box breakout, relative volume above 1.5
+
+Daily Dow, default cell, 2023-01-01 through 2026-10-06.
+
+**Daily Dow chop-v2 breakout, 2023-01-01 through 2026-10-06.** 107 signals.
+
+| Exit | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| level target | 48 | 35.4% | $-7.78 | 0.52 | -0.71 | -56.4% | $626.54 |
+| trail 15% | 22 | 54.5% | $-5.10 | 0.81 | -0.08 | -34.0% | $887.88 |
+| bracket 2R | 44 | 31.8% | $-6.85 | 0.57 | -0.51 | -46.4% | $698.40 |
+
+Random entries, same level-target exit: 49 trades, win 30.6%, expectancy $-9.39, profit factor 0.48, Sharpe -0.77, max drawdown -49.4%, ending $539.87.
+Random entries, same 15% trail: 26 trades, win 50.0%, expectancy $-13.09, profit factor 0.66, Sharpe -0.32, max drawdown -56.5%, ending $659.64.
+The gate reads the level-target row. It does not clear profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, and 300 trades.
+
+The training window 2010-01-01 through 2022-12-31 chose box_bars 6 (76 trades, win 44.7%, expectancy $7.40, profit factor 1.39, Sharpe 0.38, max drawdown -31.1%, ending $1,562.09). On the holdout that cell is 21 trades, win 33.3%, expectancy $-4.17, profit factor 0.77, Sharpe -0.20, max drawdown -25.4%, ending $912.34. It does not replace the default.
+
+SPY buy and hold, whole shares that fit in $1,000, 2023-01-01 through 2026-10-06: 2 shares, 1 trades, win 100.0%, expectancy $826.71, profit factor n/a, Sharpe 1.41, max drawdown -15.4%, ending $1,826.71.
+
+Hourly named list, default cell, the second half of the Yahoo sample.
+
+**60-minute chop-v2 breakout, 2025-10-13 through 2026-10-06.** 139 signals.
+
+| Exit | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| level target | 64 | 43.8% | $-0.77 | 0.93 | -0.11 | -27.3% | $950.91 |
+| trail 15% | 37 | 62.2% | $10.02 | 1.50 | 1.10 | -27.6% | $1,370.78 |
+| bracket 2R | 56 | 37.5% | $-0.37 | 0.97 | 0.03 | -33.3% | $979.33 |
+
+Random entries, same level-target exit: 77 trades, win 29.9%, expectancy $-6.21, profit factor 0.44, Sharpe -2.65, max drawdown -53.0%, ending $522.20.
+Random entries, same 15% trail: 41 trades, win 41.5%, expectancy $-11.88, profit factor 0.34, Sharpe -2.47, max drawdown -48.7%, ending $512.86.
+The gate reads the level-target row. It does not clear profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, and 300 trades.
+
+Hourly walk-forward, level target: 65 trades, win 43.1%, expectancy $0.23, profit factor 1.03, Sharpe -0.07, max drawdown -27.4%, ending $962.69. Cells: rel_volume_max 1.0, rel_volume_max 0.75, rel_volume_max 0.75.
+
+15-minute named list, default cell, the whole short Yahoo window. Anecdotal.
+
+**15-minute chop-v2 breakout, 2026-08-13 through 2026-10-06.** 76 signals.
+
+| Exit | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| level target | 18 | 27.8% | $-2.90 | 0.32 | -4.27 | -5.2% | $947.81 |
+| trail 15% | 18 | 27.8% | $-2.75 | 0.40 | -4.17 | -5.0% | $950.43 |
+| bracket 2R | 18 | 27.8% | $-2.32 | 0.46 | -2.90 | -4.2% | $958.17 |
+The gate reads the level-target row. It does not clear profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, and 300 trades.
+
+### No-trade filter on A-D and the bounce
+
+Skip a signal when the default chop-v2 flag is on at the signal close. The flag helps only when out-of-sample expectancy is higher, losing trades are fewer, and at least 20 trades remain. That label does not change the gate. Daily rows are the 2023-2026 holdout. Hourly rows are the second half of the Yahoo sample.
+
+| Book | Window | Baseline | Skip chop v2 | Inside | Helps |
+|---|---|---|---|---:|---|
+| A, 60-minute | 2025-10-13 through 2026-10-06 | 131 trades, win 31.3%, expectancy $-0.86, profit factor 0.86, Sharpe -0.65, max drawdown -14.0%, ending $886.97 | 99 trades, win 37.4%, expectancy $0.25, profit factor 1.04, Sharpe 0.24, max drawdown -11.8%, ending $1,024.39 | 70 | yes |
+| B, 60-minute | 2025-10-13 through 2026-10-06 | 85 trades, win 28.2%, expectancy $-0.92, profit factor 0.86, Sharpe -0.36, max drawdown -23.8%, ending $921.86 | 53 trades, win 28.3%, expectancy $-0.13, profit factor 0.98, Sharpe 0.01, max drawdown -13.5%, ending $993.34 | 49 | yes |
+| C, daily Dow | 2023-01-01 through 2026-10-06 | 98 trades, win 36.7%, expectancy $-1.86, profit factor 0.90, Sharpe -0.22, max drawdown -46.6%, ending $817.81 | 87 trades, win 39.1%, expectancy $1.12, profit factor 1.06, Sharpe 0.23, max drawdown -27.2%, ending $1,097.01 | 72 | yes |
+| D, daily Dow | 2023-01-01 through 2026-10-06 | 37 trades, win 29.7%, expectancy $1.04, profit factor 1.07, Sharpe 0.14, max drawdown -23.2%, ending $1,038.43 | 33 trades, win 33.3%, expectancy $3.56, profit factor 1.23, Sharpe 0.31, max drawdown -21.2%, ending $1,117.52 | 7 | yes |
+| Bounce, level target | 2023-01-01 through 2026-10-06 | 145 trades, win 57.2%, expectancy $6.91, profit factor 1.45, Sharpe 1.06, max drawdown -22.1%, ending $2,002.17 | 131 trades, win 58.0%, expectancy $9.43, profit factor 1.58, Sharpe 1.26, max drawdown -21.5%, ending $2,234.84 | 98 | yes |
+
+A, 60-minute unfiltered still matches $886.97 on 131 trades.
+B, 60-minute unfiltered still matches $921.86 on 85 trades.
+
+### Bounce, 15% trail, regime and chop v2
+
+The exit is the 15% trail, the bounce row that led the earlier exit study. Replaying that published window (2019-01-01 through 2026-10-06) produced 118 trades, win 55.1%, expectancy $13.63, profit factor 1.43, Sharpe 0.60, max drawdown -32.3%, ending $2,608.44. The gated writeup is $2,608.44 on 118 trades. This replay matches.
+
+The new test keeps the 15% trail and adds two filters: the default chop-v2 flag is off, and the regime cell is the stock above its own 200-day average. SPY above its 200-day average, and both together, are the grid. The choice, if one is reported, comes from 2010 through 2022. The gate reads the stock-above-200 default on 2023-2026, not the best holdout row.
+
+| Book | Trades | Win rate | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 15% trail, no new filter | 57 | 54.4% | $6.98 | 1.35 | 0.48 | -27.9% | $1,397.93 |
+| 15% trail, stock above 200-day, chop v2 off | 49 | 51.0% | $2.64 | 1.16 | 0.26 | -26.2% | $1,129.54 |
+| 15% trail, spy above 200-day, chop v2 off | 54 | 63.0% | $19.10 | 1.80 | 1.02 | -21.4% | $2,031.52 |
+| 15% trail, both above 200-day, chop v2 off | 46 | 50.0% | $-2.44 | 0.87 | -0.06 | -31.1% | $887.68 |
+| random entries, same 15% trail | 55 | 60.0% | $19.77 | 1.55 | 0.86 | -29.8% | $2,087.34 |
+
+Training chose `stock` (154 trades, win 53.9%, expectancy $1.62, profit factor 1.09, Sharpe 0.19, max drawdown -59.5%, ending $1,249.02 in sample). That cell on the holdout is 49 trades, win 51.0%, expectancy $2.64, profit factor 1.16, Sharpe 0.26, max drawdown -26.2%, ending $1,129.54.
+
+Random entries with the same 15% trail, matched to the default filtered signals: 55 trades, win 60.0%, expectancy $19.77, profit factor 1.55, Sharpe 0.86, max drawdown -29.8%, ending $2,087.34.
+SPY buy and hold over the holdout: 2 shares, 1 trades, win 100.0%, expectancy $826.71, profit factor n/a, Sharpe 1.41, max drawdown -15.4%, ending $1,826.71.
+Against those random entries the default book does not beat them on Sharpe with a drawdown that is not worse. Against SPY buy and hold it does not beat that comparison. The gate does not clear.
+
+Charts: `reports/setups/readCHOPv2_SPY_1d.png` and `reports/setups/readCHOPv2_NVDA_60m.png`.
+
+Not added to `config/optional_strategies.json`. The published A-D books, the v1 chop flag, the 120-bar level set, and the bounce's published trail are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_CHOP_V2_END -->
