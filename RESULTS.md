@@ -2285,3 +2285,33 @@ Every sized-account scale row loses money, and none clears the old gate. The -20
 
 Not added to `config/optional_strategies.json`. The published A-D books and the earlier exit labels are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_SCALE_END -->
+
+<!-- CHART_READS_HOLD_START -->
+## Chop-hold retest
+
+DOES NOT CHANGE THE GATE. This is the annotated NVDA sequence, frozen before the score: a breakout of a 10-session shelf, a rejection of the 2-standard-deviation VWAP band, then a low-volume chop pullback that holds the broken level, then a strong close out of that chop. The pullback is the chop flag already scored. That flag was not retuned. The stop is under the held level. The exits, if a fill exists, are the frozen five-contract scale-out, the all-out +30% comparison, the percent and ATR trails, and the brackets. Nothing was sent to a broker. `live_trading_enabled` stays false.
+
+The shelf is the prior 10 sessions. Its high and its low each have to be touched in two of those sessions, within the frozen 0.50 ATR touch, and the height has to sit inside setup D's frozen ATR bounds. The breakout is a strong candle closing through that side by 0.10 ATR, on the breakout side of session VWAP. The chop zone is at least six contiguous chop bars inside the next 5 sessions, and it has to trade back to the broken level. No close may go back through the level, and no wick may exceed the 0.50 ATR touch. The next strong candle has to close out of the chop zone. One attempt per breakout. Short is the mirror. The 5-minute book is not in this run. Both clocks are inside the free Yahoo intraday cap.
+
+Exit grid, unchanged from the scale-out study: scale, premium stop -20%, scale, premium stop -30%, scale, premium stop -50%, scale, underlying stop, all-out +30%, premium stop -20%, all-out +30%, premium stop -30%, all-out +30%, premium stop -50%, all-out +30%, underlying stop, bracket, next level, trail 5%, trail 10%, trail 15%, trail 1.5 ATR, trail 2 ATR, trail 3 ATR, bracket 1.5R, bracket 2R, bracket 3R.
+
+### Chop-hold, 60-minute
+
+0 signals (0 long, 0 short) on 2024-10-17 through 2026-10-06. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Hold is up to 5 sessions. Calls and puts would be 3 DTE, delta 0.45, five contracts. The scan saw 132 breakouts, 0 of them with a six-bar chop run, 0 of those runs also rejecting the VWAP band while the hold was intact, 0 hold breaks, and 0 resumptions.
+
+There is no fill, so the scale-out, the trails, and the brackets are not scored on this book. A five-lot cannot be sized, and there is no win rate, target distribution, or drawdown. The empty book does not clear the old gate.
+
+### Chop-hold, 15-minute
+
+0 signals (0 long, 0 short) on 2026-08-13 through 2026-10-06. In sample 2026-08-13 through 2026-09-09. Out of sample 2026-09-10 through 2026-10-06. Hold is flattened at the session close. Calls and puts would be 3 DTE, delta 0.45, five contracts. The scan saw 4 breakouts, 0 of them with a six-bar chop run, 0 of those runs also rejecting the VWAP band while the hold was intact, 0 hold breaks, and 0 resumptions.
+
+There is no fill, so the scale-out, the trails, and the brackets are not scored on this book. A five-lot cannot be sized, and there is no win rate, target distribution, or drawdown. The empty book does not clear the old gate.
+
+The annotated NVDA chart is a 20-session 60m window from 2026-09-09 through 2026-10-06 10:30:00-04:00. Yahoo's adjusted high in that window is $243.37, against the annotated high of $243.37. The last bar closes at $242.17; the annotation's price is $241.37. Friday 2026-10-02 trades $233.60 to $237.87 and closes $233.99. The drawn lines are 234.0, 232.5, 227.5, 221.5. The drawn pullback is 232.5 to 235.0.
+
+On that hourly window the chop flag is on for 0 of 135 bars. Narrow is on for 86, quiet volume for 73, and VWAP has been crossed at least three times in 20 bars on 123. The tangled 9/20 EMA leg is on for 0. The hold scan marks 0 entries. The same 20 sessions on 15-minute bars have 8 chop bars, from $228.82 to $231.35, and 0 hold entries. 8 of those chop bars are before 2026-10-02 and 0 are on or after it. The chop dates are 2026-09-29, 2026-10-01. The rule was not loosened to force a mark.
+
+Charts: `reports/setups/readHOLD_NVDA_60m.png` and `reports/setups/readHOLD_NVDA_15m.png`. Gold bars are the chop flag. Dotted lines are the annotated levels. The pale band is the annotated 232.5-235 pullback. The dashed vertical is Friday, October 2. No triangle is drawn, because the scan did not mark an entry.
+
+Not added to `config/optional_strategies.json`. The published A-D books, the bounce, and the earlier exit labels are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_HOLD_END -->

@@ -424,11 +424,13 @@ def write_readme(text: str, path: Path) -> None:
 def readme_paragraph(books: list[dict], checks: list[dict]) -> str:
     hourly = next(row for row in checks if row["clock"] == "60m")
     slow = next(row for row in checks if row["clock"] == "15m")
-    signals = ", ".join(f"{book['name']} {book['signals']}" for book in books)
+    fired = " and ".join(
+        f"{book['signals']} times on the {book['name'].replace('Chop-hold, ', '')} book" for book in books
+    )
     return (
         "**Chop-hold retest: does not pass.** After a breakout of a 10-session shelf, the frozen chop flag has to "
         "mark a pullback that holds the old level, and the entry is the strong close out of that chop, with the stop "
-        f"under the level. On the named list that sequence fired {signals}. "
+        f"under the level. On the named list that sequence fired {fired}. "
         f"The exits were the five-contract scale-out, the trails, and the brackets; with no fill they are not scored. "
         f"On the Oct 6, 2026 NVDA 20-session hourly chart, Yahoo's high is {_money(hourly['window_high'])} against the "
         f"annotated {_money(ANNOTATED_HIGH)}, and the last close is {_money(hourly['last_close'])} against "
