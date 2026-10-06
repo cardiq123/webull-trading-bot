@@ -307,6 +307,22 @@ def render(books: list[dict]) -> str:
             lines.append(f"Out-of-sample stock exits for {book['winner']}: {rendered}.")
         lines.append("")
     lines.append(
+        "The bounce label is the 15% trail: out-of-sample expectancy $13.63, profit factor 1.43, "
+        "Sharpe 0.60, max drawdown -32.3%, 118 trades, ending $2,608.44. Of those exits, 109 were the "
+        "15-session time stop and 8 were the trail. The stop is wide enough that it rarely ratchets "
+        "inside the hold, so that result is mostly a wide stop plus the time stop. It does not clear "
+        "300 trades or a drawdown no worse than -30%. Hourly B's 15% trail is the same pattern, 34 of "
+        "36 exits at the time stop, expectancy $2.64. Hourly A and daily C keep the level target because "
+        "nothing beat it. Daily C's level target, with the 20 EMA trail off, ended at $2,522.01 on 163 "
+        "trades (profit factor 1.30, Sharpe 0.71, drawdown -34.2%). That is not the published C book, "
+        "which still matches $746.56 on 207 trades, and it does not clear the gate. Daily D's label is "
+        "the 1.5R bracket, expectancy -$1.46 on 73 trades. The option rows do not pick the label. The "
+        "only call book that finished ahead of its start was the bounce's 10% trail, $1,584.44 on 96 "
+        "trades, with a -70.5% drawdown. Where the 1.5R, 2R, and 3R call rows match, those contracts "
+        "were closed by the stop or the time stop before the underlying reached 1.5R."
+    )
+    lines.append("")
+    lines.append(
         "Not added to `config/optional_strategies.json`. The published A-D books are unchanged. "
         "The default book is still dual momentum."
     )

@@ -1607,3 +1607,238 @@ The default stock row does not meet a 1.10 profit factor, a 0.40 Sharpe, a drawd
 
 Not added to `config/optional_strategies.json`. The published A-D books are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_BOUNCE_END -->
+
+<!-- CHART_READS_EXITS_START -->
+## Exit styles
+
+DOES NOT CHANGE THE GATE. The same entries and the same stops are scored with a frozen exit grid. Nothing was sent to a broker. `live_trading_enabled` stays false. The dual-momentum order path is unchanged.
+
+The grid, fixed before this score: a percent trail at 5%, 10%, and 15%; an ATR trail at 1.5, 2, and 3 times the signal-bar ATR, as a fixed dollar step; a bracket at the next level and at 1.5R, 2R, and 3R, with the setup stop and no EMA trail; and one hybrid that sells half at the first level (1R if that level is missing) and trails the rest at 2 times the signal-bar ATR. The level bracket is the baseline. A pure trail has no separate hard stop and no take-profit. The book's time stop still exits, because a native order has none. A row beats the baseline on the out-of-sample stock book only when expectancy is strictly higher, profit factor is not lower, max drawdown is no more than five points worse, and at least 20 trades closed. The winner is the passing row with the highest expectancy. An equal expectancy keeps the earlier cell. Options are reported and do not pick the winner. Meeting the label does not clear the gate.
+
+Webull's stock trade page accepts `TRAILING_STOP_LOSS` with `trailing_type` `AMOUNT` or `PERCENTAGE` and `trailing_stop_step` (`0.01` is 1%). That order is DAY only, so a multi-day trail in this backtest is the economic path of renewing it, not a good-till-cancelled order. The equity bracket on that page is `MASTER` plus `STOP_PROFIT` plus `STOP_LOSS` with one `client_combo_order_id`. `OTOCO` is a different pattern, a master that triggers two linked limits, and it is not the bracket used here. The options trade page lists `MARKET`, `LIMIT`, `STOP_LOSS`, and `STOP_LOSS_LIMIT`. It says `TRAILING_STOP_LOSS` is not supported, and `OTO`, `OCO`, and `OTOCO` are equity-only. A single-leg option stop is a premium. These exits are prices on the underlying, so every option row is a bot-managed watch of the stock. No option order is built or sent. The paper path can rest the equity trail, the equity bracket, or the hybrid's half-size limit and half-size DAY trail. It refuses any broker other than the paper broker.
+
+Hourly setup A and hourly setup B are the intraday books. The 5-minute and 15-minute books stay out of this grid because that Yahoo sample is too short to separate an exit. Daily setup C, daily setup D, and the partial-bounce book use the Dow point-in-time window, 2010-01-01 through 2018-12-31 in sample and 2019-01-01 through 2026-10-06 out of sample. Calls are 3 DTE on the hourly books and 45 DTE on the daily books, delta 0.45, inside the $1,000 and 20% risk rules. A contract that does not fit is skipped. Average capture on a stock row is the mean underlying percent from the fill to the exit. On a call row it is the mean premium return, including the haircut and the option fees. Expectancy is dollars per closed trade after costs. A hybrid entry can close as two trades, the partial and the remainder. One option contract cannot be split, so that position exits in full at the target.
+
+### Partial bounce, daily Dow
+
+2508 signals. Same entry and stop as the partial-bounce study. The level-target row is that study's next-level stock exit.
+
+The published stock out-of-sample book still matches $1,502.90 on 286 trades.
+
+Out-of-sample stock winner: **trail 15%**. That label is not the default book.
+
+Stock
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 286 | 50.7% | +0.2% | $1.76 | 1.13 | 0.36 | -46.9% | $1,502.90 | $1,434.05 | baseline |
+| trail 5% | 178 | 44.4% | +0.2% | $0.70 | 1.03 | 0.18 | -35.5% | $1,124.59 | $1,351.97 | no |
+| trail 10% | 124 | 53.2% | +0.7% | $6.18 | 1.19 | 0.41 | -31.1% | $1,766.39 | $1,126.89 | yes |
+| trail 15% | 118 | 55.1% | +1.1% | $13.63 | 1.43 | 0.60 | -32.3% | $2,608.44 | $1,863.54 | yes |
+| trail 1.5 ATR | 253 | 35.2% | +0.0% | $-0.41 | 0.97 | 0.05 | -37.7% | $895.70 | $629.58 | no |
+| trail 2 ATR | 177 | 42.9% | +0.5% | $4.75 | 1.20 | 0.45 | -26.3% | $1,841.04 | $985.79 | yes |
+| trail 3 ATR | 134 | 53.0% | +0.8% | $9.49 | 1.25 | 0.54 | -32.5% | $2,271.66 | $1,141.81 | yes |
+| bracket 1.5R | 254 | 44.1% | +0.4% | $3.99 | 1.21 | 0.50 | -40.2% | $2,012.92 | $1,048.74 | yes |
+| bracket 2R | 219 | 40.6% | +0.5% | $6.52 | 1.27 | 0.61 | -34.3% | $2,427.77 | $905.03 | yes |
+| bracket 3R | 188 | 38.3% | +0.5% | $4.53 | 1.19 | 0.45 | -42.5% | $1,851.02 | $762.99 | yes |
+| hybrid half at level, trail 2 ATR | 288 | 55.2% | +1.1% | $0.23 | 1.02 | 0.14 | -42.0% | $1,066.09 | $952.89 | no |
+
+Options, bot-managed on the underlying
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 39 | 28.2% | -17.5% | $-17.16 | 0.27 | -1.03 | -69.7% | $330.78 | $97.16 | — |
+| trail 5% | 34 | 26.5% | -11.5% | $-16.26 | 0.66 | -0.15 | -77.3% | $447.23 | $103.33 | — |
+| trail 10% | 96 | 41.7% | +11.3% | $6.09 | 1.07 | 0.38 | -70.5% | $1,584.44 | $215.57 | — |
+| trail 15% | 41 | 31.7% | -12.1% | $-16.37 | 0.71 | -0.22 | -77.0% | $328.63 | $238.43 | — |
+| trail 1.5 ATR | 25 | 12.0% | -33.9% | $-29.92 | 0.08 | -1.02 | -75.6% | $252.09 | $82.87 | — |
+| trail 2 ATR | 21 | 9.5% | -37.2% | $-35.96 | 0.09 | -0.94 | -75.5% | $244.76 | $83.03 | — |
+| trail 3 ATR | 35 | 28.6% | -11.1% | $-15.28 | 0.67 | -0.13 | -79.7% | $465.30 | $129.98 | — |
+| bracket 1.5R | 55 | 21.8% | -6.3% | $-8.68 | 0.77 | -0.05 | -71.3% | $522.46 | $73.50 | — |
+| bracket 2R | 55 | 21.8% | -6.3% | $-8.68 | 0.77 | -0.05 | -71.3% | $522.46 | $73.50 | — |
+| bracket 3R | 55 | 21.8% | -6.3% | $-8.68 | 0.77 | -0.05 | -71.3% | $522.46 | $73.50 | — |
+| hybrid half at level, trail 2 ATR | 41 | 26.8% | -16.8% | $-17.06 | 0.30 | -0.92 | -73.1% | $300.68 | $94.59 | — |
+
+The level-target call row skipped 1126 out-of-sample entries that did not fit the risk budget or had no volatility estimate.
+Out-of-sample stock exits for trail 15%: 109 time_stop, 8 trail, 1 window_end.
+
+### A, 60-minute
+
+457 continuation signals. The published exit is a 2R target and the 20 EMA trail. The level-target row is the baseline for this grid, with that trail turned off.
+
+The published stock out-of-sample book still matches $886.97 on 131 trades.
+
+Out-of-sample stock winner: **level target**. That label is not the default book.
+
+Stock
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published exit | 131 | 31.3% | -0.1% | $-0.86 | 0.86 | -0.65 | -14.0% | $886.97 | $676.70 | — |
+| level target | 128 | 35.9% | -0.1% | $-0.72 | 0.90 | -0.48 | -18.2% | $908.43 | $695.84 | baseline |
+| trail 5% | 49 | 40.8% | -0.7% | $-6.57 | 0.56 | -1.44 | -34.0% | $677.93 | $749.33 | no |
+| trail 10% | 44 | 40.9% | -0.7% | $-7.38 | 0.61 | -0.89 | -37.9% | $675.31 | $612.12 | no |
+| trail 15% | 43 | 41.9% | -1.6% | $-12.29 | 0.39 | -2.14 | -56.6% | $471.46 | $670.64 | no |
+| trail 1.5 ATR | 125 | 27.2% | -0.3% | $-2.95 | 0.55 | -2.02 | -37.9% | $631.72 | $458.16 | no |
+| trail 2 ATR | 107 | 39.3% | -0.2% | $-1.64 | 0.81 | -0.66 | -26.2% | $824.42 | $454.84 | no |
+| trail 3 ATR | 71 | 33.8% | -0.1% | $-1.59 | 0.88 | -0.22 | -29.2% | $887.04 | $374.26 | no |
+| bracket 1.5R | 131 | 37.4% | -0.2% | $-1.61 | 0.74 | -1.48 | -23.0% | $789.28 | $656.79 | no |
+| bracket 2R | 127 | 33.1% | -0.1% | $-1.22 | 0.82 | -0.92 | -18.3% | $844.57 | $725.01 | no |
+| bracket 3R | 115 | 27.8% | -0.1% | $-0.94 | 0.88 | -0.46 | -22.0% | $891.67 | $695.55 | no |
+| hybrid half at level, trail 2 ATR | 166 | 49.4% | +0.1% | $-1.55 | 0.64 | -1.83 | -28.1% | $742.89 | $532.22 | no |
+
+Options, bot-managed on the underlying
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 16 | 12.5% | -9.4% | $-31.41 | 0.58 | -0.38 | -70.1% | $497.46 | $612.39 | — |
+| trail 5% | 10 | 0.0% | -32.6% | $-43.50 | 0.00 | -1.43 | -43.5% | $564.96 | $617.98 | — |
+| trail 10% | 10 | 0.0% | -32.6% | $-43.50 | 0.00 | -1.43 | -43.5% | $564.96 | $632.29 | — |
+| trail 15% | 10 | 0.0% | -32.6% | $-43.50 | 0.00 | -1.43 | -43.5% | $564.96 | $632.29 | — |
+| trail 1.5 ATR | 13 | 0.0% | -22.5% | $-28.25 | 0.00 | -3.18 | -36.7% | $632.71 | $534.61 | — |
+| trail 2 ATR | 13 | 0.0% | -22.5% | $-28.25 | 0.00 | -3.18 | -36.7% | $632.71 | $495.76 | — |
+| trail 3 ATR | 13 | 0.0% | -22.5% | $-28.25 | 0.00 | -3.18 | -36.7% | $632.71 | $442.45 | — |
+| bracket 1.5R | 14 | 14.3% | -9.8% | $-35.69 | 0.58 | -0.34 | -69.1% | $500.41 | $574.23 | — |
+| bracket 2R | 14 | 14.3% | -9.8% | $-35.69 | 0.58 | -0.34 | -69.1% | $500.41 | $574.23 | — |
+| bracket 3R | 14 | 14.3% | -9.8% | $-35.69 | 0.58 | -0.34 | -69.1% | $500.41 | $574.23 | — |
+| hybrid half at level, trail 2 ATR | 16 | 12.5% | -9.4% | $-31.41 | 0.58 | -0.38 | -70.1% | $497.46 | $617.98 | — |
+
+The level-target call row skipped 181 out-of-sample entries that did not fit the risk budget or had no volatility estimate.
+Out-of-sample stock exits for level target: 81 invalidation, 45 target, 1 time_stop, 1 window_end.
+
+### B, 60-minute
+
+235 failed-breakout signals. The published exit is a 2R target and the 20 EMA trail. The level-target row is the baseline for this grid, with that trail turned off.
+
+The published stock out-of-sample book still matches $921.86 on 85 trades.
+
+Out-of-sample stock winner: **trail 15%**. That label is not the default book.
+
+Stock
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published exit | 85 | 28.2% | -0.1% | $-0.92 | 0.86 | -0.36 | -23.8% | $921.86 | $972.61 | — |
+| level target | 73 | 34.2% | -0.2% | $-1.67 | 0.78 | -0.49 | -25.7% | $878.38 | $963.41 | baseline |
+| trail 5% | 42 | 42.9% | -0.0% | $-1.11 | 0.92 | -0.11 | -17.7% | $953.26 | $1,150.85 | yes |
+| trail 10% | 37 | 51.4% | +0.3% | $2.60 | 1.16 | 0.51 | -20.0% | $1,096.05 | $1,271.64 | yes |
+| trail 15% | 36 | 50.0% | +0.3% | $2.64 | 1.16 | 0.50 | -16.2% | $1,094.94 | $1,369.87 | yes |
+| trail 1.5 ATR | 84 | 32.1% | -0.3% | $-2.88 | 0.51 | -1.76 | -26.8% | $757.76 | $904.23 | no |
+| trail 2 ATR | 79 | 29.1% | -0.4% | $-3.52 | 0.46 | -1.92 | -29.6% | $721.69 | $910.13 | no |
+| trail 3 ATR | 60 | 31.7% | -0.5% | $-4.59 | 0.52 | -1.58 | -27.6% | $724.57 | $1,118.40 | no |
+| bracket 1.5R | 76 | 35.5% | -0.3% | $-2.50 | 0.67 | -0.90 | -26.0% | $810.37 | $936.32 | no |
+| bracket 2R | 73 | 34.2% | -0.2% | $-1.67 | 0.78 | -0.49 | -25.7% | $878.38 | $963.41 | no |
+| bracket 3R | 67 | 25.4% | -0.4% | $-3.60 | 0.57 | -1.14 | -30.1% | $758.71 | $1,098.52 | no |
+| hybrid half at level, trail 2 ATR | 105 | 52.4% | +0.1% | $-1.88 | 0.60 | -1.07 | -26.2% | $802.69 | $1,022.83 | no |
+
+Options, bot-managed on the underlying
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 4 | 0.0% | -70.2% | $-83.17 | 0.00 | -1.74 | -36.4% | $667.33 | $545.94 | — |
+| trail 5% | 18 | 11.1% | -2.4% | $-20.88 | 0.71 | -0.39 | -65.1% | $624.15 | $1,486.51 | — |
+| trail 10% | 18 | 11.1% | -2.4% | $-20.88 | 0.71 | -0.39 | -65.1% | $624.15 | $1,523.77 | — |
+| trail 15% | 18 | 11.1% | -2.4% | $-20.88 | 0.71 | -0.39 | -65.1% | $624.15 | $1,950.54 | — |
+| trail 1.5 ATR | 19 | 10.5% | -1.6% | $-15.34 | 0.74 | -0.30 | -64.1% | $708.47 | $596.31 | — |
+| trail 2 ATR | 23 | 8.7% | -0.4% | $-14.11 | 0.77 | -0.29 | -64.1% | $675.58 | $545.05 | — |
+| trail 3 ATR | 23 | 13.0% | +7.0% | $-1.76 | 0.97 | 0.35 | -54.6% | $959.47 | $1,157.18 | — |
+| bracket 1.5R | 4 | 0.0% | -85.4% | $-100.07 | 0.00 | -1.74 | -42.8% | $599.74 | $633.52 | — |
+| bracket 2R | 4 | 0.0% | -85.4% | $-100.07 | 0.00 | -1.74 | -42.8% | $599.74 | $633.52 | — |
+| bracket 3R | 4 | 0.0% | -85.4% | $-100.07 | 0.00 | -1.74 | -42.8% | $599.74 | $633.52 | — |
+| hybrid half at level, trail 2 ATR | 4 | 0.0% | -70.2% | $-83.17 | 0.00 | -1.74 | -36.4% | $667.33 | $545.94 | — |
+
+The level-target call row skipped 115 out-of-sample entries that did not fit the risk budget or had no volatility estimate.
+Out-of-sample stock exits for trail 15%: 34 time_stop, 1 trail, 1 window_end.
+
+### C, daily Dow
+
+1838 signals. The published exit is the measured level, the 20 EMA trail, and a 30-session hold. The level-target baseline keeps that level and turns the EMA trail off.
+
+The published stock out-of-sample book still matches $746.56 on 207 trades.
+
+Out-of-sample stock winner: **level target**. That label is not the default book.
+
+Stock
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published exit | 207 | 39.1% | -0.1% | $-1.22 | 0.92 | -0.12 | -46.6% | $746.56 | $1,129.36 | — |
+| level target | 163 | 47.9% | +0.7% | $9.34 | 1.30 | 0.71 | -34.2% | $2,522.01 | $1,436.06 | baseline |
+| trail 5% | 120 | 39.2% | -0.0% | $-1.29 | 0.93 | -0.02 | -46.4% | $845.16 | $1,555.46 | no |
+| trail 10% | 70 | 44.3% | -0.5% | $-5.69 | 0.80 | -0.19 | -57.1% | $601.54 | $1,555.13 | no |
+| trail 15% | 62 | 51.6% | -0.1% | $-4.13 | 0.89 | -0.04 | -65.6% | $743.66 | $1,941.07 | no |
+| trail 1.5 ATR | 207 | 31.4% | -0.2% | $-1.82 | 0.84 | -0.27 | -61.9% | $623.16 | $565.23 | no |
+| trail 2 ATR | 149 | 34.2% | +0.1% | $0.06 | 1.00 | 0.10 | -52.5% | $1,008.39 | $1,160.12 | no |
+| trail 3 ATR | 96 | 50.0% | +0.3% | $1.78 | 1.06 | 0.20 | -49.7% | $1,171.28 | $911.77 | no |
+| bracket 1.5R | 174 | 43.7% | +0.4% | $3.80 | 1.16 | 0.44 | -32.4% | $1,661.47 | $1,188.86 | no |
+| bracket 2R | 153 | 43.8% | +0.6% | $7.73 | 1.25 | 0.61 | -31.2% | $2,182.40 | $1,801.76 | no |
+| bracket 3R | 135 | 36.3% | +0.5% | $5.30 | 1.17 | 0.44 | -31.7% | $1,715.04 | $1,383.56 | no |
+| hybrid half at level, trail 2 ATR | 214 | 54.2% | +0.8% | $-0.68 | 0.94 | -0.05 | -42.3% | $855.01 | $916.21 | no |
+
+Options, bot-managed on the underlying
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 36 | 16.7% | -21.5% | $-19.49 | 0.13 | -1.24 | -71.1% | $298.52 | $124.47 | — |
+| trail 5% | 21 | 14.3% | -35.8% | $-37.23 | 0.32 | -0.38 | -83.6% | $218.17 | $118.50 | — |
+| trail 10% | 19 | 26.3% | -39.3% | $-35.93 | 0.28 | -0.28 | -78.1% | $317.32 | $472.92 | — |
+| trail 15% | 16 | 25.0% | -46.7% | $-42.59 | 0.22 | -0.29 | -78.0% | $318.58 | $478.58 | — |
+| trail 1.5 ATR | 32 | 25.0% | -11.8% | $-16.37 | 0.48 | -0.39 | -73.6% | $476.02 | $98.58 | — |
+| trail 2 ATR | 37 | 32.4% | -5.7% | $-13.46 | 0.74 | -0.10 | -78.6% | $501.90 | $99.52 | — |
+| trail 3 ATR | 18 | 16.7% | -40.7% | $-40.11 | 0.14 | -0.46 | -74.5% | $278.03 | $478.21 | — |
+| bracket 1.5R | 22 | 13.6% | -39.4% | $-34.96 | 0.15 | -0.53 | -78.2% | $230.86 | $585.01 | — |
+| bracket 2R | 22 | 13.6% | -39.4% | $-34.96 | 0.15 | -0.53 | -78.2% | $230.86 | $585.01 | — |
+| bracket 3R | 22 | 13.6% | -39.4% | $-34.96 | 0.15 | -0.53 | -78.2% | $230.86 | $585.01 | — |
+| hybrid half at level, trail 2 ATR | 49 | 16.3% | -13.6% | $-13.98 | 0.32 | -0.86 | -72.4% | $315.18 | $87.33 | — |
+
+The level-target call row skipped 755 out-of-sample entries that did not fit the risk budget or had no volatility estimate.
+Out-of-sample stock exits for level target: 83 invalidation, 59 target, 20 time_stop, 1 window_end.
+
+### D, daily Dow
+
+292 signals. The published exit is the measured level, the 20 EMA trail, and a 30-session hold. The level-target baseline keeps that level and turns the EMA trail off.
+
+The published stock out-of-sample book still matches $919.45 on 73 trades.
+
+Out-of-sample stock winner: **bracket 1.5R**. That label is not the default book.
+
+Stock
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published exit | 73 | 27.4% | -0.0% | $-1.10 | 0.92 | -0.03 | -26.3% | $919.45 | $1,118.89 | — |
+| level target | 71 | 31.0% | -0.2% | $-2.92 | 0.80 | -0.17 | -35.1% | $792.57 | $1,187.49 | baseline |
+| trail 5% | 62 | 37.1% | -0.7% | $-6.09 | 0.60 | -0.39 | -46.5% | $622.40 | $903.94 | no |
+| trail 10% | 45 | 37.8% | -1.2% | $-10.78 | 0.56 | -0.39 | -52.8% | $514.83 | $1,061.55 | no |
+| trail 15% | 40 | 52.5% | -0.3% | $-5.87 | 0.84 | -0.08 | -50.0% | $765.29 | $958.01 | no |
+| trail 1.5 ATR | 89 | 27.0% | -0.5% | $-4.28 | 0.58 | -0.54 | -46.3% | $619.36 | $548.27 | no |
+| trail 2 ATR | 68 | 32.4% | -0.4% | $-4.31 | 0.70 | -0.26 | -39.8% | $706.84 | $648.04 | no |
+| trail 3 ATR | 53 | 41.5% | -0.4% | $-4.74 | 0.76 | -0.14 | -43.4% | $748.79 | $910.54 | no |
+| bracket 1.5R | 73 | 37.0% | -0.1% | $-1.46 | 0.90 | -0.08 | -27.2% | $893.28 | $700.85 | yes |
+| bracket 2R | 70 | 30.0% | -0.1% | $-2.07 | 0.87 | -0.11 | -27.6% | $855.16 | $769.62 | yes |
+| bracket 3R | 66 | 24.2% | -0.3% | $-3.40 | 0.80 | -0.17 | -35.2% | $775.47 | $690.44 | no |
+| hybrid half at level, trail 2 ATR | 88 | 42.0% | +0.6% | $-3.69 | 0.66 | -0.35 | -41.8% | $674.99 | $1,081.62 | no |
+
+Options, bot-managed on the underlying
+
+| Exit | OOS trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | OOS ending | IS ending | Beats level |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| level target | 19 | 15.8% | -17.0% | $-29.70 | 0.49 | -0.55 | -70.8% | $435.61 | $247.66 | — |
+| trail 5% | 17 | 17.6% | -25.2% | $-33.62 | 0.22 | -1.03 | -59.7% | $428.52 | $498.04 | — |
+| trail 10% | 15 | 20.0% | -29.5% | $-40.37 | 0.21 | -0.93 | -61.0% | $394.43 | $561.97 | — |
+| trail 15% | 15 | 20.0% | -29.8% | $-40.60 | 0.21 | -0.93 | -61.3% | $390.94 | $545.80 | — |
+| trail 1.5 ATR | 17 | 11.8% | -24.3% | $-30.00 | 0.07 | -1.32 | -52.0% | $489.95 | $240.52 | — |
+| trail 2 ATR | 16 | 12.5% | -26.8% | $-34.90 | 0.11 | -1.04 | -56.1% | $441.67 | $242.37 | — |
+| trail 3 ATR | 15 | 13.3% | -28.2% | $-37.91 | 0.21 | -1.01 | -59.7% | $431.40 | $222.62 | — |
+| bracket 1.5R | 19 | 10.5% | -18.9% | $-29.14 | 0.52 | -0.49 | -69.9% | $446.31 | $258.84 | — |
+| bracket 2R | 19 | 10.5% | -18.9% | $-29.14 | 0.52 | -0.49 | -69.9% | $446.31 | $258.84 | — |
+| bracket 3R | 19 | 10.5% | -18.9% | $-29.14 | 0.52 | -0.49 | -69.9% | $446.31 | $258.84 | — |
+| hybrid half at level, trail 2 ATR | 19 | 15.8% | -17.0% | $-29.70 | 0.49 | -0.55 | -70.8% | $435.61 | $253.61 | — |
+
+The level-target call row skipped 93 out-of-sample entries that did not fit the risk budget or had no volatility estimate.
+Out-of-sample stock exits for bracket 1.5R: 46 invalidation, 23 target, 4 time_stop.
+
+The bounce label is the 15% trail: out-of-sample expectancy $13.63, profit factor 1.43, Sharpe 0.60, max drawdown -32.3%, 118 trades, ending $2,608.44. Of those exits, 109 were the 15-session time stop and 8 were the trail. The stop is wide enough that it rarely ratchets inside the hold, so that result is mostly a wide stop plus the time stop. It does not clear 300 trades or a drawdown no worse than -30%. Hourly B's 15% trail is the same pattern, 34 of 36 exits at the time stop, expectancy $2.64. Hourly A and daily C keep the level target because nothing beat it. Daily C's level target, with the 20 EMA trail off, ended at $2,522.01 on 163 trades (profit factor 1.30, Sharpe 0.71, drawdown -34.2%). That is not the published C book, which still matches $746.56 on 207 trades, and it does not clear the gate. Daily D's label is the 1.5R bracket, expectancy -$1.46 on 73 trades. The option rows do not pick the label. The only call book that finished ahead of its start was the bounce's 10% trail, $1,584.44 on 96 trades, with a -70.5% drawdown. Where the 1.5R, 2R, and 3R call rows match, those contracts were closed by the stop or the time stop before the underlying reached 1.5R.
+
+Not added to `config/optional_strategies.json`. The published A-D books are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_EXITS_END -->
