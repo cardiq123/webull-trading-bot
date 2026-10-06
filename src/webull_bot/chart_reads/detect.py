@@ -39,6 +39,8 @@ class Setup:
     stop: float
     atr: float
     reference: float
+    # Farther objective used by the partial-bounce study. Other setups leave it unset.
+    reversal: float = float("nan")
 
 
 def session_bands(frame: pd.DataFrame, deviations: float = 2.0) -> pd.DataFrame:
