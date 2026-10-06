@@ -304,9 +304,13 @@ def configure_sdk_client(api, *, app_key: str = "", app_secret: str = "", token:
     and token, before either client is constructed.
     """
     directory = default_token_dir()
-    Path(directory).mkdir(parents=True, exist_ok=True)
+    token_path = Path(directory)
+    token_path.mkdir(parents=True, exist_ok=True)
+    token_path.chmod(0o700)
     os.environ.setdefault("WEBULL_OPENAPI_TOKEN_DIR", directory)
     api.set_token_dir(directory)
+    if getattr(api, "_webull_bot_sdk_configured", False):
+        return directory
     api.set_stream_logger(log_level=logging.WARNING, logger_name="webull.core")
     api.set_file_logger(
         path=str(Path(directory) / "webull_trade_sdk.log"),
@@ -320,7 +324,36 @@ def configure_sdk_client(api, *, app_key: str = "", app_secret: str = "", token:
     for handler in list(sdk_log.handlers):
         handler.setLevel(logging.WARNING)
         handler.addFilter(redactor)
+    api._webull_bot_sdk_configured = True
     return directory
+
+
+def run_initializer_once(api, original) -> None:
+    """TradeClient and DataClient each call the SDK initializer.
+
+    That fetches the token config. The second client in one ``connect``
+    must not fetch it again.
+    """
+    if getattr(api, "_webull_bot_client_ready", False):
+        return
+    original(api)
+    api._webull_bot_client_ready = True
+
+
+def install_single_client_init() -> None:
+    try:
+        from webull.core.http.initializer.client_initializer import ClientInitializer
+    except ImportError:
+        return
+    if getattr(ClientInitializer, "_webull_bot_deduped", False):
+        return
+    original = ClientInitializer.initializer
+
+    def initializer(api_client):
+        run_initializer_once(api_client, original)
+
+    ClientInitializer.initializer = staticmethod(initializer)
+    ClientInitializer._webull_bot_deduped = True
 
 
 def sandbox_hosts() -> dict[str, str]:
@@ -473,6 +506,7 @@ class WebullBroker(Broker):
         self.account_type = ""
         self.hosts: list[str] = []
         self.sandbox_only = False
+        self._account_rows: list[dict[str, Any]] | None = None
         self._trade = None
         self._data = None
         self._api = None
@@ -513,6 +547,7 @@ class WebullBroker(Broker):
         except TypeError:
             api = ApiClient(self.app_key, self.app_secret, self.region)
         configure_sdk_client(api, app_key=self.app_key, app_secret=self.app_secret)
+        install_single_client_init()
         if self.sandbox_only and self.environment not in {"sandbox", "uat", "test"}:
             raise WebullError(
                 "Sandbox paper mode refuses a non-sandbox environment. "
@@ -545,17 +580,26 @@ class WebullBroker(Broker):
             self.account_class,
         )
 
-    def list_accounts(self) -> list[dict[str, Any]]:
+    def list_accounts(self, *, refresh: bool = False) -> list[dict[str, Any]]:
+        if self._account_rows is not None and not refresh:
+            return self._account_rows
         self._require_trade()
         response = self._trade.account_v2.get_account_list()
         payload = _payload(response)
         if isinstance(payload, list):
-            return payload
-        if isinstance(payload, dict):
+            rows = payload
+        elif isinstance(payload, dict):
+            rows = None
             for key in ("accounts", "data", "items"):
                 if isinstance(payload.get(key), list):
-                    return payload[key]
-        raise WebullResponseError(f"Unexpected account list shape: {_keys(payload)}")
+                    rows = payload[key]
+                    break
+            if rows is None:
+                raise WebullResponseError(f"Unexpected account list shape: {_keys(payload)}")
+        else:
+            raise WebullResponseError(f"Unexpected account list shape: {_keys(payload)}")
+        self._account_rows = rows
+        return rows
 
     def snapshot(self) -> AccountSnapshot:
         self._require_account()
@@ -627,13 +671,7 @@ class WebullBroker(Broker):
 
     def place_order(self, order: Order) -> Order:
         self._require_account()
-        if self.sandbox_only:
-            assert_sandbox_hosts(self.hosts)
-            if self.environment not in {"sandbox", "uat", "test"}:
-                raise WebullError(
-                    "Sandbox paper mode refuses a non-sandbox environment. "
-                    "Orders are sent only to *.sandbox.webull.com."
-                )
+        self._guard_sandbox()
         if not order.client_order_id:
             order.client_order_id = new_client_order_id()
         payload = build_equity_order(
@@ -654,13 +692,33 @@ class WebullBroker(Broker):
 
     def cancel_order(self, client_order_id: str) -> None:
         self._require_account()
+        self._guard_sandbox()
         self._trade.order_v3.cancel_order(account_id=self.account_id, client_order_id=client_order_id)
 
-    def replace_order(self, client_order_id: str, quantity: float, limit_price: Optional[float] = None) -> None:
+    def _guard_sandbox(self) -> None:
+        if not self.sandbox_only:
+            return
+        assert_sandbox_hosts(self.hosts)
+        if self.environment not in {"sandbox", "uat", "test"}:
+            raise WebullError(
+                "Sandbox paper mode refuses a non-sandbox environment. "
+                "Orders are sent only to *.sandbox.webull.com."
+            )
+
+    def replace_order(
+        self,
+        client_order_id: str,
+        quantity: float,
+        limit_price: Optional[float] = None,
+        stop_price: Optional[float] = None,
+    ) -> None:
         self._require_account()
+        self._guard_sandbox()
         modify: dict[str, str] = {"client_order_id": client_order_id, "quantity": _qty(quantity)}
         if limit_price is not None:
             modify["limit_price"] = f"{limit_price:.2f}"
+        if stop_price is not None:
+            modify["stop_price"] = f"{stop_price:.2f}"
         self._trade.order_v3.replace_order(self.account_id, [modify])
 
     def flatten(self) -> list[Fill]:

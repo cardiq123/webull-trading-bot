@@ -43,6 +43,15 @@ class Journal:
                 cash REAL,
                 mode TEXT
             );
+            CREATE TABLE IF NOT EXISTS peaks (
+                strategy TEXT NOT NULL,
+                symbol TEXT NOT NULL,
+                entry_key TEXT NOT NULL,
+                peak REAL NOT NULL,
+                stop REAL,
+                updated TEXT NOT NULL,
+                PRIMARY KEY (strategy, symbol, entry_key)
+            );
             """
         )
         self._conn.commit()
@@ -79,6 +88,29 @@ class Journal:
         self._conn.execute(
             "INSERT INTO equity (ts, equity, cash, mode) VALUES (?, ?, ?, ?)",
             (_now(), equity, cash, mode),
+        )
+        self._conn.commit()
+
+    def get_peak(self, strategy: str, symbol: str, entry_key: str) -> float | None:
+        row = self._conn.execute(
+            "SELECT peak FROM peaks WHERE strategy = ? AND symbol = ? AND entry_key = ?",
+            (strategy, symbol, entry_key),
+        ).fetchone()
+        if row is None:
+            return None
+        return float(row[0])
+
+    def save_peak(self, strategy: str, symbol: str, entry_key: str, peak: float, stop: float | None) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO peaks (strategy, symbol, entry_key, peak, stop, updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(strategy, symbol, entry_key) DO UPDATE SET
+                peak = excluded.peak,
+                stop = excluded.stop,
+                updated = excluded.updated
+            """,
+            (strategy, symbol, entry_key, float(peak), None if stop is None else float(stop), _now()),
         )
         self._conn.commit()
 

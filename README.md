@@ -254,6 +254,8 @@ Build those orders and do not send them:
 python -m webull_bot paper --broker webull-sandbox --dry-run --max-cycles 1
 ```
 
+Each cycle prints and journals one line per strategy and symbol. A dry run still does this when the market is closed, and it does not send. The line is the order (`would BUY EEM qty N MARKET DAY + STOP_LOSS GTC @ X.XX`, or `sent BUY ...` when it is not a dry run) or the reason for no order (`no signal: dual_momentum target EEM already held`, `outside rebalance`). Dual momentum and the other rotation book reconcile the latest month-end target with broker positions on every cycle, not only on the signal day. A held name that is no longer a target is a market sell, and its protective stop is cancelled first. The stop trails the position peak the same way the backtest does. That peak is stored in the journal and reused after a restart. The stop is not lowered.
+
 Cancel and flatten sandbox orders without the live phrase:
 
 ```bash

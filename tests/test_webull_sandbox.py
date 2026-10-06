@@ -344,11 +344,14 @@ def test_sdk_loggers_are_warning_and_token_dir_is_outside_the_repo(monkeypatch, 
     monkeypatch.setenv("WEBULL_OPENAPI_TOKEN_DIR", str(tmp_path))
     api = FakeApi()
     configure_sdk_client(api, app_key="appkeyvalue1", app_secret="appsecretvalue", token="tokensecret1")
+    configure_sdk_client(api, app_key="appkeyvalue1", app_secret="appsecretvalue", token="tokensecret1")
     assert api.token_dir == str(tmp_path)
-    assert api.levels[0] == ("stream", logging.WARNING)
-    assert api.levels[1][0] == "file"
-    assert api.levels[1][1] == logging.WARNING
+    assert api.levels == [
+        ("stream", logging.WARNING),
+        ("file", logging.WARNING, api.levels[1][2]),
+    ]
     assert "conf" not in api.levels[1][2]
+    assert (tmp_path.stat().st_mode & 0o777) == 0o700
 
 
 def test_quotes_host_is_the_sandbox_data_api():
@@ -375,6 +378,10 @@ def test_sandbox_mode_refuses_the_production_host_before_any_order():
     )
     with pytest.raises(WebullError, match="sandbox"):
         broker.place_order(order)
+    with pytest.raises(WebullError, match="sandbox"):
+        broker.cancel_order("a" * 32)
+    with pytest.raises(WebullError, match="sandbox"):
+        broker.replace_order("a" * 32, 1, stop_price=90.0)
     assert broker._trade.order_v3.placed == []
 
     broker.hosts = ["api.webull.com"]
@@ -537,3 +544,85 @@ def test_parser_local_paper_stays_the_default():
     args = build_parser().parse_args(["paper"])
     assert args.broker == "local"
     assert args.dry_run is False
+
+
+def test_list_accounts_is_cached_until_refresh():
+    calls = {"n": 0}
+
+    class Accounts:
+        def get_account_list(self):
+            calls["n"] += 1
+            return [{"account_id": MARGIN_ID, "account_class": "INDIVIDUAL_MARGIN"}]
+
+    broker = _broker(environment="sandbox")
+    broker._trade.account_v2 = Accounts()
+    first = broker.list_accounts()
+    second = broker.list_accounts()
+    assert first == second
+    assert calls["n"] == 1
+    broker.list_accounts(refresh=True)
+    assert calls["n"] == 2
+
+
+def test_initializer_runs_once_per_client():
+    from webull_bot.broker.webull import install_single_client_init, run_initializer_once
+
+    calls = []
+
+    class Api:
+        pass
+
+    api = Api()
+
+    def original(client):
+        calls.append(client)
+
+    run_initializer_once(api, original)
+    run_initializer_once(api, original)
+    assert calls == [api]
+
+    from webull.core.http.initializer.client_initializer import ClientInitializer
+
+    saved = ClientInitializer.initializer
+    saved_flag = getattr(ClientInitializer, "_webull_bot_deduped", False)
+    seen = []
+
+    def fake(client):
+        seen.append(client)
+
+    ClientInitializer.initializer = staticmethod(fake)
+    ClientInitializer._webull_bot_deduped = False
+    try:
+        install_single_client_init()
+        client = Api()
+        ClientInitializer.initializer(client)
+        ClientInitializer.initializer(client)
+        assert seen == [client]
+    finally:
+        ClientInitializer.initializer = saved
+        ClientInitializer._webull_bot_deduped = saved_flag
+
+
+def test_replace_order_sends_the_trailed_stop_price():
+    class Orders:
+        def __init__(self):
+            self.replaced = []
+
+        def get_order_open(self, account_id, page_size=50):
+            return []
+
+        def place_order(self, account_id, payload):
+            raise AssertionError("place_order should not be reached")
+
+        def replace_order(self, account_id, payload):
+            self.replaced.append(payload)
+
+    broker = _broker(environment="sandbox")
+    broker.sandbox_only = True
+    broker.hosts = list(sandbox_hosts().values())
+    broker.account_id = MARGIN_ID
+    broker._trade.order_v3 = Orders()
+    broker.replace_order("c" * 32, 12, stop_price=91.2)
+    assert broker._trade.order_v3.replaced == [
+        [{"client_order_id": "c" * 32, "quantity": "12", "stop_price": "91.20"}]
+    ]

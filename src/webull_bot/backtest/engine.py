@@ -139,6 +139,7 @@ def run_backtest(
     trade_start: Optional[pd.Timestamp] = None,
     trade_end: Optional[pd.Timestamp] = None,
     flatten_at_end: bool = False,
+    position_log: Optional[list] = None,
 ) -> BacktestResult:
     generated: dict[str, dict[str, pd.DataFrame]] = {}
     for strategy in strategies:
@@ -482,6 +483,8 @@ def run_backtest(
                 last_close[symbol] = float(closes[symbol][i])
                 mark[symbol] = float(closes[symbol][i])
 
+        if position_log is not None:
+            position_log.append((pd.Timestamp(ts), frozenset(positions)))
         if flatten_at_end and i == n - 1:
             for symbol in list(positions):
                 if np.isfinite(closes[symbol][i]):
