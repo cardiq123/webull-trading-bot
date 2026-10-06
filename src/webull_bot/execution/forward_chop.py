@@ -31,6 +31,7 @@ import pandas as pd
 
 from webull_bot.broker.webull import build_trailing_stop_order, new_client_order_id
 from webull_bot.calendar import is_trading_day, to_ny, trading_days_between
+from webull_bot.chart_reads.liquid import LIQUID_BLUE_CHIPS
 from webull_bot.chart_reads.research import SYMBOLS
 from webull_bot.journal.store import Journal
 from webull_bot.models import Order, OrderType, Side, TimeInForce
@@ -40,6 +41,7 @@ from webull_bot.strategies.chop_breakout import (
     MAX_HOLD_SESSIONS,
     TRAIL_PCT,
     ChopBreakout60m,
+    scan_option_breakouts,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -225,7 +227,13 @@ def run_cycle(
         f"Forward test {NAME}. Sandbox paper only. Live trading stays off.",
         (
             "Whole shares, $10,000 notional, at most 3 positions. "
-            "OpenAPI equity orders are QTY, and this adapter does not send a fractional order."
+            "OpenAPI equity orders are QTY, and this adapter does not send a fractional order. "
+            "Share symbols stay on the named list: " + ", ".join(SYMBOLS) + "."
+        ),
+        (
+            "Options sub-book symbols are the pre-registered liquid list: "
+            + ", ".join(LIQUID_BLUE_CHIPS)
+            + ". SPY and QQQ are references. The share book does not scan that extra list."
         ),
         f"Window {local.isoformat()}. Trail {TRAIL_PCT:.0%} DAY, time stop {MAX_HOLD_SESSIONS} sessions, "
         f"flatten_eod {FLATTEN_EOD}.",
@@ -251,13 +259,24 @@ def run_cycle(
     ]
     if not actionable:
         lines.append("No new chop-v2 breakout on the last completed bar.")
+    # An injected scan is the test double for both books. The production
+    # cycle scans the liquid list for options and leaves the share book
+    # on the named list.
+    option_source = setups if scan is not None else scan_option_breakouts(frames)
+    option_actionable = [
+        setup
+        for setup in option_source
+        if setup.symbol in frames and _same_bar(setup.signal_time, _symbol_last(frames[setup.symbol], now))
+    ]
+    if scan is None and not option_actionable:
+        lines.append("No new chop-v2 breakout on the liquid option list.")
 
     _mark_open(state, frames, now, lines, broker, dry_run, journal)
     for setup in actionable:
         _on_signal(state, setup, frames, now, lines, broker, dry_run, journal)
     from webull_bot.execution.forward_options import mark_options
 
-    mark_options(state, actionable, frames, now, lines, broker, dry_run, journal)
+    mark_options(state, option_actionable, frames, now, lines, broker, dry_run, journal)
     _mark_shadows(state, frames, now, lines, dry_run)
     _mark_spy(state, frames, now, lines, dry_run)
 

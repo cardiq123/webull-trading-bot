@@ -498,6 +498,56 @@ def test_place_order_sends_the_day_trailing_stop(monkeypatch):
         )
 
 
+def test_options_use_the_liquid_list_and_shares_stay_on_the_named_list(tmp_path, monkeypatch):
+    def fake(frame, *, symbol="", cell=None, feat=None):
+        if symbol == "AMZN":
+            return [_setup("AMZN", "long", "2026-10-06 10:30")]
+        if symbol == "IWM":
+            return [_setup("IWM", "long", "2026-10-06 10:30")]
+        return []
+
+    def _priced(frame, symbol, direction, now, rv):
+        return {
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 200.0,
+            "expiry": "2026-10-27",
+            "ask": 1.0,
+            "debit": 520.0,
+            "sigma": 0.25,
+            "delta": 0.45,
+            "years": 21 / 365,
+            "spot": 200.0,
+        }
+
+    monkeypatch.setattr("webull_bot.strategies.chop_breakout.find_chop_breakouts", fake)
+    monkeypatch.setattr("webull_bot.execution.forward_options._contract", _priced)
+    journal = Journal(tmp_path / "journal.sqlite")
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 198, 205, 197, 204),
+            ("2026-10-06 10:30", 200, 206, 199, 205),
+            ("2026-10-06 11:30", 201, 207, 200, 206),
+        ]
+    )
+    frames = _book(frame)
+    frames["AMZN"] = frame.copy()
+    lines = run_cycle(
+        journal=journal,
+        frames=frames,
+        now=_at("2026-10-06T11:35:00"),
+        broker=_Broker(),
+        dry_run=True,
+    )
+    text = "\n".join(lines)
+    assert any("IWM" in line and "MARKET" in line for line in lines)
+    assert "Would BUY 5 AMZN CALL" in text
+    assert "Would BUY 5 IWM" not in text
+    assert not any("AMZN" in line and "MARKET" in line for line in lines)
+    assert "AVGO" in text and "LLY" in text
+    assert journal.forward_load("chop_breakout_60m") is None
+
+
 def test_dry_run_prints_the_option_ladder_and_does_not_send(tmp_path, monkeypatch):
     def _priced(frame, symbol, direction, now, rv):
         return {

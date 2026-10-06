@@ -553,6 +553,7 @@ def _forward_test(config, args) -> int:
     from zoneinfo import ZoneInfo
 
     from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.chart_reads.liquid import LIQUID_BLUE_CHIPS
     from webull_bot.execution.forward_chop import NAME, SYMBOLS, in_forward_window, run_cycle
     from webull_bot.journal.store import Journal
     from webull_bot.strategies.registry import forward_strategy
@@ -586,7 +587,8 @@ def _forward_test(config, args) -> int:
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     end = now.date()
     start = end - timedelta(days=720)
-    frames = provider.history(SYMBOLS, start.isoformat(), (end + timedelta(days=1)).isoformat(), "60m")
+    names = list(dict.fromkeys([*SYMBOLS, *LIQUID_BLUE_CHIPS]))
+    frames = provider.history(names, start.isoformat(), (end + timedelta(days=1)).isoformat(), "60m")
     lines = run_cycle(
         journal=journal,
         frames=frames,

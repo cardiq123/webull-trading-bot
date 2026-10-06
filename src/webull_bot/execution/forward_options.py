@@ -9,6 +9,8 @@ journal still shows open.
 The premium is the same Black-Scholes model as the backtest, not a Webull
 quote. Five contracts are taken only when the debit fits in $1,000. Longs
 buy calls. Shorts buy puts. The share book does not send those shorts.
+The caller passes the signals. The production cycle passes the
+pre-registered liquid list, not the share book's named list.
 """
 
 from __future__ import annotations

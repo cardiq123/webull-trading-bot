@@ -16,6 +16,7 @@ import pandas as pd
 from webull_bot.chart_reads.chop import EXPAND_VOLUME
 from webull_bot.chart_reads.chop_v2 import find_chop_breakouts
 from webull_bot.chart_reads.detect import Setup
+from webull_bot.chart_reads.liquid import LIQUID_BLUE_CHIPS
 from webull_bot.chart_reads.research import SYMBOLS
 from webull_bot.mtf_vwap.detect import rth
 from webull_bot.strategies.base import Strategy
@@ -63,19 +64,33 @@ class ChopBreakout60m(Strategy):
         return {}
 
     def scan(self, frames: dict[str, pd.DataFrame]) -> list[Setup]:
-        """Breakouts on the frames as given. The caller keeps the forming bar.
+        """Share-book breakouts. The named list stays the frozen share universe."""
+        return _scan_symbols(frames, SYMBOLS)
 
-        ``find_chop_breakouts`` needs the next bar in the frame, and it uses
-        the frozen default cell when ``cell`` is omitted.
-        """
-        found: list[Setup] = []
-        for symbol in SYMBOLS:
-            frame = frames.get(symbol)
-            if frame is None or frame.empty:
-                continue
-            bars = rth(frame)
-            if bars is None or len(bars) < 3:
-                continue
-            found.extend(find_chop_breakouts(bars, symbol=symbol))
-        found.sort(key=lambda setup: (pd.Timestamp(setup.signal_time), setup.symbol, setup.direction))
-        return found
+    def scan_options(self, frames: dict[str, pd.DataFrame]) -> list[Setup]:
+        """Option-book breakouts on the pre-registered liquid list."""
+        return scan_option_breakouts(frames)
+
+
+def _scan_symbols(frames: dict[str, pd.DataFrame], symbols: tuple[str, ...] | list[str]) -> list[Setup]:
+    """Breakouts on the frames as given. The caller keeps the forming bar.
+
+    ``find_chop_breakouts`` needs the next bar in the frame, and it uses
+    the frozen default cell when ``cell`` is omitted.
+    """
+    found: list[Setup] = []
+    for symbol in symbols:
+        frame = frames.get(symbol)
+        if frame is None or frame.empty:
+            continue
+        bars = rth(frame)
+        if bars is None or len(bars) < 3:
+            continue
+        found.extend(find_chop_breakouts(bars, symbol=symbol))
+    found.sort(key=lambda setup: (pd.Timestamp(setup.signal_time), setup.symbol, setup.direction))
+    return found
+
+
+def scan_option_breakouts(frames: dict[str, pd.DataFrame]) -> list[Setup]:
+    """Chop-v2 box breakouts on ``LIQUID_BLUE_CHIPS`` only."""
+    return _scan_symbols(frames, LIQUID_BLUE_CHIPS)
