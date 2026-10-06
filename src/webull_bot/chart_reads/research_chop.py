@@ -517,7 +517,18 @@ def _filter_reading(books: list[FilterBook]) -> str:
         if any(_clears(book.side(key).oos_metrics) for book in books for key in ("skip", "skip_strict") if book.side(key).helps)
         else "None of the labeled rows clears a 1.10 profit factor, a 0.40 Sharpe, a drawdown no worse than -30%, and 300 trades."
     )
-    return " ".join(helped) + " " + gate + " The stricter cut is a sensitivity. It is not selectable."
+    same = []
+    for book in books:
+        skip = book.side("skip")
+        strict = book.side("skip_strict")
+        if not skip.helps or not strict.helps:
+            continue
+        if skip.oos_losers == strict.oos_losers and skip.oos_metrics.get("ending_equity") == strict.oos_metrics.get("ending_equity"):
+            same.append(book.name)
+    same_note = ""
+    if same:
+        same_note = " The labeled skip and stricter rows are the same book on " + " and ".join(same) + "."
+    return " ".join(helped) + " " + gate + same_note + " The stricter cut is a sensitivity. It is not selectable."
 
 
 def _precursor_table(row: Precursor) -> str:
@@ -743,6 +754,15 @@ def _save_chop_chart(picked, path: Path, title: str) -> None:
     for spine in (*ax.spines.values(), *vol.spines.values()):
         spine.set_color("#333333")
     ax.legend(facecolor="#161616", edgecolor="#333333", labelcolor="white", loc="upper left")
+    step = max(1, len(window) // 6)
+    ticks = list(range(0, len(window), step))
+    if ticks[-1] != len(window) - 1:
+        ticks.append(len(window) - 1)
+    stamps = [pd.Timestamp(window.index[pos]) for pos in ticks]
+    intraday = len({stamp.date() for stamp in stamps}) < len(stamps)
+    fmt = "%m-%d %H:%M" if intraday else "%Y-%m-%d"
+    vol.set_xticks(ticks)
+    vol.set_xticklabels([stamp.strftime(fmt) for stamp in stamps], rotation=30, ha="right")
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=120)
@@ -1024,7 +1044,7 @@ def main() -> None:
                 baseline.extend(find_breakout_setups(frames[symbol], BREAKOUT_DEFAULTS, symbol=symbol))
             baseline.sort(key=lambda setup: (pd.Timestamp(setup.fill_time), setup.symbol, setup.kind))
         blurb = (
-            f"{len(chop_setups)} chop breakouts on the named list "
+            f"{len(chop_setups)} chop breakout{'s' if len(chop_setups) != 1 else ''} on the named list "
             f"({sum(1 for setup in chop_setups if setup.direction == 'long')} long, "
             f"{sum(1 for setup in chop_setups if setup.direction == 'short')} short). "
             f"{sessions} sessions, {_span((start, end))}. In sample through {is_end.isoformat()}. "

@@ -1265,3 +1265,267 @@ The published-target row matches the gated out-of-sample stock book ($919.45 on 
 
 The level set on the last SPY daily close is in `reports/setups/readSR_SPY_1d.png`. Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades still apply to the published defaults. This level set was not in that gate. It does not join the optional list or the registry. The default book is still dual momentum.
 <!-- CHART_READS_SR_END -->
+
+<!-- CHART_READS_CHOP_START -->
+## Chop filter
+
+DOES NOT CHANGE THE GATE. Setups A, B, C, and D keep the entries already scored. This section asks two questions that were frozen before the score. First, do those books get better if a signal is skipped while the bar is chop? Second, is a breakout from that chop, on expanding volume, a useful entry next to setup D? Nothing was sent to a broker.
+
+A bar is chop only when four readings are true together at that close. Volume is quiet: the bar is under 0.80 times the prior 20-bar average, or that 20-bar average is itself under 0.80 times the prior 60-bar average and the bar is still at most 1.20 times its own 20-bar average. The range is narrow: Bollinger bandwidth (20, 2 standard deviations) is in the bottom 20% of the last 120 bars, or the bar's range is under 0.75 times the prior 20-bar average range. The 9 and 20 EMAs are tangled: they sit within 0.35 ATR, the 20 EMA moved less than 0.50 ATR over 10 bars, and they crossed at least three times in 20 bars. Price crossed VWAP at least three times in 20 bars. Intraday VWAP resets each session. Daily VWAP is the 20-bar rolling VWAP. ADX under 20 or a 14-bar choppiness index above 61.8 is a stricter sensitivity. It is not required for the default flag.
+
+The no-trade filter helps only when out-of-sample expectancy is higher, the book took fewer losing trades, and at least 20 trades remain. That label is not a new gate. "Inside chop only" is the complement, so the two rows show the same signals split by the flag. A signal whose bar is missing from the chop series stays in the published book and in the skip book.
+
+skip chop on C, daily Dow raised out-of-sample expectancy from $-1.22 to $-1.08 and cut losing trades from 126 to 125. Ending equity $778.23 against $746.56, profit factor 0.93, Sharpe -0.09. In sample it ended at $1,105.06 against $1,129.36, with 129 losing trades against 129. skip stricter chop on C, daily Dow raised out-of-sample expectancy from $-1.22 to $-1.08 and cut losing trades from 126 to 125. Ending equity $778.23 against $746.56, profit factor 0.93, Sharpe -0.09. In sample it ended at $1,105.06 against $1,129.36, with 129 losing trades against 129. None of the labeled rows clears a 1.10 profit factor, a 0.40 Sharpe, a drawdown no worse than -30%, and 300 trades. The two labeled rows on setup C are the same book: the trade that was dropped was inside the stricter cut as well. The stricter cut is a sensitivity. It is not selectable.
+
+### A, 60-minute
+
+457 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+The published-entry row matches the gated out-of-sample stock book ($886.97 on 131 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 117 | $676.70 | 131 | 90 | $-9.22 | $-0.86 | 0.86 | -0.65 | -14.0% | $886.97 | — |
+| skip chop | 115 | $658.31 | 131 | 90 | $-9.22 | $-0.86 | 0.86 | -0.65 | -14.0% | $886.97 | no |
+| inside chop only | 2 | $1,037.42 | 0 | 0 | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | — |
+| skip stricter chop | 116 | $659.78 | 131 | 90 | $-9.22 | $-0.86 | 0.86 | -0.65 | -14.0% | $886.97 | no |
+
+### B, 60-minute
+
+235 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+The published-entry row matches the gated out-of-sample stock book ($921.86 on 85 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 70 | $972.61 | 85 | 61 | $-9.33 | $-0.92 | 0.86 | -0.36 | -23.8% | $921.86 | — |
+| skip chop | 67 | $998.64 | 78 | 56 | $-9.66 | $-1.04 | 0.85 | -0.46 | -21.7% | $919.25 | no |
+| inside chop only | 8 | $986.20 | 12 | 9 | $-6.66 | $-1.24 | 0.75 | -0.11 | -6.6% | $985.07 | — |
+| skip stricter chop | 68 | $983.97 | 81 | 58 | $-9.54 | $-0.94 | 0.86 | -0.43 | -23.0% | $923.59 | no |
+
+### A and B, 60-minute
+
+692 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+The published-entry row matches the gated out-of-sample stock book ($967.77 on 164 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 134 | $880.43 | 164 | 111 | $-9.67 | $-0.20 | 0.97 | -0.03 | -19.9% | $967.77 | — |
+| skip chop | 130 | $891.14 | 163 | 111 | $-9.64 | $-0.37 | 0.94 | -0.20 | -20.6% | $939.08 | no |
+| inside chop only | 10 | $1,023.10 | 12 | 9 | $-6.66 | $-1.24 | 0.75 | -0.11 | -6.6% | $985.07 | — |
+| skip stricter chop | 131 | $869.53 | 163 | 111 | $-9.63 | $-0.37 | 0.94 | -0.19 | -22.2% | $939.31 | no |
+
+### A and B, 15-minute
+
+397 signals. In sample 2026-08-13 through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06. Named large-cap list. Stock only. This clock is inside the free Yahoo intraday cap.
+
+The published-entry row matches the gated out-of-sample stock book ($1,001.48 on 10 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 14 | $954.63 | 10 | 6 | $-3.70 | $0.15 | 1.07 | 0.39 | -1.4% | $1,001.48 | — |
+| skip chop | 14 | $954.63 | 10 | 6 | $-3.70 | $0.15 | 1.07 | 0.39 | -1.4% | $1,001.48 | no |
+| inside chop only | 0 | $1,000.00 | 3 | 2 | $-4.86 | $-1.55 | 0.52 | -3.27 | -0.6% | $995.35 | — |
+| skip stricter chop | 14 | $954.63 | 10 | 6 | $-3.70 | $0.15 | 1.07 | 0.39 | -1.4% | $1,001.48 | no |
+
+### A and B, 5-minute
+
+908 signals. In sample 2026-08-13 through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06. Named large-cap list. Stock only. This clock is inside the free Yahoo intraday cap.
+
+The published-entry row matches the gated out-of-sample stock book ($978.07 on 11 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 15 | $1,019.80 | 11 | 8 | $-3.76 | $-1.99 | 0.27 | -6.46 | -2.2% | $978.07 | — |
+| skip chop | 15 | $1,019.80 | 11 | 8 | $-3.76 | $-1.99 | 0.27 | -6.46 | -2.2% | $978.07 | no |
+| inside chop only | 6 | $979.16 | 5 | 4 | $-2.51 | $-0.55 | 0.73 | -1.13 | -1.0% | $997.26 | — |
+| skip stricter chop | 15 | $1,019.80 | 11 | 8 | $-3.76 | $-1.99 | 0.27 | -6.46 | -2.2% | $978.07 | no |
+
+### C, daily Dow
+
+1838 Dow point-in-time long breakout-retest signals from 2010-01-01. In sample through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+The published-entry row matches the gated out-of-sample stock book ($746.56 on 207 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 216 | $1,129.36 | 207 | 126 | $-25.45 | $-1.22 | 0.92 | -0.12 | -46.6% | $746.56 | — |
+| skip chop | 216 | $1,105.06 | 206 | 125 | $-25.40 | $-1.08 | 0.93 | -0.09 | -44.4% | $778.23 | yes |
+| inside chop only | 6 | $1,053.13 | 3 | 2 | $-25.99 | $-14.04 | 0.19 | -0.46 | -4.2% | $957.88 | — |
+| skip stricter chop | 216 | $1,105.06 | 206 | 125 | $-25.40 | $-1.08 | 0.93 | -0.09 | -44.4% | $778.23 | yes |
+
+### D, daily Dow
+
+292 Dow point-in-time breakout signals from 2010-01-01. In sample through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+The published-entry row matches the gated out-of-sample stock book ($919.45 on 73 trades).
+
+| Reading | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Helps |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published entries | 99 | $1,118.89 | 73 | 53 | $-18.70 | $-1.10 | 0.92 | -0.03 | -26.3% | $919.45 | — |
+| skip chop | 98 | $1,138.03 | 73 | 53 | $-18.70 | $-1.10 | 0.92 | -0.03 | -26.3% | $919.45 | no |
+| inside chop only | 1 | $983.18 | 0 | 0 | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 | — |
+| skip stricter chop | 98 | $1,138.03 | 73 | 53 | $-18.70 | $-1.10 | 0.92 | -0.03 | -26.3% | $919.45 | no |
+
+## Time in chop
+
+Share is the fraction of bars where relative volume, the 20 EMA, VWAP, and ATR are already defined. Daily bars are the full Yahoo history used for setups C and D. The daily out-of-sample window is 2019-01-01 through 2026-10-06. Intraday shares use regular trading hours. Their out-of-sample window is the same split as the A and B filter above.
+
+### Daily
+
+48 symbols. Median time in chop 0.9% (out-of-sample median 1.0%).
+
+| Symbol | Bars | Chop bars | Share | Strict share | OOS bars | OOS share |
+|---|---:|---:|---:|---:|---:|---:|
+| AA | 4447 | 61 | 1.4% | 1.3% | 1951 | 1.9% |
+| AAPL | 4447 | 35 | 0.8% | 0.7% | 1951 | 0.4% |
+| AMD | 4427 | 45 | 1.0% | 1.0% | 1951 | 1.4% |
+| AMGN | 4447 | 50 | 1.1% | 1.1% | 1951 | 1.1% |
+| AMZN | 4447 | 32 | 0.7% | 0.7% | 1951 | 0.9% |
+| AXP | 4447 | 26 | 0.6% | 0.6% | 1951 | 0.3% |
+| BA | 4447 | 53 | 1.2% | 1.1% | 1951 | 1.5% |
+| BAC | 4447 | 29 | 0.7% | 0.6% | 1951 | 0.6% |
+| CAT | 4447 | 26 | 0.6% | 0.6% | 1951 | 0.5% |
+| CRM | 4447 | 34 | 0.8% | 0.7% | 1951 | 1.3% |
+| CSCO | 4447 | 43 | 1.0% | 0.8% | 1951 | 0.8% |
+| CVX | 4447 | 33 | 0.7% | 0.6% | 1951 | 0.7% |
+| DD | 4447 | 42 | 0.9% | 0.9% | 1951 | 1.3% |
+| DIS | 4447 | 23 | 0.5% | 0.5% | 1951 | 0.8% |
+| DOW | 1878 | 33 | 1.8% | 1.8% | 1878 | 1.8% |
+| GE | 4447 | 69 | 1.6% | 1.5% | 1951 | 2.4% |
+| GOOGL | 4447 | 32 | 0.7% | 0.7% | 1951 | 0.8% |
+| GS | 4447 | 25 | 0.6% | 0.5% | 1951 | 1.1% |
+| HD | 4447 | 24 | 0.5% | 0.5% | 1951 | 0.3% |
+| HON | 4447 | 47 | 1.1% | 0.9% | 1951 | 1.5% |
+| HPQ | 4447 | 42 | 0.9% | 0.9% | 1951 | 1.4% |
+| IBM | 4447 | 30 | 0.7% | 0.6% | 1951 | 1.1% |
+| INTC | 4447 | 22 | 0.5% | 0.4% | 1951 | 0.6% |
+| IWM | 4447 | 33 | 0.7% | 0.7% | 1951 | 1.1% |
+| JNJ | 4447 | 37 | 0.8% | 0.8% | 1951 | 0.4% |
+| JPM | 4447 | 27 | 0.6% | 0.6% | 1951 | 0.2% |
+| KO | 4447 | 42 | 0.9% | 0.9% | 1951 | 0.4% |
+| MCD | 4447 | 35 | 0.8% | 0.8% | 1951 | 0.6% |
+| META | 3596 | 35 | 1.0% | 1.0% | 1951 | 0.8% |
+| MMM | 4447 | 52 | 1.2% | 1.2% | 1951 | 1.8% |
+| MRK | 4447 | 59 | 1.3% | 1.3% | 1951 | 1.4% |
+| MSFT | 4447 | 36 | 0.8% | 0.7% | 1951 | 1.0% |
+| NKE | 4447 | 77 | 1.7% | 1.6% | 1951 | 2.1% |
+| NVDA | 4447 | 36 | 0.8% | 0.8% | 1951 | 0.9% |
+| PFE | 4447 | 39 | 0.9% | 0.8% | 1951 | 0.9% |
+| PG | 4447 | 37 | 0.8% | 0.8% | 1951 | 1.6% |
+| QQQ | 4447 | 39 | 0.9% | 0.8% | 1951 | 0.9% |
+| RTX | 4447 | 40 | 0.9% | 0.9% | 1951 | 1.1% |
+| SHW | 4447 | 59 | 1.3% | 1.2% | 1951 | 1.5% |
+| SPY | 4447 | 42 | 0.9% | 0.8% | 1951 | 0.2% |
+| T | 4447 | 20 | 0.4% | 0.4% | 1951 | 0.5% |
+| TRV | 4447 | 67 | 1.5% | 1.4% | 1951 | 1.7% |
+| TSLA | 4073 | 59 | 1.4% | 1.3% | 1951 | 1.1% |
+| UNH | 4447 | 18 | 0.4% | 0.4% | 1951 | 0.3% |
+| V | 4447 | 29 | 0.7% | 0.7% | 1951 | 0.6% |
+| VZ | 4447 | 74 | 1.7% | 1.4% | 1951 | 2.9% |
+| WMT | 4447 | 44 | 1.0% | 1.0% | 1951 | 1.8% |
+| XOM | 4447 | 19 | 0.4% | 0.4% | 1951 | 0.4% |
+
+### 60-minute
+
+10 symbols. Median time in chop 0.9% (out-of-sample median 1.1%).
+
+| Symbol | Bars | Chop bars | Share | Strict share | OOS bars | OOS share |
+|---|---:|---:|---:|---:|---:|---:|
+| AAPL | 3397 | 30 | 0.9% | 0.7% | 1707 | 0.6% |
+| AMD | 3397 | 35 | 1.0% | 0.4% | 1707 | 1.1% |
+| IWM | 3396 | 43 | 1.3% | 1.0% | 1706 | 1.0% |
+| META | 3398 | 40 | 1.2% | 0.6% | 1708 | 1.1% |
+| MSFT | 3398 | 30 | 0.9% | 0.8% | 1708 | 1.3% |
+| NVDA | 3397 | 27 | 0.8% | 0.3% | 1707 | 0.6% |
+| QQQ | 3397 | 41 | 1.2% | 0.6% | 1707 | 2.1% |
+| SPY | 3396 | 23 | 0.7% | 0.6% | 1706 | 0.8% |
+| TSLA | 3397 | 18 | 0.5% | 0.5% | 1707 | 0.4% |
+| UNH | 3397 | 30 | 0.9% | 0.8% | 1707 | 1.5% |
+
+### 15-minute
+
+10 symbols. Median time in chop 0.7% (out-of-sample median 0.5%).
+
+| Symbol | Bars | Chop bars | Share | Strict share | OOS bars | OOS share |
+|---|---:|---:|---:|---:|---:|---:|
+| AAPL | 949 | 2 | 0.2% | 0.1% | 397 | 0.5% |
+| AMD | 949 | 2 | 0.2% | 0.2% | 397 | 0.5% |
+| IWM | 949 | 0 | 0.0% | 0.0% | 397 | 0.0% |
+| META | 952 | 8 | 0.8% | 0.7% | 400 | 0.2% |
+| MSFT | 952 | 7 | 0.7% | 0.7% | 400 | 0.5% |
+| NVDA | 949 | 18 | 1.9% | 1.8% | 397 | 2.0% |
+| QQQ | 949 | 3 | 0.3% | 0.1% | 397 | 0.3% |
+| SPY | 952 | 3 | 0.3% | 0.2% | 400 | 0.0% |
+| TSLA | 949 | 9 | 0.9% | 0.9% | 397 | 0.0% |
+| UNH | 952 | 15 | 1.6% | 1.6% | 400 | 3.8% |
+
+### 5-minute
+
+10 symbols. Median time in chop 0.8% (out-of-sample median 0.9%).
+
+| Symbol | Bars | Chop bars | Share | Strict share | OOS bars | OOS share |
+|---|---:|---:|---:|---:|---:|---:|
+| AAPL | 2887 | 18 | 0.6% | 0.6% | 1191 | 0.9% |
+| AMD | 2887 | 26 | 0.9% | 0.9% | 1191 | 0.8% |
+| IWM | 2887 | 15 | 0.5% | 0.5% | 1191 | 0.1% |
+| META | 2896 | 24 | 0.8% | 0.8% | 1200 | 0.2% |
+| MSFT | 2896 | 18 | 0.6% | 0.6% | 1200 | 0.9% |
+| NVDA | 2887 | 53 | 1.8% | 1.7% | 1191 | 2.7% |
+| QQQ | 2887 | 27 | 0.9% | 0.8% | 1191 | 1.0% |
+| SPY | 2887 | 5 | 0.2% | 0.2% | 1191 | 0.0% |
+| TSLA | 2887 | 70 | 2.4% | 2.4% | 1191 | 1.5% |
+| UNH | 2896 | 9 | 0.3% | 0.2% | 1200 | 0.2% |
+
+## Chop breakout
+
+The precursor is a close out of a low-volume chop box. The box is the prior 10 bars, at least 6 of them chop, and the box height is between 0.40 and 6 ATR. The close is at least 0.10 ATR beyond the box, volume is above 1.5 times the prior 20-bar average, and the candle is confirming (body at least half the range, close in the outer third). The fill is the next open. The stop is the signal bar's low on a long and its high on a short. The target is the box height measured from the broken side when that distance is at least 0.5R, otherwise 2R, the same measured-move rule as setup D. A new signal waits 10 bars. Daily holds match setup D (up to 30 sessions, no same-day flatten). Sixty-minute holds last up to 5 sessions. Fifteen-minute and five-minute trades flatten the same session.
+
+### Daily Dow, chop breakout
+
+5 Dow point-in-time chop breakouts from 2010-01-01 (2 long, 3 short). In sample through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06. The setup D row is the published-entry book from the filter above, same exits.
+
+The published-entry row matches the gated out-of-sample stock book ($919.45 on 73 trades).
+
+| Book | Signals | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| chop breakout | 5 | 1 | $1,027.10 | 4 | 2 | $-18.76 | $14.53 | 2.55 | 0.25 | -7.4% | $1,058.11 |
+| setup D, published entries | — | — | — | 73 | 53 | $-18.70 | $-1.10 | 0.92 | -0.03 | -26.3% | $919.45 |
+
+### 60-minute, chop breakout
+
+1 chop breakout on the named list (1 long, 0 short). 493 sessions, 2024-10-17 through 2026-10-06. In sample through 2025-12-19. Out of sample 2025-12-22 through 2026-10-06.
+
+The paired setup D row matches the published out-of-sample stock book ($888.99 on 16 trades).
+
+| Book | Signals | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| chop breakout | 1 | 1 | $992.63 | 0 | 0 | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| setup D, same window | — | — | — | 16 | 12 | $-13.69 | $-6.94 | 0.32 | -1.23 | -12.5% | $888.99 |
+
+### 15-minute, chop breakout
+
+0 chop breakouts on the named list (0 long, 0 short). 38 sessions, 2026-08-13 through 2026-10-06. In sample through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06.
+
+The paired setup D row matches the published out-of-sample stock book ($1,005.63 on 6 trades).
+
+| Book | Signals | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| chop breakout | 0 | 0 | $1,000.00 | 0 | 0 | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+| setup D, same window | — | — | — | 6 | 3 | $-5.04 | $0.94 | 1.37 | 1.35 | -1.0% | $1,005.63 |
+
+### 5-minute, chop breakout
+
+1 chop breakout on the named list (0 long, 1 short). 38 sessions, 2026-08-13 through 2026-10-06. In sample through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06.
+
+There is no published setup D book on the 5-minute clock. This row is anecdotal.
+
+| Book | Signals | IS trades | IS ending | OOS trades | OOS losers | OOS avg loss | OOS expectancy | OOS PF | OOS Sharpe | OOS max DD | OOS ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| chop breakout | 1 | 1 | $998.24 | 0 | 0 | n/a | $0.00 | n/a | 0.00 | 0.0% | $1,000.00 |
+
+Example chop windows: `reports/setups/readCHOP_AAPL_1d.png` (2015-04-01 through 2015-04-14), `reports/setups/readCHOP_META_60m.png` (2025-10-16, 10:30 through 15:30 ET), `reports/setups/readCHOP_UNH_15m.png` (2026-09-17, 12:00 through 13:15 ET).
+
+Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades still apply to the published defaults. Chop was not in that gate. It does not join the optional list or the registry. The default book is still dual momentum.
+<!-- CHART_READS_CHOP_END -->
