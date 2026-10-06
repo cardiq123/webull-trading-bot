@@ -61,13 +61,25 @@ Use the official OpenAPI, not an unofficial client. The adapter is
    The published review time is 1–2 business days.
    Docs: <https://developer.webull.com/apis/docs/getting-started>.
 3. After approval, generate an app key and app secret. Put them in the
-   environment as `WEBULL_APP_KEY` and `WEBULL_APP_SECRET`. Set
-   `WEBULL_ACCOUNT_ID` once you have listed accounts
-   (`trade_client.account_v2.get_account_list()`).
-4. Sandbox host: `api.sandbox.webull.com` (`WEBULL_ENV=sandbox`).
-   Production trading host: `api.webull.com` (`WEBULL_ENV=production`).
-   The SDK already knows the production map; this code only overrides
-   hosts for the sandbox.
+   environment as `WEBULL_APP_KEY` and `WEBULL_APP_SECRET`.
+   `WEBULL_ACCOUNT_ID` is the internal `account_id` from the account list
+   (about 26 characters). It is not the `DEVxxxx` `account_number`.
+   Calling the trade API with the account number returns HTTP 403
+   `ACCOUNT_ACCESS_DENIED`. The adapter accepts either form and maps an
+   account number to the internal id. Leave `WEBULL_ACCOUNT_ID` empty to
+   select by `WEBULL_ACCOUNT_CLASS`: `INDIVIDUAL_MARGIN` (the default) or
+   `INDIVIDUAL_CASH`. A sandbox key can see futures, events, and crypto
+   accounts as well; those classes are not selected by that default.
+4. Sandbox trade host: `api.sandbox.webull.com` (`WEBULL_ENV=sandbox`).
+   Sandbox quote streaming host: `data-api.sandbox.webull.com`.
+   Sandbox events host: `events-api.sandbox.webull.com`.
+   Production trading host: `api.webull.com`, and only when
+   `WEBULL_ENV=production` is set explicitly. An unset `WEBULL_ENV` does
+   not mean production. The SDK already knows the production map; this
+   code only overrides hosts for the sandbox. The SDK session token is
+   stored under `~/.webull-openapi-token` (`WEBULL_OPENAPI_TOKEN_DIR`
+   overrides that), not in `./conf`. SDK logs are set to WARNING and a
+   filter redacts the app key, secret, and token.
 5. US equity orders used here are `MARKET`, `LIMIT`, `STOP_LOSS`, and
    `STOP_LOSS_LIMIT`, day or GTC, core session, quantity entrust.
    `MARKET_ON_OPEN` and `MARKET_ON_CLOSE` are documented as institutional
@@ -78,11 +90,14 @@ Use the official OpenAPI, not an unofficial client. The adapter is
    order routing still uses Webull; the quote source in the live loop is
    Yahoo unless you point a `WebullDataProvider` at a subscribed client.
 7. The first `TradeClient` construction can require an in-app 2FA / device
-   approval. This repository has not completed that flow. There were no
-   owner keys to call the API with. Response fields for balances,
-   positions, and order acknowledgements are parsed defensively and will
-   raise `WebullResponseError` with the keys the server actually sent
-   rather than invent a fill.
+   approval. Balances use `total_net_liquidation_value` and
+   `total_cash_balance`. Buying power is read from
+   `account_currency_assets[0]` (`day_buying_power`, then `buying_power`,
+   then `overnight_buying_power`). Account type comes from the account
+   list (`CASH` or `MARGIN`), not a hard-coded margin flag. History bars
+   use `get_batch_history_bar` with timespans `M1`, `M5`, `M15`, `M30`,
+   `M60`, `M120`, `M240`, `D`, `W`, `M`, and `Y`. The tests for those
+   shapes are offline. This process does not call the API.
 
 Webull US stock and ETF trades are commission-free. Sells still pick up the
 SEC Section 31 fee and the FINRA trading activity fee. From April 4, 2026
@@ -208,27 +223,46 @@ those specs are not added to the Webull stock config.
 
 ### Pointing the bot at a Webull paper account
 
-`paper` and `paper-sim` never call Webull, even if API keys are set. They
-fill inside this process.
+`paper` without `--broker`, and `paper-sim`, never call Webull, even if
+API keys are set. They fill inside this process.
 
 Webull's OpenAPI test host is the sandbox. After the API application is
-approved, put the keys in the environment and leave the host on the sandbox:
+approved, put the keys in the environment:
 
 ```bash
-export WEBULL_APP_KEY=... WEBULL_APP_SECRET=... WEBULL_ACCOUNT_ID=...
+export WEBULL_APP_KEY=... WEBULL_APP_SECRET=...
+export WEBULL_ACCOUNT_ID=...   # internal account_id, not the DEVxxxx account_number
 export WEBULL_ENV=sandbox
+export WEBULL_ACCOUNT_CLASS=INDIVIDUAL_MARGIN   # or INDIVIDUAL_CASH
 ```
 
-`WEBULL_ENV=sandbox` uses `api.sandbox.webull.com`. `WEBULL_ENV=production`
-uses `api.webull.com`. Use sandbox when you mean Webull's paper or test
-account. This environment has no keys, and this project does not call the
-API from research or from `paper-sim`.
+Read-only check (accounts, balances, positions, open orders, SPY quote and bars). Secrets are redacted. It does not send an order:
 
-Orders to the sandbox host go through `python -m webull_bot live`, which
-still refuses to start unless `live_trading_enabled` is true and the
-confirmation phrase is typed. Leave `live_trading_enabled` false until you
-intend to send those orders. There is no path in `paper` or `paper-sim`
-that submits a live order.
+```bash
+python -m webull_bot check --env sandbox
+```
+
+One cycle of the default book (dual momentum) against the paper sandbox. This sends real orders, but only to `*.sandbox.webull.com`. It does not read `live_trading_enabled` and it does not ask for the live confirmation phrase. Risk limits and the kill switch still apply.
+
+```bash
+python -m webull_bot paper --broker webull-sandbox --max-cycles 1
+```
+
+Build those orders and do not send them:
+
+```bash
+python -m webull_bot paper --broker webull-sandbox --dry-run --max-cycles 1
+```
+
+Cancel and flatten sandbox orders without the live phrase:
+
+```bash
+python -m webull_bot kill --mode sandbox --flatten
+```
+
+The sandbox command refuses any host other than `*.sandbox.webull.com`, including `api.webull.com`. `paper-sim` and `paper --replay` stay on the local simulator.
+
+Local paper kill, which does not call Webull:
 
 ```bash
 python -m webull_bot kill --flatten
@@ -245,10 +279,13 @@ Live. Both gates are required. The config default is `live_trading_enabled: fals
 
 ```bash
 # edit config/default.yaml and set live_trading_enabled: true
-export WEBULL_APP_KEY=... WEBULL_APP_SECRET=... WEBULL_ACCOUNT_ID=... WEBULL_ENV=production
+export WEBULL_APP_KEY=... WEBULL_APP_SECRET=... WEBULL_ACCOUNT_ID=...
+export WEBULL_ENV=production
 python -m webull_bot live
 # type: I UNDERSTAND LIVE TRADING RISK
 ```
+
+`WEBULL_ENV` must be the explicit value `production`. If it is unset, `live` exits. It does not default to production. Sandbox orders use `paper --broker webull-sandbox` instead.
 
 A non-interactive shell must set `WEBULL_LIVE_CONFIRM` to that same phrase.
 If research has not selected a strategy, live exits unless

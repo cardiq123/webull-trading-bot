@@ -21,13 +21,26 @@ PHRASE = "I UNDERSTAND LIVE TRADING RISK"
 
 def kill(config: AppConfig, *, mode: str, flatten: bool) -> str:
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    if mode == "sandbox":
+        from webull_bot.broker.webull import assert_sandbox_hosts
+
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+        canceled = broker.cancel_all()
+        fills = broker.flatten() if flatten else []
+        journal.event("kill", "sandbox kill switch", {"canceled": canceled, "flatten": flatten, "fills": len(fills)})
+        return f"Sandbox kill: canceled {canceled} orders. Flatten submitted: {flatten}."
     if mode == "live":
         if os.environ.get("WEBULL_LIVE_CONFIRM") != PHRASE:
             raise SystemExit(
                 "Refusing to kill a live account without WEBULL_LIVE_CONFIRM set to "
                 f"the exact phrase: {PHRASE}"
             )
-        broker = WebullBroker()
+        from webull_bot.cli import resolve_live_environment
+
+        broker = WebullBroker(environment=resolve_live_environment())
         broker.connect()
         canceled = broker.cancel_all()
         fills = broker.flatten() if flatten else []

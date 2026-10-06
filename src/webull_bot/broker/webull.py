@@ -49,18 +49,23 @@ What could not be verified without the owner's keys
 * OpenAPI market data is a separate subscription. ``WebullDataProvider``
   will 403 without it. Streaming (gRPC order events, MQTT quotes) is not
   required; the session loop polls.
-* The single-symbol history endpoint's lookback is whatever the server
-  returns. The public example does not document a start date.
+* History bars go through ``get_batch_history_bar`` (``get_history_bar``
+  is unavailable). Allowed timespans are M1, M5, M15, M30, M60, M120,
+  M240, D, W, M, and Y. The batch body is nested per symbol.
 
 Nothing in this module places an order at import time.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
+from pathlib import Path
 from typing import Any, Optional
 
+from webull_bot.broker.base import Broker
+from webull_bot.logging_setup import SdkSecretFilter
 from webull_bot.models import (
     AccountSnapshot,
     Fill,
@@ -274,7 +279,176 @@ def new_client_order_id() -> str:
     return uuid.uuid4().hex  # 32 characters
 
 
-class WebullBroker:
+STOCK_ACCOUNT_CLASSES = ("INDIVIDUAL_MARGIN", "INDIVIDUAL_CASH")
+
+
+def default_token_dir() -> str:
+    """Directory for the SDK session token.
+
+    The SDK otherwise writes ``conf/token.txt`` in the working directory.
+    ``WEBULL_OPENAPI_TOKEN_DIR`` overrides the default ``~/.webull-openapi-token``.
+    """
+    override = os.environ.get("WEBULL_OPENAPI_TOKEN_DIR", "").strip()
+    if override:
+        return str(Path(override).expanduser())
+    return str(Path.home() / ".webull-openapi-token")
+
+
+def configure_sdk_client(api, *, app_key: str = "", app_secret: str = "", token: str = "") -> str:
+    """Quiet the official SDK and point its token file outside the repo.
+
+    TradeClient and DataClient install a DEBUG console logger and
+    ``webull_trade_sdk.log`` when neither logger flag is set. That DEBUG
+    line includes request headers, so the app key is printed in plaintext.
+    Both loggers are set to WARNING, and a filter redacts the key, secret,
+    and token, before either client is constructed.
+    """
+    directory = default_token_dir()
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("WEBULL_OPENAPI_TOKEN_DIR", directory)
+    api.set_token_dir(directory)
+    api.set_stream_logger(log_level=logging.WARNING, logger_name="webull.core")
+    api.set_file_logger(
+        path=str(Path(directory) / "webull_trade_sdk.log"),
+        log_level=logging.WARNING,
+        logger_name="webull.core",
+    )
+    redactor = SdkSecretFilter([app_key, app_secret, token])
+    sdk_log = logging.getLogger("webull.core")
+    sdk_log.setLevel(logging.WARNING)
+    sdk_log.addFilter(redactor)
+    for handler in list(sdk_log.handlers):
+        handler.setLevel(logging.WARNING)
+        handler.addFilter(redactor)
+    return directory
+
+
+def sandbox_hosts() -> dict[str, str]:
+    """HTTP hosts for the Webull paper sandbox.
+
+    Quote streaming is ``data-api.sandbox.webull.com``. The trade and
+    events hosts are the ones on the public US getting-started pages.
+    """
+    return {
+        "api": "api.sandbox.webull.com",
+        "quotes-api": "data-api.sandbox.webull.com",
+        "events-api": "events-api.sandbox.webull.com",
+    }
+
+
+def host_is_sandbox(host: str) -> bool:
+    name = str(host).strip().lower()
+    if "://" in name:
+        name = name.split("://", 1)[1]
+    name = name.split("/", 1)[0].split(":", 1)[0]
+    return bool(name) and name.endswith(".sandbox.webull.com") and ".." not in name
+
+
+def assert_sandbox_hosts(hosts) -> None:
+    """Refuse any host that is not ``*.sandbox.webull.com``.
+
+    An empty list is also refused. The SDK's own default is
+    ``api.webull.com``, and a sandbox session must not fall through to it.
+    """
+    found = [str(host) for host in hosts]
+    if not found:
+        raise WebullError(
+            "Sandbox mode has no registered hosts. Refusing to fall through to api.webull.com."
+        )
+    blocked = [host for host in found if not host_is_sandbox(host)]
+    if blocked:
+        raise WebullError(
+            "Sandbox mode refuses hosts that are not *.sandbox.webull.com: " + ", ".join(blocked)
+        )
+
+
+def select_account(
+    accounts: list[dict[str, Any]],
+    account_id: str = "",
+    account_class: str = "INDIVIDUAL_MARGIN",
+) -> tuple[str, str]:
+    """Pick the internal ``account_id`` and a lowercase cash/margin type.
+
+    ``WEBULL_ACCOUNT_ID`` may be the internal id or the ``DEVxxxx``
+    ``account_number``. The number is mapped to the id. Using the number
+    as the id returns HTTP 403 ACCOUNT_ACCESS_DENIED. When no id is given,
+    the account whose ``account_class`` is ``INDIVIDUAL_MARGIN`` or
+    ``INDIVIDUAL_CASH`` is used. Futures, events, and crypto accounts are
+    not selected by that default.
+    """
+    rows = [row for row in accounts if isinstance(row, dict)]
+    wanted = (account_id or "").strip()
+    if wanted:
+        for row in rows:
+            internal = str(row.get("account_id") or row.get("accountId") or "")
+            number = str(row.get("account_number") or row.get("accountNumber") or "")
+            if wanted == internal or wanted == number:
+                if not internal:
+                    raise WebullError("Account row matched but had no account_id")
+                return internal, normalize_account_type(row.get("account_type") or row.get("accountType"))
+        raise WebullError(
+            "WEBULL_ACCOUNT_ID did not match an account_id or account_number. "
+            "Use the internal account_id (about 26 characters). "
+            "A DEVxxxx account_number is not the id and returns HTTP 403 ACCOUNT_ACCESS_DENIED."
+        )
+    preferred = (account_class or "INDIVIDUAL_MARGIN").strip().upper()
+    if preferred not in STOCK_ACCOUNT_CLASSES:
+        raise WebullError(
+            "WEBULL_ACCOUNT_CLASS must be INDIVIDUAL_MARGIN or INDIVIDUAL_CASH. "
+            f"Got {preferred or '(empty)'}."
+        )
+    matches = [
+        row
+        for row in rows
+        if str(row.get("account_class") or row.get("accountClass") or "").upper() == preferred
+    ]
+    if len(matches) != 1:
+        seen = sorted(
+            {
+                str(row.get("account_class") or row.get("accountClass") or "?")
+                for row in rows
+            }
+        )
+        raise WebullError(
+            f"Expected one {preferred} account, found {len(matches)}. "
+            f"Account classes returned: {', '.join(seen) or '(none)'}. "
+            "Set WEBULL_ACCOUNT_ID to the internal account_id, or set "
+            "WEBULL_ACCOUNT_CLASS to INDIVIDUAL_MARGIN or INDIVIDUAL_CASH."
+        )
+    internal = str(matches[0].get("account_id") or matches[0].get("accountId") or "")
+    if not internal:
+        raise WebullError(f"{preferred} account had no account_id")
+    account_type = normalize_account_type(matches[0].get("account_type") or matches[0].get("accountType"))
+    return internal, account_type
+
+
+def normalize_account_type(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"margin", "individual_margin"}:
+        return "margin"
+    if text in {"cash", "individual_cash"}:
+        return "cash"
+    return text
+
+
+def buying_power_from_balance(payload: dict) -> Optional[float]:
+    """Day buying power, then buying power, then overnight, on the USD asset row."""
+    assets = payload.get("account_currency_assets")
+    if assets is None:
+        assets = payload.get("accountCurrencyAssets")
+    if isinstance(assets, list) and assets and isinstance(assets[0], dict):
+        value = _first_number(
+            assets[0],
+            "day_buying_power",
+            "buying_power",
+            "overnight_buying_power",
+        )
+        if value is not None:
+            return value
+    return _first_number(payload, "day_buying_power", "buying_power", "buyingPower", "overnight_buying_power")
+
+
+class WebullBroker(Broker):
     """Live or sandbox trading client. Constructing it does not connect."""
 
     name = "webull"
@@ -286,12 +460,19 @@ class WebullBroker:
         account_id: Optional[str] = None,
         environment: Optional[str] = None,
         region: str = "us",
+        account_class: Optional[str] = None,
     ) -> None:
         self.app_key = app_key if app_key is not None else os.environ.get("WEBULL_APP_KEY", "")
         self.app_secret = app_secret if app_secret is not None else os.environ.get("WEBULL_APP_SECRET", "")
         self.account_id = account_id if account_id is not None else os.environ.get("WEBULL_ACCOUNT_ID", "")
+        self.account_class = (
+            account_class if account_class is not None else os.environ.get("WEBULL_ACCOUNT_CLASS", "INDIVIDUAL_MARGIN")
+        )
         self.environment = (environment or os.environ.get("WEBULL_ENV", "sandbox")).lower()
         self.region = (region or os.environ.get("WEBULL_REGION", "us")).lower()
+        self.account_type = ""
+        self.hosts: list[str] = []
+        self.sandbox_only = False
         self._trade = None
         self._data = None
         self._api = None
@@ -331,8 +512,16 @@ class WebullBroker:
             )
         except TypeError:
             api = ApiClient(self.app_key, self.app_secret, self.region)
+        configure_sdk_client(api, app_key=self.app_key, app_secret=self.app_secret)
+        if self.sandbox_only and self.environment not in {"sandbox", "uat", "test"}:
+            raise WebullError(
+                "Sandbox paper mode refuses a non-sandbox environment. "
+                "Orders are sent only to *.sandbox.webull.com."
+            )
         if self.environment in {"sandbox", "uat", "test"}:
-            _add_sandbox_endpoints(api, self.region)
+            self.hosts = _add_sandbox_endpoints(api, self.region)
+        if self.sandbox_only:
+            assert_sandbox_hosts(self.hosts)
         self._api = api
         try:
             self._trade = TradeClient(api)
@@ -347,12 +536,14 @@ class WebullBroker:
                     f"Underlying error: {message}"
                 ) from exc
             raise
-        if not self.account_id:
-            accounts = self.list_accounts()
-            if len(accounts) == 1:
-                self.account_id = str(accounts[0].get("account_id") or accounts[0].get("accountId") or "")
-            elif not accounts:
-                raise WebullError("No Webull accounts were returned for these credentials")
+        accounts = self.list_accounts()
+        if not accounts:
+            raise WebullError("No Webull accounts were returned for these credentials")
+        self.account_id, self.account_type = select_account(
+            accounts,
+            self.account_id,
+            self.account_class,
+        )
 
     def list_accounts(self) -> list[dict[str, Any]]:
         self._require_trade()
@@ -372,16 +563,31 @@ class WebullBroker:
         payload = _payload(response)
         if not isinstance(payload, dict):
             raise WebullResponseError(f"Unexpected balance shape: {_keys(payload)}")
-        equity = _first_number(payload, "net_liquidation", "netLiquidation", "total_asset", "equity")
-        cash = _first_number(payload, "cash_balance", "cashBalance", "cash")
-        buying_power = _first_number(payload, "buying_power", "buyingPower", "day_buying_power")
+        equity = _first_number(
+            payload,
+            "total_net_liquidation_value",
+            "net_liquidation",
+            "netLiquidation",
+            "total_asset",
+            "equity",
+        )
+        cash = _first_number(payload, "total_cash_balance", "cash_balance", "cashBalance", "cash")
+        buying_power = buying_power_from_balance(payload)
         if equity is None:
             raise WebullResponseError(f"Balance response had no equity field. Keys: {sorted(payload)}")
+        account_type = self.account_type or normalize_account_type(
+            payload.get("account_type") or payload.get("accountType")
+        )
+        if account_type not in {"cash", "margin"}:
+            raise WebullResponseError(
+                "Account type was not resolved from the account list. "
+                "Refusing to assume margin. Keys: " + ", ".join(sorted(payload))
+            )
         return AccountSnapshot(
             equity=equity,
             cash=cash if cash is not None else 0.0,
             buying_power=buying_power if buying_power is not None else (cash or 0.0),
-            account_type="margin",
+            account_type=account_type,
             positions=self.positions(),
             open_orders=self.open_orders(),
         )
@@ -421,6 +627,13 @@ class WebullBroker:
 
     def place_order(self, order: Order) -> Order:
         self._require_account()
+        if self.sandbox_only:
+            assert_sandbox_hosts(self.hosts)
+            if self.environment not in {"sandbox", "uat", "test"}:
+                raise WebullError(
+                    "Sandbox paper mode refuses a non-sandbox environment. "
+                    "Orders are sent only to *.sandbox.webull.com."
+                )
         if not order.client_order_id:
             order.client_order_id = new_client_order_id()
         payload = build_equity_order(
@@ -482,22 +695,27 @@ class WebullBroker:
             raise WebullError("WEBULL_ACCOUNT_ID is not set and could not be inferred")
 
 
-def _add_sandbox_endpoints(api, region: str) -> None:
-    """Register sandbox hosts.
+def _add_sandbox_endpoints(api, region: str) -> list[str]:
+    """Register sandbox hosts and return the hostnames that were registered.
 
     Production endpoints come from the SDK's own map. Sandbox does not.
-    The hosts below are the ones in the public US getting-started pages.
+    Quote streaming uses ``data-api.sandbox.webull.com``.
     """
+    hosts = sandbox_hosts()
+    assert_sandbox_hosts(hosts.values())
     try:
         from webull.core.common.api_type import DEFAULT, EVENTS, QUOTES
     except ImportError:
         DEFAULT = QUOTES = EVENTS = None  # type: ignore
-    hosts = {
-        DEFAULT: "api.sandbox.webull.com",
-        QUOTES: "api.sandbox.webull.com",
-        EVENTS: "events-api.sandbox.webull.com",
+    mapping = {
+        DEFAULT: hosts["api"],
+        QUOTES: hosts["quotes-api"],
+        EVENTS: hosts["events-api"],
     }
-    for api_type, host in hosts.items():
+    recorded: list[str] = []
+    for api_type, host in mapping.items():
+        if api_type is None and DEFAULT is None:
+            continue
         if api_type is None:
             api.add_endpoint(region, host)
         else:
@@ -505,6 +723,12 @@ def _add_sandbox_endpoints(api, region: str) -> None:
                 api.add_endpoint(region, host, api_type)
             except TypeError:
                 api.add_endpoint(region, host)
+        recorded.append(host)
+    if not recorded:
+        for host in hosts.values():
+            api.add_endpoint(region, host)
+            recorded.append(host)
+    return recorded
 
 
 def _payload(response: Any) -> Any:

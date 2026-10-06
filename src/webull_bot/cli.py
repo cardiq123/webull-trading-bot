@@ -20,7 +20,7 @@ DISCLAIMER = (
 )
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="webull-bot", description="Research-driven Webull trading bot")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -37,6 +37,17 @@ def main(argv: list[str] | None = None) -> int:
     paper.add_argument("--replay", action="store_true", help="Simulate a session on recent historical bars")
     paper.add_argument("--max-cycles", type=int, default=0, help="Stop after this many cycles. Replay defaults to 5 when omitted.")
     paper.add_argument("--poll-seconds", type=int, default=60)
+    paper.add_argument(
+        "--broker",
+        choices=["local", "webull-sandbox"],
+        default="local",
+        help="local fills in this process. webull-sandbox sends orders only to *.sandbox.webull.com.",
+    )
+    paper.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --broker webull-sandbox, build orders and do not send them.",
+    )
 
     live = sub.add_parser("live", help="Trade a real Webull account. Refuses to start without two confirmations.")
     _add_config(live)
@@ -46,7 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     killer = sub.add_parser("kill", help="Cancel open orders and optionally flatten")
     _add_config(killer)
     killer.add_argument("--flatten", action="store_true")
-    killer.add_argument("--mode", choices=["paper", "live"], default="paper")
+    killer.add_argument("--mode", choices=["paper", "live", "sandbox"], default="paper")
+
+    check = sub.add_parser("check", help="Read-only account, balance, position, order, and SPY check. Sends no orders.")
+    _add_config(check)
+    check.add_argument("--env", required=True, choices=["sandbox", "production"], help="sandbox or production. There is no default.")
 
     research = sub.add_parser("research", help="Walk-forward every strategy and rewrite RESULTS.md")
     _add_config(research)
@@ -61,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     paper_sim.add_argument("--sessions", type=int, default=45, help="Trading sessions at the end of the sample. Default 45.")
     paper_sim.add_argument("--report-dir", default="reports")
 
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     config = load_config(args.config)
     setup_logging(config.get("logging", "level", default="INFO"), config.get("logging", "dir", default="logs"))
@@ -83,12 +103,72 @@ def main(argv: list[str] | None = None) -> int:
 
         run_paper_sim(report_dir=args.report_dir, sessions=args.sessions, config_path=args.config)
         return 0
+    if args.command == "check":
+        return _check(config, args)
     parser.error(args.command)
     return 2
 
 
 def _add_config(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", default="config/default.yaml")
+
+
+def resolve_live_environment() -> str:
+    """Production is never implied. ``live`` starts only with an explicit value."""
+    raw = os.environ.get("WEBULL_ENV")
+    if raw is None or not str(raw).strip():
+        raise SystemExit(
+            "Refusing to start live trading without WEBULL_ENV. "
+            "Production is not the default. Set WEBULL_ENV=production explicitly, "
+            "or use `paper --broker webull-sandbox` for the paper sandbox."
+        )
+    env = str(raw).strip().lower()
+    if env not in {"production", "prod", "live"}:
+        raise SystemExit(
+            f"WEBULL_ENV={raw} is not production. "
+            "Live orders are sent only when WEBULL_ENV=production. "
+            "Use `paper --broker webull-sandbox` for the paper sandbox."
+        )
+    return "production"
+
+
+def format_check_report(
+    *,
+    environment: str,
+    accounts: list,
+    snapshot,
+    quote: dict,
+    bars: list,
+    secrets: list[str],
+) -> str:
+    """JSON for the read-only check, with app key, secret, and token redacted."""
+    from webull_bot.logging_setup import redact_text
+
+    body = {
+        "environment": environment,
+        "accounts": accounts,
+        "equity": snapshot.equity,
+        "cash": snapshot.cash,
+        "buying_power": snapshot.buying_power,
+        "account_type": snapshot.account_type,
+        "positions": [
+            {"symbol": pos.symbol, "quantity": pos.quantity, "avg_price": pos.avg_price}
+            for pos in snapshot.positions
+        ],
+        "open_orders": [
+            {
+                "client_order_id": order.client_order_id,
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "quantity": order.quantity,
+                "order_type": order.order_type.value,
+            }
+            for order in snapshot.open_orders
+        ],
+        "spy_quote": quote,
+        "spy_bars": bars,
+    }
+    return redact_text(json.dumps(body, default=str, indent=2), secrets)
 
 
 def confirm_live(enabled: bool) -> None:
@@ -193,6 +273,13 @@ def _backtest(config, args) -> int:
 
 
 def _paper(config, args) -> int:
+    if getattr(args, "broker", "local") == "webull-sandbox":
+        return _sandbox_paper(config, args)
+    if getattr(args, "dry_run", False):
+        raise SystemExit(
+            "--dry-run is only for --broker webull-sandbox. "
+            "Local paper fills inside this process. Omit --dry-run, or pass --broker webull-sandbox."
+        )
     from webull_bot.broker.paper import PaperBroker
     from webull_bot.data.yfinance_provider import YFinanceProvider
     from webull_bot.execution.session import run_poll_loop, run_replay
@@ -252,6 +339,110 @@ def _paper(config, args) -> int:
     return 0
 
 
+def _sandbox_paper(config, args) -> int:
+    """Orders go to the Webull paper sandbox only. No live flag and no phrase."""
+    from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.live import run_sandbox
+    from webull_bot.journal.store import Journal
+    from webull_bot.notify.webhook import webhook_url
+    from webull_bot.strategies.registry import strategy_by_name
+    from webull_bot.universe import research_symbols
+
+    if args.replay:
+        raise SystemExit(
+            "Replay stays on the local paper broker. "
+            "Omit --replay, or omit --broker webull-sandbox."
+        )
+    names, rationale = load_selection(config)
+    if args.strategy:
+        names = list(args.strategy)
+    print(DISCLAIMER)
+    print(rationale or "No strategy is selected. The session will not open new risk.")
+    print("Sandbox paper sends orders only to *.sandbox.webull.com.")
+    print("live_trading_enabled and the live confirmation phrase are not used.")
+    if args.dry_run:
+        print("Dry run: orders are built and not sent.")
+    broker = WebullBroker(environment="sandbox")
+    broker.sandbox_only = True
+    broker.connect()
+    assert_sandbox_hosts(broker.hosts)
+    strategies = [strategy_by_name(name) for name in names]
+    symbols = set(research_symbols())
+    for strategy in strategies:
+        symbols.update(name for name in _trade_symbols(strategy) if name != "__none__")
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    journal.event(
+        "sandbox_start",
+        "sandbox paper session",
+        {"dry_run": bool(args.dry_run), "strategies": names, "hosts": list(broker.hosts)},
+    )
+    run_sandbox(
+        broker=broker,
+        data_provider=YFinanceProvider(config.get("data", "cache_dir", default="data/cache")),
+        strategies=strategies,
+        journal=journal,
+        limits=_limits(config),
+        symbols=sorted(symbols),
+        webhook=webhook_url(config.get("notifications", "webhook_url", default="") or ""),
+        poll_seconds=args.poll_seconds,
+        max_cycles=args.max_cycles or 1,
+        dry_run=bool(args.dry_run),
+    )
+    return 0
+
+
+def _check(config, args) -> int:
+    """Read accounts, balances, positions, open orders, and a SPY quote and bars."""
+    from webull_bot.broker.webull import WebullBroker
+    from webull_bot.data.webull_provider import WebullDataProvider
+
+    environment = args.env
+    broker = WebullBroker(environment=environment)
+    if environment == "sandbox":
+        broker.sandbox_only = True
+    broker.connect()
+    accounts = broker.list_accounts()
+    snapshot = broker.snapshot()
+    provider = WebullDataProvider(broker)
+    quote = provider.quote("SPY")
+    end = pd.Timestamp.utcnow().date()
+    start = end - pd.Timedelta(days=30)
+    history = provider.history(["SPY"], start.isoformat(), end.isoformat(), "1d")
+    bars = []
+    frame = history.get("SPY")
+    if frame is not None and not frame.empty:
+        tail = frame.tail(5)
+        for ts, row in tail.iterrows():
+            bars.append(
+                {
+                    "time": pd.Timestamp(ts).isoformat(),
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": float(row["volume"]),
+                }
+            )
+    secrets = [
+        os.environ.get("WEBULL_APP_KEY", ""),
+        os.environ.get("WEBULL_APP_SECRET", ""),
+        broker.app_key,
+        broker.app_secret,
+    ]
+    print(
+        format_check_report(
+            environment=environment,
+            accounts=accounts,
+            snapshot=snapshot,
+            quote=quote,
+            bars=bars,
+            secrets=secrets,
+        )
+    )
+    return 0
+
+
 def _live(config, args) -> int:
     from webull_bot.broker.webull import WebullBroker
     from webull_bot.data.webull_provider import WebullDataProvider
@@ -264,7 +455,7 @@ def _live(config, args) -> int:
             "Refusing to go live with an empty or unproven book. "
             f"{rationale} Set allow_unproven_strategies only if you accept that."
         )
-    broker = WebullBroker(environment=os.environ.get("WEBULL_ENV", "production"))
+    broker = WebullBroker(environment=resolve_live_environment())
     broker.connect()
     snapshot = broker.snapshot()
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
