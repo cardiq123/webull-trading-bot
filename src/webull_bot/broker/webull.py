@@ -19,12 +19,21 @@ What the public docs support, and what this class calls:
   ``get_account_balance(account_id)``, ``get_account_position(account_id)``.
 * Orders: ``trade_client.order_v3.place_order``, ``replace_order``,
   ``cancel_order``, ``get_order_open``, ``get_order_detail``.
-* US equity order types used here: MARKET, LIMIT, STOP_LOSS, STOP_LOSS_LIMIT.
-  MARKET_ON_OPEN / MARKET_ON_CLOSE are documented as institutional-only and
-  are not sent.
-* A protective stop is a separate STOP_LOSS sell, not an OTO combo. Combo
-  orders exist in the API and are intentionally not required for the first
-  live path.
+* US equity order types used here: MARKET, LIMIT, STOP_LOSS, STOP_LOSS_LIMIT,
+  and TRAILING_STOP_LOSS. MARKET_ON_OPEN / MARKET_ON_CLOSE are documented as
+  institutional-only and are not sent. A trailing stop needs ``trailing_type``
+  ``AMOUNT`` or ``PERCENTAGE`` and ``trailing_stop_step``, and it is DAY only.
+* A take-profit plus stop-loss bracket is MASTER + STOP_PROFIT + STOP_LOSS
+  with one ``client_combo_order_id``. That is the documented equity bracket.
+  ``OTOCO`` is a different pattern (a master that triggers two linked limits)
+  and is not the bracket this study sends. ``place_order`` still sends one
+  NORMAL equity order. The chart-exit helper builds these payloads and stages
+  them on the paper broker. It does not enable live trading.
+* Options, from the options trade page: MARKET, LIMIT, STOP_LOSS, and
+  STOP_LOSS_LIMIT. ``TRAILING_STOP_LOSS`` is not supported. ``OTO``, ``OCO``,
+  and ``OTOCO`` are equity-only. Single-leg MASTER / STOP_PROFIT / STOP_LOSS
+  exists, and its stop price is the option premium. This study's stop is the
+  underlying, so option exits stay bot-managed and are not sent.
 * Options are in the public trade API (``instrument_type=OPTION``,
   ``option_strategy`` ``SINGLE`` or ``VERTICAL``). ``build_single_option_order``
   and ``build_bull_call_spread`` match those published examples.
@@ -109,6 +118,8 @@ def build_equity_order(
     stop_price: Optional[float] = None,
     time_in_force: str = "DAY",
     trading_session: str = "CORE",
+    trailing_type: Optional[str] = None,
+    trailing_stop_step: Optional[float | str] = None,
 ) -> dict[str, str]:
     """Body for one US equity order, matching the published place_order example."""
     if len(client_order_id) > 32:
@@ -136,7 +147,117 @@ def build_equity_order(
         if stop_price is None:
             raise ValueError(f"{order_type} requires stop_price")
         payload["stop_price"] = f"{stop_price:.2f}"
+    if order_type == "TRAILING_STOP_LOSS":
+        if time_in_force != "DAY":
+            raise ValueError("TRAILING_STOP_LOSS supports DAY time in force only")
+        if trailing_type not in {"AMOUNT", "PERCENTAGE"}:
+            raise ValueError("TRAILING_STOP_LOSS requires trailing_type AMOUNT or PERCENTAGE")
+        payload["trailing_type"] = trailing_type
+        payload["trailing_stop_step"] = _trail_step(trailing_stop_step)
     return payload
+
+
+def build_trailing_stop_order(
+    *,
+    client_order_id: str,
+    symbol: str,
+    side: str,
+    quantity: float,
+    trailing_type: str,
+    trailing_stop_step: float | str,
+) -> dict[str, str]:
+    """Equity TRAILING_STOP_LOSS. DAY only. This does not send the order.
+
+    ``trailing_stop_step`` is dollars for AMOUNT (``"5"`` trails by $5) or a
+    fraction for PERCENTAGE (``"0.01"`` is 1%). A multi-day swing has to be
+    renewed, because the native order expires at the end of the day.
+    """
+    return build_equity_order(
+        client_order_id=client_order_id,
+        symbol=symbol,
+        side=side,
+        order_type="TRAILING_STOP_LOSS",
+        quantity=quantity,
+        time_in_force="DAY",
+        trailing_type=trailing_type,
+        trailing_stop_step=trailing_stop_step,
+    )
+
+
+def build_bracket_orders(
+    *,
+    symbol: str,
+    quantity: float,
+    take_profit: float,
+    stop_loss: float,
+    direction: str = "long",
+    entry_type: str = "MARKET",
+    limit_price: Optional[float] = None,
+    client_combo_order_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Equity take-profit and stop-loss: MASTER + STOP_PROFIT + STOP_LOSS.
+
+    This is the published bracket. It is not combo type OTOCO. The combo id
+    is the ``client_combo_order_id`` argument of ``place_order``, not a field
+    on each leg. Nothing here calls the network. The legs are DAY orders, so
+    a multi-day hold is renewed by the bot. The backtest keeps the stop and
+    the target until one fills or the time stop hits.
+    """
+    if direction not in {"long", "short"}:
+        raise ValueError("direction must be long or short")
+    if take_profit <= stop_loss and direction == "long":
+        raise ValueError("A long bracket needs the take-profit above the stop")
+    if take_profit >= stop_loss and direction == "short":
+        raise ValueError("A short bracket needs the take-profit below the stop")
+    combo_id = client_combo_order_id or new_client_order_id()
+    if len(combo_id) > 32:
+        raise ValueError("client_combo_order_id must be at most 32 characters")
+    entry_side = "BUY" if direction == "long" else "SHORT"
+    exit_side = "SELL" if direction == "long" else "BUY"
+    master = build_equity_order(
+        client_order_id=new_client_order_id(),
+        symbol=symbol,
+        side=entry_side,
+        order_type=entry_type,
+        quantity=quantity,
+        limit_price=limit_price,
+        time_in_force="DAY",
+    )
+    profit = build_equity_order(
+        client_order_id=new_client_order_id(),
+        symbol=symbol,
+        side=exit_side,
+        order_type="LIMIT",
+        quantity=quantity,
+        limit_price=take_profit,
+        time_in_force="DAY",
+    )
+    stop = build_equity_order(
+        client_order_id=new_client_order_id(),
+        symbol=symbol,
+        side=exit_side,
+        order_type="STOP_LOSS",
+        quantity=quantity,
+        stop_price=stop_loss,
+        time_in_force="DAY",
+    )
+    master["combo_type"] = "MASTER"
+    profit["combo_type"] = "STOP_PROFIT"
+    stop["combo_type"] = "STOP_LOSS"
+    return {"client_combo_order_id": combo_id, "new_orders": [master, profit, stop]}
+
+
+def build_option_trailing_stop_order(**_ignored: Any) -> dict[str, Any]:
+    """Options do not accept TRAILING_STOP_LOSS. See the options trade page."""
+    raise ValueError(
+        "TRAILING_STOP_LOSS is not supported for options. "
+        "The options trade page lists MARKET, LIMIT, STOP_LOSS, and STOP_LOSS_LIMIT."
+    )
+
+
+def build_option_otoco_orders(**_ignored: Any) -> dict[str, Any]:
+    """OTO, OCO, and OTOCO are equity-only."""
+    raise ValueError("OTO, OCO, and OTOCO are equity-only and are not supported for options.")
 
 
 def build_single_option_order(
@@ -844,6 +965,20 @@ def _first_number(row: dict, *keys: str) -> Optional[float]:
             except (TypeError, ValueError):
                 continue
     return None
+
+
+def _trail_step(step: float | str | None) -> str:
+    if step is None or step == "":
+        raise ValueError("TRAILING_STOP_LOSS requires trailing_stop_step")
+    if isinstance(step, str):
+        text = step.strip()
+        if not text:
+            raise ValueError("TRAILING_STOP_LOSS requires trailing_stop_step")
+        return text
+    value = float(step)
+    if value <= 0 or value != value or value == float("inf"):
+        raise ValueError("trailing_stop_step must be positive")
+    return f"{value:.4f}".rstrip("0").rstrip(".")
 
 
 def _qty(quantity: float) -> str:

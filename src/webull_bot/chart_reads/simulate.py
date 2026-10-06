@@ -185,6 +185,8 @@ def _simulate(
     max_positions = int(params.get("max_positions", 1))
     flatten_eod = bool(params.get("flatten_eod", True))
     max_sessions = int(params.get("max_hold_sessions", 1))
+    # Absent or blank keeps the published stop, target, and EMA trail.
+    exit_style = str(params.get("exit_style") or "")
 
     for ts in clock:
         ts = pd.Timestamp(ts)
@@ -235,6 +237,39 @@ def _simulate(
         still = []
         for pos in positions:
             held = _sessions_held(pos["opened_on"], session)
+            if exit_style:
+                reason = _styled_exit(
+                    pos, ts, frames, params, last_bar, held, max_sessions, flatten_eod
+                )
+                if reason is None:
+                    still.append(pos)
+                    continue
+                if reason == "partial":
+                    pieces, kept = _partial_close(
+                        pos, ts, frames, params, costs, last_bar, held, max_sessions, flatten_eod
+                    )
+                    counted = bool(pos.get("counted_day"))
+                    for piece, credit, piece_reason in pieces:
+                        cash += credit
+                        if account == "cash_t1":
+                            unsettled.append((next_trading_day(session), credit))
+                        if piece["opened_on"] == session and not counted:
+                            day_trades.append(session)
+                            counted = True
+                        closed.append(_row(piece, ts, credit, piece_reason))
+                    if kept is not None:
+                        if counted:
+                            kept["counted_day"] = True
+                        still.append(kept)
+                    continue
+                credit = _credit(pos, ts, frames, params, reason, costs)
+                cash += credit
+                if account == "cash_t1":
+                    unsettled.append((next_trading_day(session), credit))
+                if pos["opened_on"] == session and not pos.get("counted_day"):
+                    day_trades.append(session)
+                closed.append(_row(pos, ts, credit, reason))
+                continue
             reason = _exit_reason(pos, ts, frames, trails, params, last_bar, held, max_sessions, flatten_eod)
             if reason is None:
                 still.append(pos)
@@ -336,10 +371,14 @@ def _open(setup, ts, frames, rv, bands, priors, equity, buying_cash, params, cos
     expression = str(params.get("expression", "single"))
     band, prior = _context(setup, ts, bands, priors)
     if expression == "stock":
-        return _open_stock(setup, ts, spot, stop, risk_budget, buying_cash, params, costs, band, prior)
-    if expression == "spread":
-        return _open_spread(setup, ts, spot, stop, budget, rv, params, band, prior)
-    return _open_single(setup, ts, spot, stop, budget, rv, params, band, prior)
+        opened = _open_stock(setup, ts, spot, stop, risk_budget, buying_cash, params, costs, band, prior)
+    elif expression == "spread":
+        opened = _open_spread(setup, ts, spot, stop, budget, rv, params, band, prior)
+    else:
+        opened = _open_single(setup, ts, spot, stop, budget, rv, params, band, prior)
+    if opened is None or not params.get("exit_style"):
+        return opened
+    return _prepare_exit(opened, setup, params)
 
 
 def _context(setup, ts, bands, priors) -> tuple[float, float]:
@@ -500,6 +539,166 @@ def _open_spread(setup, ts, spot, stop, budget, rv, params, band, prior) -> Opti
     return position
 
 
+def _prepare_exit(position: dict, setup, params: dict) -> Optional[dict]:
+    """Attach a frozen trail. Share count stays the setup-stop size."""
+    style = str(params.get("exit_style") or "")
+    fill = float(position["entry"])
+    direction = position["direction"]
+    if style == "trail_pct":
+        step = float(params["trail_pct"])
+        if not np.isfinite(step) or step <= 0.0 or step >= 1.0:
+            return None
+        position["trail_mode"] = "pct"
+        position["trail_step"] = step
+        position["peak"] = fill
+        position["stop"] = fill * (1.0 - step) if direction == "long" else fill * (1.0 + step)
+        position["target"] = float("inf") if direction == "long" else float("-inf")
+        return position
+    if style not in {"trail_atr", "hybrid"}:
+        raise ValueError(f"Unknown exit_style {style}")
+    multiple = float(params["trail_atr"]) if style == "trail_atr" else 2.0
+    width = float(getattr(setup, "atr", float("nan")))
+    distance = multiple * width
+    if not np.isfinite(distance) or distance <= 0.0:
+        return None
+    position["trail_mode"] = "amount"
+    position["trail_step"] = distance
+    position["peak"] = fill
+    if style == "hybrid":
+        position["hybrid"] = True
+        position["partial_done"] = False
+        position["hard_stop"] = float(position["stop"])
+        return position
+    position["stop"] = fill - distance if direction == "long" else fill + distance
+    position["target"] = float("inf") if direction == "long" else float("-inf")
+    return position
+
+
+def _can_partial(pos) -> bool:
+    quantity = float(pos["quantity"])
+    if pos["expression"] == "stock":
+        return quantity * 0.5 > 1e-8
+    return int(quantity) >= 2
+
+
+def _halve(pos) -> tuple[dict, dict]:
+    quantity = float(pos["quantity"])
+    if pos["expression"] == "stock":
+        sold_qty = quantity * 0.5
+    else:
+        sold_qty = float(int(quantity) // 2)
+    fraction = sold_qty / quantity
+    sold = dict(pos)
+    sold["quantity"] = sold_qty
+    sold["debit"] = float(pos["debit"]) * fraction
+    kept = dict(pos)
+    kept["quantity"] = quantity - sold_qty
+    kept["debit"] = float(pos["debit"]) - sold["debit"]
+    kept["partial_done"] = True
+    if pos["direction"] == "long":
+        kept["target"] = float("inf")
+    else:
+        kept["target"] = float("-inf")
+    return sold, kept
+
+
+def _ratchet(pos, high: float, low: float) -> bool:
+    """Raise a long trail from the high, or lower a short trail from the low.
+
+    Returns True when this bar's range trades through the tightened stop.
+    The stop only moves in the favorable direction.
+    """
+    direction = pos["direction"]
+    step = float(pos["trail_step"])
+    if direction == "long":
+        pos["peak"] = max(float(pos["peak"]), high)
+        if pos["trail_mode"] == "pct":
+            trailed = float(pos["peak"]) * (1.0 - step)
+        else:
+            trailed = float(pos["peak"]) - step
+        if trailed > float(pos["stop"]):
+            pos["stop"] = trailed
+            return low <= trailed
+        return False
+    pos["peak"] = min(float(pos["peak"]), low)
+    if pos["trail_mode"] == "pct":
+        trailed = float(pos["peak"]) * (1.0 + step)
+    else:
+        trailed = float(pos["peak"]) + step
+    if trailed < float(pos["stop"]):
+        pos["stop"] = trailed
+        return high >= trailed
+    return False
+
+
+def _stop_hit(pos, opened: float, high: float, low: float) -> bool:
+    stop = float(pos["stop"])
+    if pos["direction"] == "long":
+        return opened <= stop or low <= stop
+    return opened >= stop or high >= stop
+
+
+def _target_hit(pos, high: float, low: float) -> bool:
+    target = float(pos["target"])
+    if not np.isfinite(target):
+        return False
+    if pos["direction"] == "long":
+        return high >= target
+    return low <= target
+
+
+def _styled_exit(pos, ts, frames, params, last_bar, sessions_held, max_sessions, flatten_eod) -> Optional[str]:
+    """Trail, or a half-position target. No EMA trail. The time stop still applies."""
+    frame = frames[pos["symbol"]]
+    if ts not in frame.index:
+        return None
+    row = frame.loc[ts]
+    high = float(row["high"])
+    low = float(row["low"])
+    opened = float(row["open"])
+    pos["bars"] = int(pos["bars"]) + 1
+    style = str(params.get("exit_style") or "")
+    if _stop_hit(pos, opened, high, low):
+        if style != "hybrid":
+            return "trail"
+        if not pos.get("partial_done"):
+            return "invalidation"
+        hard = float(pos.get("hard_stop", pos["stop"]))
+        if pos["direction"] == "long":
+            return "invalidation" if float(pos["stop"]) <= hard + 1e-9 else "trail"
+        return "invalidation" if float(pos["stop"]) >= hard - 1e-9 else "trail"
+    if style == "hybrid" and not pos.get("partial_done") and _target_hit(pos, high, low):
+        return "partial" if _can_partial(pos) else "target"
+    if style in {"trail_pct", "trail_atr"} or pos.get("partial_done"):
+        if _ratchet(pos, high, low):
+            return "trail"
+    if sessions_held >= max_sessions and last_bar:
+        return "time_stop"
+    if flatten_eod and last_bar:
+        return "session_flat"
+    return None
+
+
+def _partial_close(pos, ts, frames, params, costs, last_bar, sessions_held, max_sessions, flatten_eod):
+    """Sell half at the target. The rest trails, and can stop on this same bar."""
+    sold, kept = _halve(pos)
+    pieces = [(sold, _credit(sold, ts, frames, params, "target", costs), "partial")]
+    frame = frames[pos["symbol"]]
+    row = frame.loc[ts]
+    high = float(row["high"])
+    low = float(row["low"])
+    if _ratchet(kept, high, low):
+        pieces.append((kept, _credit(kept, ts, frames, params, "trail", costs), "trail"))
+        return pieces, None
+    if sessions_held >= max_sessions and last_bar:
+        pieces.append((kept, _credit(kept, ts, frames, params, "time_stop", costs), "time_stop"))
+        return pieces, None
+    if flatten_eod and last_bar:
+        pieces.append((kept, _credit(kept, ts, frames, params, "session_flat", costs), "session_flat"))
+        return pieces, None
+    return pieces, kept
+
+
 def _exit_reason(pos, ts, frames, trails, params, last_bar, sessions_held, max_sessions, flatten_eod) -> Optional[str]:
     frame = frames[pos["symbol"]]
     if ts not in frame.index:
@@ -549,7 +748,7 @@ def _bar_at(frame: pd.DataFrame, ts: pd.Timestamp):
 def _spot_for(pos, ts, frames, reason: str) -> float:
     row = _bar_at(frames[pos["symbol"]], ts)
     opened = float(row["open"])
-    if reason == "invalidation":
+    if reason in {"invalidation", "trail"}:
         if pos["direction"] == "long" and opened <= pos["stop"]:
             return opened
         if pos["direction"] == "short" and opened >= pos["stop"]:

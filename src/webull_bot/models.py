@@ -18,6 +18,7 @@ class OrderType(str, Enum):
     LIMIT = "LIMIT"
     STOP = "STOP_LOSS"
     STOP_LIMIT = "STOP_LOSS_LIMIT"
+    TRAILING = "TRAILING_STOP_LOSS"
 
 
 class OrderStatus(str, Enum):
@@ -58,6 +59,9 @@ class Order:
     time_in_force: TimeInForce = TimeInForce.DAY
     limit_price: Optional[float] = None
     stop_price: Optional[float] = None
+    trail_type: Optional[str] = None
+    trail_step: Optional[float] = None
+    trail_peak: Optional[float] = None
     strategy: str = ""
     status: OrderStatus = OrderStatus.NEW
     filled_quantity: float = 0.0

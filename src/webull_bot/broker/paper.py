@@ -103,8 +103,8 @@ class PaperBroker(Broker):
             """
             INSERT OR REPLACE INTO orders (
                 client_order_id, symbol, side, quantity, order_type, limit_price,
-                stop_price, status, strategy, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?)
+                stop_price, status, strategy, created_at, trail_type, trail_step, trail_peak
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'NEW', ?, ?, ?, ?, ?)
             """,
             (
                 order.client_order_id,
@@ -116,6 +116,9 @@ class PaperBroker(Broker):
                 order.stop_price,
                 order.strategy,
                 _now(),
+                order.trail_type,
+                order.trail_step,
+                order.trail_peak,
             ),
         )
         self._conn.commit()
@@ -218,6 +221,7 @@ class PaperBroker(Broker):
             self.mark_prices({symbol: close})
             self._refresh_equity()
             return fills
+        fills.extend(self._trail_orders(symbol, open_, high, low))
         resting = list(
             self._conn.execute("SELECT * FROM orders WHERE status = 'NEW' AND symbol = ?", (symbol,))
         )
@@ -236,6 +240,40 @@ class PaperBroker(Broker):
                 )
         self.mark_prices({symbol: close})
         self._refresh_equity()
+        return fills
+
+    def _trail_orders(self, symbol: str, open_: float, high: float, low: float) -> list[Fill]:
+        """Fill a DAY trailing stop and remember the high-water mark.
+
+        The stop in force at the open is tested first. The bar's extreme
+        then tightens it, and that tighter stop can fill on the same bar.
+        """
+        fills: list[Fill] = []
+        rows = list(
+            self._conn.execute(
+                "SELECT * FROM orders WHERE status = 'NEW' AND symbol = ? AND order_type = ?",
+                (symbol, OrderType.TRAILING.value),
+            )
+        )
+        for row in rows:
+            order = self._order_from_row(row)
+            if order.side != Side.SELL:
+                continue
+            if order.trail_step is None or order.trail_step <= 0 or not order.trail_type:
+                continue
+            peak = float(order.trail_peak) if order.trail_peak is not None else float(open_)
+            fill_raw = _trail_fill(order.side, order.trail_type, float(order.trail_step), peak, open_, high, low)
+            if fill_raw is None:
+                new_peak = _trail_peak(order.side, peak, high, low)
+                self._conn.execute(
+                    "UPDATE orders SET trail_peak = ? WHERE client_order_id = ?",
+                    (new_peak, order.client_order_id),
+                )
+                self._conn.commit()
+                continue
+            fills.extend(
+                self._fill_sell(symbol, order.quantity, fill_raw, "trail", order.strategy, order.client_order_id)
+            )
         return fills
 
     def _stop_out(self, symbol: str, open_: float, low: float) -> list[Fill]:
@@ -407,6 +445,11 @@ class PaperBroker(Broker):
         if "margin_reserved" not in columns:
             self._conn.execute("ALTER TABLE positions ADD COLUMN margin_reserved REAL DEFAULT 0")
             self._conn.commit()
+        order_columns = {row[1] for row in self._conn.execute("PRAGMA table_info(orders)")}
+        for name, decl in (("trail_type", "TEXT"), ("trail_step", "REAL"), ("trail_peak", "REAL")):
+            if name not in order_columns:
+                self._conn.execute(f"ALTER TABLE orders ADD COLUMN {name} {decl}")
+        self._conn.commit()
 
     def _reserved_by_symbol(self) -> dict[str, float]:
         rows = self._conn.execute("SELECT symbol, margin_reserved FROM positions").fetchall()
@@ -414,6 +457,7 @@ class PaperBroker(Broker):
 
     @staticmethod
     def _order_from_row(row: sqlite3.Row) -> Order:
+        keys = set(row.keys())
         return Order(
             client_order_id=row["client_order_id"],
             symbol=row["symbol"],
@@ -422,9 +466,46 @@ class PaperBroker(Broker):
             order_type=OrderType(row["order_type"]),
             limit_price=row["limit_price"],
             stop_price=row["stop_price"],
+            trail_type=row["trail_type"] if "trail_type" in keys else None,
+            trail_step=row["trail_step"] if "trail_step" in keys else None,
+            trail_peak=row["trail_peak"] if "trail_peak" in keys else None,
             strategy=row["strategy"] or "",
             status=OrderStatus(row["status"]),
         )
+
+
+def _trail_level(kind: str, peak: float, step: float, *, long_exit: bool) -> float:
+    if kind == "PERCENTAGE":
+        return peak * (1.0 - step) if long_exit else peak * (1.0 + step)
+    return peak - step if long_exit else peak + step
+
+
+def _trail_peak(side: Side, peak: float, high: float, low: float) -> float:
+    if side == Side.SELL:
+        return max(peak, high)
+    return min(peak, low)
+
+
+def _trail_fill(side: Side, kind: str, step: float, peak: float, open_: float, high: float, low: float) -> Optional[float]:
+    long_exit = side == Side.SELL
+    stop = _trail_level(kind, peak, step, long_exit=long_exit)
+    if long_exit:
+        if open_ <= stop:
+            return open_
+        if low <= stop:
+            return stop
+        tightened = _trail_level(kind, max(peak, high), step, long_exit=True)
+        if tightened > stop and low <= tightened:
+            return tightened
+        return None
+    if open_ >= stop:
+        return open_
+    if high >= stop:
+        return stop
+    tightened = _trail_level(kind, min(peak, low), step, long_exit=False)
+    if tightened < stop and high >= tightened:
+        return tightened
+    return None
 
 
 def _paper_fill_price(order: Order, open_: float, high: float, low: float, close: float) -> Optional[float]:
