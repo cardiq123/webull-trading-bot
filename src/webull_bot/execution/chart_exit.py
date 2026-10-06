@@ -1,11 +1,10 @@
 """Paper plans for the chart-read exits. This module does not send orders.
 
-Equity trails and brackets are native Webull payloads. Options are not.
-The options trade page has no trailing stop and no OTO, OCO, or OTOCO.
-A single-leg option stop is a premium price, and these exits are prices
-on the underlying, so the bot watches the stock and closes the option
-when that watch hits. Live trading stays off. The dual-momentum cycle
-does not call this.
+Equity trails and brackets are native Webull payloads. Options are not,
+except the scale-out's separate limit sells. The options trade page has
+no trailing stop and no OTO, OCO, or OTOCO. A single-leg option stop is
+a premium price. Live trading stays off. The dual-momentum cycle does
+not call this.
 """
 
 from __future__ import annotations
@@ -16,9 +15,11 @@ from webull_bot.broker.paper import PaperBroker
 from webull_bot.broker.webull import (
     build_bracket_orders,
     build_equity_order,
+    build_single_option_order,
     build_trailing_stop_order,
     new_client_order_id,
 )
+from webull_bot.chart_reads.premium_scale import SCALE_TIERS
 from webull_bot.models import Order, OrderType, Side
 
 
@@ -174,10 +175,84 @@ def _bot_plan(
     }
 
 
+def plan_option_scale(
+    *,
+    symbol: str,
+    premium: float,
+    strike: float,
+    expiry: str,
+    right: str = "call",
+    stop_kind: str = "premium",
+    premium_stop: Optional[float] = -0.30,
+    underlying_stop: Optional[float] = None,
+) -> dict[str, Any]:
+    """Four native option limit sells, and a bot-managed stop.
+
+    The limits are 2 at +15%, 1 at +20%, 1 at +30%, and the runner at +100%
+    of the premium paid. Webull's options page has no OTO, OCO, or OTOCO,
+    so a resting stop beside those limits could oversell. The initial stop
+    and the break-even stop are watches. After the +15% limit fills, the
+    watch moves to the entry premium. Limits are DAY orders. Nothing is sent.
+    """
+    if right not in {"call", "put"}:
+        raise ValueError("right must be call or put")
+    if stop_kind not in {"premium", "underlying"}:
+        raise ValueError("stop_kind must be premium or underlying")
+    if premium <= 0 or not (premium == premium):
+        raise ValueError("premium must be a positive ask")
+    if stop_kind == "premium" and (premium_stop is None or premium_stop >= 0):
+        raise ValueError("a premium stop must be negative")
+    option_type = "CALL" if right == "call" else "PUT"
+    payloads = []
+    for pct, qty in SCALE_TIERS:
+        payloads.append(
+            build_single_option_order(
+                client_order_id=new_client_order_id(),
+                symbol=symbol,
+                side="SELL",
+                quantity=qty,
+                strike_price=strike,
+                option_expire_date=expiry,
+                option_type=option_type,
+                limit_price=premium * (1.0 + pct),
+                order_type="LIMIT",
+                time_in_force="DAY",
+                position_intent="SELL_TO_CLOSE",
+            )
+        )
+    breakeven = float(premium)
+    return {
+        "native": False,
+        "limits_are_native": True,
+        "management": "bot",
+        "instrument": "option",
+        "style": "scale",
+        "symbol": symbol,
+        "quantity": float(sum(qty for _pct, qty in SCALE_TIERS)),
+        "payloads": payloads,
+        "watch": {
+            "initial_stop_kind": stop_kind,
+            "premium_stop": None if stop_kind != "premium" else breakeven * (1.0 + float(premium_stop)),
+            "underlying_stop": underlying_stop,
+            "breakeven_premium": breakeven,
+            "arm_after_contracts_sold": int(SCALE_TIERS[0][1]),
+        },
+        "note": (
+            "Each tier is its own option LIMIT sell. OTO, OCO, and OTOCO are not supported on options, "
+            "and a resting STOP_LOSS next to these limits could sell the same contracts twice. "
+            "The initial stop and the break-even stop are bot-managed. "
+            "After the +15% order fills, the bot watches the entry premium on whatever is left. "
+            "The limits are DAY orders and are renewed for a multi-day hold. No option order is sent."
+        ),
+    }
+
+
 def stage_on_paper(broker: PaperBroker, plan: dict[str, Any], *, peak: Optional[float] = None) -> list[Order]:
     """Rest the exit on the paper broker. Refuses any other broker. No network."""
     if not isinstance(broker, PaperBroker):
         raise TypeError("Chart exits are staged on the paper broker only. Live trading stays off.")
+    if plan.get("instrument") == "option":
+        return []
     if not plan.get("native"):
         return []
     staged: list[Order] = []

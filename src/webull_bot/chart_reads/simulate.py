@@ -375,7 +375,9 @@ def _open(setup, ts, frames, rv, bands, priors, equity, buying_cash, params, cos
     elif expression == "spread":
         opened = _open_spread(setup, ts, spot, stop, budget, rv, params, band, prior)
     else:
-        opened = _open_single(setup, ts, spot, stop, budget, rv, params, band, prior)
+        opened = _open_single(
+            setup, ts, spot, stop, budget, rv, params, band, prior, buying_cash=buying_cash
+        )
     if opened is None or not params.get("exit_style"):
         return opened
     return _prepare_exit(opened, setup, params)
@@ -466,7 +468,7 @@ def _right_strike(direction: str, spot: float, years: float, sigma: float, delta
     return right, strike, raw, years
 
 
-def _open_single(setup, ts, spot, stop, budget, rv, params, band, prior) -> Optional[dict]:
+def _open_single(setup, ts, spot, stop, budget, rv, params, band, prior, buying_cash: float | None = None) -> Optional[dict]:
     sigma = _vol(rv.get(setup.symbol, pd.Series(dtype=float)), _session(ts), float(params["iv_premium"]))
     if sigma is None:
         return None
@@ -475,6 +477,20 @@ def _open_single(setup, ts, spot, stop, budget, rv, params, band, prior) -> Opti
     mid = option_price(right, spot, strike, years, sigma, RATE, DIVIDEND)
     delta = option_delta(right, spot, strike, years, sigma, RATE, DIVIDEND)
     ask = _buy(mid, delta, float(params["spread_multiplier"]))
+    fixed = params.get("fixed_contracts")
+    if fixed:
+        # Opt-in. The default budget path below is unchanged when this is absent.
+        contracts = int(fixed)
+        if contracts < 1 or not np.isfinite(ask) or ask <= 0:
+            return None
+        fees = option_leg_fees(contracts, ask, sell=False)
+        debit = contracts * ask * CONTRACT_MULTIPLIER + fees
+        cap = float(budget if buying_cash is None else buying_cash)
+        if not np.isfinite(debit) or debit <= 0 or debit > cap:
+            return None
+        position = _base(setup, ts, ask, stop, contracts, debit, "single", params, band, prior)
+        position.update({"right": right, "strike": strike, "sigma": sigma, "expiry_years": years, "delta": delta})
+        return position
     one = ask * CONTRACT_MULTIPLIER + option_leg_fees(1, ask, sell=False)
     if one > budget or one <= 0:
         return None
