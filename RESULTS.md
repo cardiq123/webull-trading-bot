@@ -1563,3 +1563,47 @@ The chart is `reports/setups/readSPY_chop_levels_1d.png`. Gold bands are detecte
 
 The published A-D books are unchanged. Chop and this level set stay off the optional list and off the registry. The default book is still dual momentum.
 <!-- CHART_READS_SPY_REF_END -->
+
+<!-- CHART_READS_BOUNCE_START -->
+## Partial reversal bounce
+
+DOES NOT CHANGE THE GATE. This is a separate long-only book. Setups A through D are unchanged. Nothing was sent to a broker. The rule was frozen before this score.
+
+A signal is a daily bar that tags a confirmed pivot low from the prior 120 sessions. The pivot is at least five bars old, the low is within 0.50 ATR of it, and the close does not finish more than 0.10 ATR through it. The same bar is a confirming candle: the body is at least half the range and the close is in the upper third. RSI(14) is at or under 30, or it is turning up from a prior reading at or under 45. The fill is the next open. The stop is 0.25 ATR under the signal low. The next signal in a name waits 10 bars. Quiet volume, the last three bars at or under their prior 20-bar average, is a sensitivity. It is not required.
+
+The partial target is the nearest of the next confirmed pivot high, the 20 EMA, the 50 EMA, and the descending pivot trendline, when that price is between 0.5R and 4R above the signal close. Otherwise the target is 1R. The hold is 15 sessions, with no EMA trail, because a long entered under the 20 EMA would be flattened at once. The full-reversal comparison uses the same entry and the same stop. Its target is the next of those levels beyond the partial target, out to 8R, otherwise 3R, and the hold is 40 sessions. A fixed 1R target is the other comparison. Calls use delta 0.45. Seven DTE is the short-dated call. Thirty, 45, and 60 DTE are the requested range. The account is $1,000, one position, 20% risk. A contract that costs more than that risk budget is skipped. The gate does not pick the best row.
+
+Dow point-in-time, in sample 2010-01-01 through 2018-12-31, out of sample 2019-01-01 through 2026-10-06. The default row had a level on every out-of-sample signal, so none of them used the 1R fallback. Out of sample, the default stock book exited 135 trades at the target, 129 at the stop, and 21 at the time stop. The out-of-sample call books skipped 1055 seven-DTE entries, 1118 thirty-DTE entries, 1126 forty-five-DTE entries, and 1123 sixty-DTE entries. A skip is a contract that did not fit the risk budget, or a bar with no volatility estimate.
+
+Average move on a stock row is the mean underlying percent from the fill to the exit, after the stock slippage. On a call row it is the mean premium return, ask notional against the booked P&L, which includes the haircut and the option fees. Expectancy is dollars per closed trade after those costs.
+
+| Book | OOS trades | Win rate | Avg move | Expectancy | PF | Sharpe | Max DD | OOS ending | IS trades | IS ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| stock, next level | 286 | 50.7% | +0.2% | $1.76 | 1.13 | 0.36 | -46.9% | $1,502.90 | 298 | $1,434.05 |
+| stock, fixed 1R | 301 | 51.2% | +0.1% | $0.21 | 1.02 | 0.14 | -44.7% | $1,062.31 | 300 | $1,269.03 |
+| stock, full reversal | 204 | 42.6% | +0.4% | $3.55 | 1.18 | 0.41 | -41.1% | $1,724.59 | 227 | $868.65 |
+| stock, quiet volume, next level | 246 | 50.4% | +0.1% | $0.30 | 1.02 | 0.14 | -37.5% | $1,073.90 | 244 | $1,816.20 |
+| 7 DTE calls, next level | 61 | 37.7% | -22.8% | $-14.96 | 0.59 | -0.64 | -93.4% | $87.67 | 92 | $26.15 |
+| 30 DTE calls, next level | 39 | 25.6% | -21.0% | $-19.32 | 0.21 | -1.33 | -75.4% | $246.43 | 65 | $73.27 |
+| 45 DTE calls, next level | 39 | 28.2% | -17.5% | $-17.16 | 0.27 | -1.03 | -69.7% | $330.78 | 77 | $97.16 |
+| 60 DTE calls, next level | 35 | 22.9% | -17.4% | $-17.49 | 0.20 | -1.05 | -64.0% | $387.79 | 57 | $96.62 |
+| 45 DTE calls, full reversal | 34 | 35.3% | -19.4% | $-20.69 | 0.39 | -0.88 | -73.3% | $296.56 | 67 | $85.93 |
+
+Random dates, same count and the same stop distance, with a 1R target because the shuffled bar has no original level: 322 out-of-sample trades, ending $3,502.34, expectancy $7.77. SPY buy and hold over that window, whole shares that fit in $1,000: 4 shares, ending $3,242.23.
+
+UNH on 2026-10-06, the five-year daily used as the check. Yahoo's adjusted bar closed at 375.48 (open 379.03, high 380.41, low 374.44). The 9 EMA is 374.14, the 20 EMA is 377.63, and the 50 EMA is 385.95. RSI(14) is 45.5 and turning down. The MACD line is -5.07. The histogram is 0.86, higher than the prior bar's 0.61. The bounce trendline, the latest pivot high joined to the nearest earlier higher pivot, is 356.22 and is under the close. Setup C's longer line, from 2026-07-29 at 429.04 through 2026-09-09 at 404.04, is 387.67 on this close, which is the line near 390-400. This study did not switch to that line. The five-year high is 601.33 on 2024-11-11 and the low is 227.08 on 2025-08-01. The heaviest volume day in the window is 2025-05-15, low 239.21, volume 121,849,200.
+
+The detector marked 34 UNH bounces in that five-year window. 5 of them tagged a drawn band, counting a low within $8 of the band. None of them tagged the 330-350 band.
+
+| Signal | Low | Close | RSI | Next target | Full-reversal target | Band |
+|---|---:|---:|---:|---:|---:|---|
+| 2022-09-01 | 475.20 | 483.42 | 43.4 | 491.49 | 502.19 | 480 |
+| 2025-02-19 | 476.75 | 489.09 | 41.0 | 504.74 | 511.75 | 480 |
+| 2025-07-11 | 288.45 | 294.36 | 44.7 | 301.36 | 306.41 | 290-300 |
+| 2025-11-21 | 303.36 | 311.67 | 41.2 | 320.44 | 325.34 | 290-300 |
+| 2026-08-05 | 395.37 | 410.22 | 46.8 | 429.04 | 431.64 | 375-390 |
+
+The default stock row does not meet a 1.10 profit factor, a 0.40 Sharpe, a drawdown no worse than -30%, and 300 trades. The full-reversal stock row is higher out of sample and its in-sample book ended lower. It still fails the drawdown and the 300-trade test, and it is not selected. Trade counts differ across the stock rows because the account holds one position, so an earlier exit frees the next signal. The chart is `reports/setups/readBOUNCE_UNH_1d.png`. Gold triangles are the bounce signals. Dashed lines are the drawn levels. Shaded bands are 290-300, 330-350, and 375-390.
+
+Not added to `config/optional_strategies.json`. The published A-D books are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_BOUNCE_END -->

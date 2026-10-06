@@ -1,0 +1,132 @@
+{
+  "unh": {
+    "close": 375.4849853515625,
+    "rsi": 45.460978470609795,
+    "macd": -5.070888671739169,
+    "ema9": 374.14414458819977,
+    "ema20": 377.62666798556927,
+    "trend": 356.2210568285575,
+    "signals": 34,
+    "band_tags": 5
+  },
+  "books": [
+    {
+      "label": "stock, next level",
+      "oos_trades": 286,
+      "oos_ending": 1502.896294555413,
+      "oos_expectancy": 1.758378652291654,
+      "oos_win_rate": 0.506993006993007,
+      "oos_move": 0.001991727540462711,
+      "oos_pf": 1.1328781053271508,
+      "oos_sharpe": 0.3563990843030566,
+      "oos_dd": -0.4686010768138217,
+      "is_ending": 1434.0467561841022,
+      "premium_skipped": 2
+    },
+    {
+      "label": "stock, fixed 1R",
+      "oos_trades": 301,
+      "oos_ending": 1062.30913098615,
+      "oos_expectancy": 0.20700707968820511,
+      "oos_win_rate": 0.5116279069767442,
+      "oos_move": 0.0007520317400910138,
+      "oos_pf": 1.0161154873770615,
+      "oos_sharpe": 0.144669165120576,
+      "oos_dd": -0.4473573498307509,
+      "is_ending": 1269.0283910686705,
+      "premium_skipped": 3
+    },
+    {
+      "label": "stock, full reversal",
+      "oos_trades": 204,
+      "oos_ending": 1724.5932240963348,
+      "oos_expectancy": 3.5519275690996785,
+      "oos_win_rate": 0.4264705882352941,
+      "oos_move": 0.003793114285914606,
+      "oos_pf": 1.1848057454134637,
+      "oos_sharpe": 0.40997221229511904,
+      "oos_dd": -0.41117597661034133,
+      "is_ending": 868.6483933080171,
+      "premium_skipped": 1
+    },
+    {
+      "label": "stock, quiet volume, next level",
+      "oos_trades": 246,
+      "oos_ending": 1073.901448324451,
+      "oos_expectancy": 0.3004123915628087,
+      "oos_win_rate": 0.5040650406504065,
+      "oos_move": 0.0007474221274382431,
+      "oos_pf": 1.0195636178354104,
+      "oos_sharpe": 0.13787396787175635,
+      "oos_dd": -0.3749501763761395,
+      "is_ending": 1816.2037384610414,
+      "premium_skipped": 1
+    },
+    {
+      "label": "7 DTE calls, next level",
+      "oos_trades": 61,
+      "oos_ending": 87.67083992393239,
+      "oos_expectancy": -14.956215738951931,
+      "oos_win_rate": 0.3770491803278688,
+      "oos_move": -0.22794197653523096,
+      "oos_pf": 0.5904054043832123,
+      "oos_sharpe": -0.6361493026918709,
+      "oos_dd": -0.934116692139022,
+      "is_ending": 26.14876619479249,
+      "premium_skipped": 1055
+    },
+    {
+      "label": "30 DTE calls, next level",
+      "oos_trades": 39,
+      "oos_ending": 246.42723995734548,
+      "oos_expectancy": -19.322378462632162,
+      "oos_win_rate": 0.2564102564102564,
+      "oos_move": -0.20993190080496854,
+      "oos_pf": 0.21117517542140088,
+      "oos_sharpe": -1.3262666735158253,
+      "oos_dd": -0.7535727600426545,
+      "is_ending": 73.26876180146346,
+      "premium_skipped": 1118
+    },
+    {
+      "label": "45 DTE calls, next level",
+      "oos_trades": 39,
+      "oos_ending": 330.77741123405116,
+      "oos_expectancy": -17.15955355810125,
+      "oos_win_rate": 0.28205128205128205,
+      "oos_move": -0.17513881373540374,
+      "oos_pf": 0.2682414386162795,
+      "oos_sharpe": -1.0346086384670443,
+      "oos_dd": -0.6965685099270544,
+      "is_ending": 97.1560652295612,
+      "premium_skipped": 1126
+    },
+    {
+      "label": "60 DTE calls, next level",
+      "oos_trades": 35,
+      "oos_ending": 387.7881679758176,
+      "oos_expectancy": -17.491766629262365,
+      "oos_win_rate": 0.22857142857142856,
+      "oos_move": -0.17438829626279778,
+      "oos_pf": 0.20306941085417832,
+      "oos_sharpe": -1.052157427697729,
+      "oos_dd": -0.6404392560474891,
+      "is_ending": 96.61599336902975,
+      "premium_skipped": 1123
+    },
+    {
+      "label": "45 DTE calls, full reversal",
+      "oos_trades": 34,
+      "oos_ending": 296.56235891234223,
+      "oos_expectancy": -20.689342384931106,
+      "oos_win_rate": 0.35294117647058826,
+      "oos_move": -0.19364208023309842,
+      "oos_pf": 0.3887173636665043,
+      "oos_sharpe": -0.881152337157126,
+      "oos_dd": -0.7327429211667649,
+      "is_ending": 85.93360049054931,
+      "premium_skipped": 1110
+    }
+  ],
+  "random_ending": 3502.3445765423835
+}

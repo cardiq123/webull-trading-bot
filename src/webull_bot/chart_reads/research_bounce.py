@@ -172,6 +172,15 @@ def _score_one(setups, frames, params, expression: str, dte: int | None) -> dict
     }
 
 
+def _level_sentence(share: float) -> str:
+    if share >= 0.999:
+        return "The default row had a level on every out-of-sample signal, so none of them used the 1R fallback."
+    return (
+        f"The default row had a level on {share * 100:.0f}% of its out-of-sample signals. "
+        "The rest used the 1R fallback."
+    )
+
+
 def _clears(metrics: dict) -> bool:
     trades = int(metrics.get("trades") or 0)
     pf = metrics.get("profit_factor")
@@ -361,6 +370,9 @@ def _signal_lines(rows: list[dict]) -> list[str]:
             "The rule was left as frozen."
         )
         return lines
+    zones = {row["zone"] for row in near}
+    if "330-350" not in zones:
+        lines.append("None of them tagged the 330-350 band.")
     lines.append("")
     lines.append("| Signal | Low | Close | RSI | Next target | Full-reversal target | Band |")
     lines.append("|---|---:|---:|---:|---:|---:|---|")
@@ -414,8 +426,8 @@ def render(facts: dict, books: list[tuple[str, dict]], random_oos, hold: dict, r
         "",
         f"Dow point-in-time, in sample {SCORE_FROM.isoformat()} through {IS_END.isoformat()}, "
         f"out of sample {OOS_START.isoformat()} through {SAMPLE_END.isoformat()}. "
-        f"The default row had a level on {default['level_share'] * 100:.0f}% of its out-of-sample signals. "
-        f"The other signals used the 1R fallback. Out of sample, the default stock book exited "
+        f"{_level_sentence(default['level_share'])} "
+        f"Out of sample, the default stock book exited "
         f"{target_hits} trades at the target, {stops} at the stop, and {timed} at the time stop. "
         f"The out-of-sample call books skipped {int(books[4][1]['oos'].premium_skipped)} seven-DTE entries, "
         f"{int(books[5][1]['oos'].premium_skipped)} thirty-DTE entries, "
@@ -447,7 +459,10 @@ def render(facts: dict, books: list[tuple[str, dict]], random_oos, hold: dict, r
         f"The 9 EMA is {facts['ema9']:.2f}, the 20 EMA is {facts['ema20']:.2f}, and the 50 EMA is {facts['ema50']:.2f}. "
         f"RSI(14) is {facts['rsi']:.1f} and turning {turning}. The MACD line is {facts['macd']:.2f}. "
         f"The histogram is {facts['hist']:.2f}, {flattening} the prior bar's {facts['hist_prev']:.2f}. "
-        f"The descending trendline is {trend}. The five-year high is {facts['year_high']:.2f} on "
+        f"The bounce trendline, the latest pivot high joined to the nearest earlier higher pivot, is {trend} "
+        f"and is under the close. Setup C's longer line, from 2026-07-29 at 429.04 through 2026-09-09 at 404.04, "
+        f"is 387.67 on this close, which is the line near 390-400. This study did not switch to that line. "
+        f"The five-year high is {facts['year_high']:.2f} on "
         f"{facts['year_high_day'].isoformat()} and the low is {facts['year_low']:.2f} on "
         f"{facts['year_low_day'].isoformat()}. The heaviest volume day in the window is "
         f"{facts['climax_day'].isoformat()}, low {facts['climax_low']:.2f}, volume {facts['climax_volume']:,.0f}."
@@ -458,7 +473,10 @@ def render(facts: dict, books: list[tuple[str, dict]], random_oos, hold: dict, r
     verdict = "meets" if clears else "does not meet"
     lines.append(
         f"The default stock row {verdict} a 1.10 profit factor, a 0.40 Sharpe, a drawdown no worse than -30%, "
-        f"and 300 trades. The other rows are the pre-registered comparisons. None of them is selected after the fact. "
+        f"and 300 trades. The full-reversal stock row is higher out of sample and its in-sample book ended lower. "
+        f"It still fails the drawdown and the 300-trade test, and it is not selected. "
+        f"Trade counts differ across the stock rows because the account holds one position, so an earlier exit "
+        f"frees the next signal. "
         f"The chart is `reports/setups/readBOUNCE_UNH_1d.png`. Gold triangles are the bounce signals. "
         f"Dashed lines are the drawn levels. Shaded bands are 290-300, 330-350, and 375-390."
     )
