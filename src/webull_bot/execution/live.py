@@ -176,6 +176,11 @@ def _cycle(
     costs = costs or CostModel()
     last_ts = completed["SPY"].index[-1]
     for strategy in strategies:
+        if getattr(strategy, "forward_only", False):
+            text = f"skip {strategy.name}; sandbox forward-test only. Live trading refuses it."
+            print(text)
+            journal.event("dry_run" if dry_run else "live", text, {})
+            continue
         if getattr(strategy, "custom_universe", False):
             text = f"skip {strategy.name}; backtest and paper only, no live orders"
             print(text)

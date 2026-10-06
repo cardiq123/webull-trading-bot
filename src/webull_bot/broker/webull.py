@@ -104,6 +104,7 @@ _ORDER_TYPE = {
     OrderType.LIMIT: "LIMIT",
     OrderType.STOP: "STOP_LOSS",
     OrderType.STOP_LIMIT: "STOP_LOSS_LIMIT",
+    OrderType.TRAILING: "TRAILING_STOP_LOSS",
 }
 
 
@@ -804,6 +805,8 @@ class WebullBroker(Broker):
             limit_price=order.limit_price,
             stop_price=order.stop_price,
             time_in_force=order.time_in_force.value,
+            trailing_type=order.trail_type,
+            trailing_stop_step=order.trail_step,
         )
         response = self._trade.order_v3.place_order(self.account_id, [payload])
         body = _payload(response)
@@ -943,6 +946,7 @@ def _order_from_row(row: dict) -> Order:
         "LIMIT": OrderType.LIMIT,
         "STOP_LOSS": OrderType.STOP,
         "STOP_LOSS_LIMIT": OrderType.STOP_LIMIT,
+        "TRAILING_STOP_LOSS": OrderType.TRAILING,
     }
     quantity = _first_number(row, "quantity", "qty") or 0.0
     return Order(
@@ -954,6 +958,8 @@ def _order_from_row(row: dict) -> Order:
         status=OrderStatus.NEW,
         limit_price=_first_number(row, "limit_price", "limitPrice"),
         stop_price=_first_number(row, "stop_price", "stopPrice"),
+        trail_type=(str(row.get("trailing_type") or row.get("trailingType") or "") or None),
+        trail_step=_first_number(row, "trailing_stop_step", "trailingStopStep"),
     )
 
 

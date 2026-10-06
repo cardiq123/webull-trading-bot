@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -76,6 +77,30 @@ def build_parser() -> argparse.ArgumentParser:
     paper_sim.add_argument("--sessions", type=int, default=45, help="Trading sessions at the end of the sample. Default 45.")
     paper_sim.add_argument("--report-dir", default="reports")
 
+    forward = sub.add_parser(
+        "forward-test",
+        help="One sandbox cycle of chop_breakout_60m. Live trading stays off. --dry-run does not connect.",
+    )
+    _add_config(forward)
+    forward.add_argument("strategy", choices=["chop_breakout_60m"])
+    forward.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the orders and do not connect to Webull or write the journal.",
+    )
+    forward.add_argument(
+        "--now",
+        default=None,
+        help="ISO time in America/New_York, for a scheduled slot. Default: the clock now.",
+    )
+
+    forward_report = sub.add_parser(
+        "forward-report",
+        help="Print the chop_breakout_60m forward-test journal, SPY buy-and-hold, and the random shadow.",
+    )
+    _add_config(forward_report)
+    forward_report.add_argument("strategy", choices=["chop_breakout_60m"])
+
     return parser
 
 
@@ -105,8 +130,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "check":
         return _check(config, args)
+    if args.command == "forward-test":
+        return _forward_test(config, args)
+    if args.command == "forward-report":
+        return _forward_report(config, args)
     parser.error(args.command)
     return 2
+
+
+FORWARD_ONLY = {"chop_breakout_60m"}
+
+
+def refuse_if_forward_only(names: list[str]) -> None:
+    """The live and ordinary paper paths never trade the sandbox forward test.
+
+    ``allow_unproven_strategies`` does not override this.
+    """
+    hit = [name for name in names if name in FORWARD_ONLY]
+    if not hit:
+        return
+    raise SystemExit(
+        "Refusing to run chop_breakout_60m on the paper or live book. "
+        "It is a sandbox forward test only. allow_unproven_strategies does not enable it. "
+        "Live trading stays off. "
+        "Use: python -m webull_bot forward-test chop_breakout_60m"
+    )
 
 
 def _add_config(parser: argparse.ArgumentParser) -> None:
@@ -292,6 +340,7 @@ def _paper(config, args) -> int:
     names, rationale = load_selection(config)
     if args.strategy:
         names = list(args.strategy)
+    refuse_if_forward_only(names)
     print(DISCLAIMER)
     print(rationale or "No strategy is selected. The session will not open new risk.")
     broker = PaperBroker(
@@ -357,6 +406,7 @@ def _sandbox_paper(config, args) -> int:
     names, rationale = load_selection(config)
     if args.strategy:
         names = list(args.strategy)
+    refuse_if_forward_only(names)
     print(DISCLAIMER)
     print(rationale or "No strategy is selected. The session will not open new risk.")
     print("Sandbox paper sends orders only to *.sandbox.webull.com.")
@@ -450,6 +500,7 @@ def _live(config, args) -> int:
 
     confirm_live(config.live_trading_enabled)
     names, rationale = load_selection(config)
+    refuse_if_forward_only(names)
     if not names and not config.allow_unproven_strategies:
         raise SystemExit(
             "Refusing to go live with an empty or unproven book. "
@@ -483,6 +534,79 @@ def _live(config, args) -> int:
         poll_seconds=args.poll_seconds,
         max_cycles=args.max_cycles or 1,
     )
+    return 0
+
+
+def _forward_now(args) -> datetime:
+    from zoneinfo import ZoneInfo
+
+    if args.now:
+        stamp = datetime.fromisoformat(args.now)
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=ZoneInfo("America/New_York"))
+        return stamp
+    return datetime.now(ZoneInfo("America/New_York"))
+
+
+def _forward_test(config, args) -> int:
+    """One hourly cycle. Dry-run does not connect. A real cycle is sandbox-only."""
+    from zoneinfo import ZoneInfo
+
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_chop import NAME, SYMBOLS, in_forward_window, run_cycle
+    from webull_bot.journal.store import Journal
+    from webull_bot.strategies.registry import forward_strategy
+
+    if args.strategy != NAME:
+        raise SystemExit(f"Unknown forward-test strategy {args.strategy!r}. Known: {NAME}")
+    now = _forward_now(args)
+    if not in_forward_window(now):
+        local = now.astimezone(ZoneInfo("America/New_York"))
+        print(
+            f"forward-test idle at {local.isoformat()}. "
+            "Outside the 10:35-15:35 ET window. No orders."
+        )
+        return 0
+    broker = None
+    if not args.dry_run:
+        raw = os.environ.get("WEBULL_ENV", "").strip().lower()
+        if raw not in {"sandbox", "uat", "test"}:
+            raise SystemExit(
+                "Refusing to forward-test without WEBULL_ENV=sandbox. "
+                "Orders go only to *.sandbox.webull.com. "
+                "Live trading stays off. Pass --dry-run to print the orders without connecting."
+            )
+        from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
+    end = now.date()
+    start = end - timedelta(days=720)
+    frames = provider.history(SYMBOLS, start.isoformat(), (end + timedelta(days=1)).isoformat(), "60m")
+    lines = run_cycle(
+        journal=journal,
+        frames=frames,
+        now=now,
+        strategy=forward_strategy(args.strategy),
+        broker=broker,
+        dry_run=bool(args.dry_run),
+    )
+    print("\n".join(lines))
+    return 0
+
+
+def _forward_report(config, args) -> int:
+    from webull_bot.execution.forward_chop import NAME, report_text
+    from webull_bot.journal.store import Journal
+
+    if args.strategy != NAME:
+        raise SystemExit(f"Unknown forward-test strategy {args.strategy!r}. Known: {NAME}")
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    print(report_text(journal), end="")
     return 0
 
 

@@ -52,6 +52,11 @@ class Journal:
                 updated TEXT NOT NULL,
                 PRIMARY KEY (strategy, symbol, entry_key)
             );
+            CREATE TABLE IF NOT EXISTS forward_state (
+                strategy TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
             """
         )
         self._conn.commit()
@@ -111,6 +116,28 @@ class Journal:
                 updated = excluded.updated
             """,
             (strategy, symbol, entry_key, float(peak), None if stop is None else float(stop), _now()),
+        )
+        self._conn.commit()
+
+    def forward_load(self, strategy: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT payload FROM forward_state WHERE strategy = ?",
+            (strategy,),
+        ).fetchone()
+        if row is None or not row[0]:
+            return None
+        return json.loads(row[0])
+
+    def forward_save(self, strategy: str, payload: dict[str, Any]) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO forward_state (strategy, payload, updated)
+            VALUES (?, ?, ?)
+            ON CONFLICT(strategy) DO UPDATE SET
+                payload = excluded.payload,
+                updated = excluded.updated
+            """,
+            (strategy, json.dumps(payload, default=str), _now()),
         )
         self._conn.commit()
 
