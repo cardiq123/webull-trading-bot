@@ -2447,6 +2447,266 @@ Every gated holdout row loses money, and none clears the old gate. Where a row b
 
 Not added to `config/optional_strategies.json`. The published A-D books, the earlier scale-out numbers, and the share forward test are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_SCALE_CORRECTED_END -->
+
+<!-- CHART_READS_ATM_EXIT_START -->
+## ATM 14 DTE option exits
+
+DOES NOT CHANGE THE GATE. This search was frozen before the holdout was scored. Longs buy calls and shorts buy puts, delta 0.50, 14 calendar days. Each book tried 1293 exit cells: ascending 3-rung and 2-rung ladders, runner targets at +50%, +75%, +100%, and +150%, all-out targets, one reference time-stop ladder, and runner trails of 10%, 15%, and 25% off the peak premium. Stops are -10%, -15%, -20%, -25%, -30%, and -40% of the premium. Contracts 1-4 keep that stop. The runner moves to break-even only after the first rung fills, and only at the end of that bar. A stop that gaps through fills at the worse bid. Costs are the spread haircut and the option fees. The grid was not enlarged after these numbers.
+
+The cell is the highest training Sharpe among cells with at least 30 training trades. Higher expectancy, then a milder drawdown, then the label break a tie. If no cell has 30 trades, the same rule uses cells with at least 15. The sized account is the training median equity that puts that cell's stop near 2% of the account, and at least the five-lot debit. Random entries keep the symbols, directions, and count, shuffle the timestamps with seed 17, and use that same cell and equity. SPY buy and hold is whole shares of that equity, 6 bps of slippage each side. Walk-forward re-selects inside the training span. It does not replace the cell.
+
+A time stop is N trading sessions, the same clock as the existing hold. Hourly books try 2, 5, and 10 sessions. Daily books try 3, 7, and 14. Expiry at 14 DTE still applies, so the earlier of the two exits wins. The reference ladder for the time stop and the trail is 2 at +15%, 1 at +25%, 1 at +40%, runner +100%, and it was fixed before the run. Other cells keep the book's existing session hold.
+
+### Chop-v2 60-minute box breakout
+
+283 signals on the named list, frozen chop-v2 box, no cell override. Calls and puts follow the setup. 14 DTE, delta 0.50. This is the forward-test candidate.
+Holdout 2025-10-13 through 2026-10-06. Opened training quotes 139, failed opens 5. Median debit $3,970.80. Median delta 0.48. Quotes that fit five contracts in $1,000: 0 of 139. Cells tried: 1293. Cells with at least 30 training trades: 1048. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `C all-out +100% stop -40%`. highest training Sharpe among cells with at least 30 training trades. Sized account $79,435.22.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 52 | 23.1% | -16.7% | $-1,179.09 | 0.33 | -2.29 | -84.0% | $18,122.44 |
+| holdout, chosen cell | 52 | 21.2% | -23.7% | $-1,440.98 | 0.37 | -3.23 | -94.3% | $4,504.36 |
+| random entries, same cell | 43 | 16.3% | -30.8% | $-1,826.15 | 0.20 | -3.52 | -98.9% | $910.67 |
+| SPY buy and hold | 1 | 100.0% | n/a | $15,291.17 | n/a | 1.48 | -8.9% | $94,726.39 |
+| $1,000 holdout | 0 | 0.0% | n/a | $0.00 | 0.00 | 0.00 | 0.0% | $1,000.00 |
+
+Holdout: 52 trades, expectancy $-1,440.98, profit factor 0.37, Sharpe -3.23, max drawdown -94.3%, ending $4,504.36. It does not clear the old gate. It beats the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+48 hit 0, 4 hit 1, 0 hit 2, 0 hit 3, 0 hit 4. Runner outcomes: all_out 4, initial_stop 39, time_stop 9. Armed after the first rung: 0.
+Multiple testing: 1293 cells were tried. The training Sharpe is -2.29 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 4.68 annualized. The deflated Sharpe probability is 0.0% (skew 0.74, kurtosis 7.26, 146 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| C all-out +100% stop -30% | -3.69 | $-1,056.95 | -97.6% | 55 | -2.13 | $-965.65 | -92.4% | 57 | $4,540.40 |
+| C all-out +75% stop -40% | -2.41 | $-1,066.93 | -84.9% | 56 | -3.24 | $-1,373.94 | -93.4% | 54 | $5,242.19 |
+
+0 of 2 neighbors have a positive training Sharpe. 0 of 2 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-826.03 on 44 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2024-10-17 through 2025-01-15 | 2025-01-16 through 2025-04-15 | none | 0 | n/a | n/a | n/a | n/a |
+| 2024-10-17 through 2025-04-15 | 2025-04-16 through 2025-07-15 | C all-out +75% stop -20% | 26 | $-1,392.70 | -22.41 | -85.8% | $6,002.08 |
+| 2024-10-17 through 2025-07-15 | 2025-07-16 through 2025-10-10 | C all-out +100% stop -30% | 18 | $-7.49 | 0.15 | -15.3% | $64,455.96 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 52 trades, expectancy $-1,440.98, Sharpe -3.23, max drawdown -94.3%, ending $4,504.36. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. walk-forward pooled expectancy is not positive.
+
+### Partial bounce, daily Dow
+
+2508 signals. Same bounce entry. Calls, 14 DTE, delta 0.50. Holdout 2019-01-01 through 2026-10-06.
+Holdout 2019-01-01 through 2026-10-06. Opened training quotes 1270, failed opens 15. Median debit $464.06. Median delta 0.50. Quotes that fit five contracts in $1,000: 1097 of 1270. Cells tried: 1293. Cells with at least 30 training trades: 1078. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `B stop -40% rungs +20%/+30% runner +150%`. highest training Sharpe among cells with at least 30 training trades. Sized account $9,298.27.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 110 | 36.4% | -23.8% | $-84.29 | 0.26 | -1.96 | -99.7% | $26.78 |
+| holdout, chosen cell | 36 | 33.3% | -20.2% | $-256.81 | 0.26 | -4.41 | -99.4% | $53.04 |
+| random entries, same cell | 77 | 45.5% | -19.1% | $-120.54 | 0.48 | -2.93 | -99.8% | $16.31 |
+| SPY buy and hold | 1 | 100.0% | n/a | $23,543.36 | n/a | 0.95 | -33.5% | $32,841.63 |
+| $1,000 holdout | 10 | 10.0% | -30.4% | $-96.26 | 0.08 | -7.33 | -96.7% | $37.38 |
+
+Holdout: 36 trades, expectancy $-256.81, profit factor 0.26, Sharpe -4.41, max drawdown -99.4%, ending $53.04. It does not clear the old gate. It does not beat the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+21 hit 0, 3 hit 1, 6 hit 2, 6 hit 3, 0 hit 4. Runner outcomes: breakeven 8, initial_stop 22, target 6. Armed after the first rung: 15.
+Multiple testing: 1293 cells were tried. The training Sharpe is -1.96 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 3.39 annualized. The deflated Sharpe probability is 0.0% (skew 0.77, kurtosis 19.20, 283 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| B stop -30% rungs +20%/+30% runner +150% | -7.47 | $-83.75 | -99.6% | 83 | -6.03 | $-160.00 | -98.6% | 43 | $99.05 |
+| B stop -40% rungs +20%/+30% runner +100% | -2.69 | $-86.72 | -99.8% | 107 | -4.98 | $-263.52 | -99.2% | 35 | $74.98 |
+| B stop -40% rungs +15%/+30% runner +150% | -3.04 | $-83.67 | -99.9% | 111 | -4.44 | $-236.48 | -99.2% | 39 | $75.66 |
+| B stop -40% rungs +25%/+30% runner +150% | -2.88 | $-91.87 | -99.8% | 101 | -3.50 | $-249.29 | -99.2% | 37 | $74.43 |
+
+0 of 4 neighbors have a positive training Sharpe. 0 of 4 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-107.60 on 198 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2010-01-01 through 2012-12-31 | 2013-01-01 through 2014-12-31 | B stop -40% rungs +10%/+40% runner +150% | 79 | $-81.25 | -2.74 | -99.0% | $65.53 |
+| 2010-01-01 through 2014-12-31 | 2015-01-01 through 2016-12-31 | B stop -40% rungs +25%/+30% runner +150% | 51 | $-137.76 | -4.77 | -99.2% | $53.71 |
+| 2010-01-01 through 2016-12-31 | 2017-01-01 through 2018-12-31 | B stop -40% rungs +40%/+50% runner +150% | 68 | $-115.60 | -2.13 | -96.8% | $259.61 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 36 trades, expectancy $-256.85, Sharpe -3.80, max drawdown -99.4%, ending $51.63. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. it does not beat random entries on Sharpe with a drawdown that is not worse. walk-forward pooled expectancy is not positive.
+
+### A, 60-minute
+
+457 continuation signals. Calls, 14 DTE, delta 0.50.
+Holdout 2025-10-13 through 2026-10-06. Opened training quotes 225, failed opens 10. Median debit $3,903.52. Median delta 0.49. Quotes that fit five contracts in $1,000: 0 of 225. Cells tried: 1293. Cells with at least 30 training trades: 1078. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `C all-out +100% stop -40%`. highest training Sharpe among cells with at least 30 training trades. Sized account $78,089.54.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 72 | 22.2% | -17.8% | $-497.11 | 0.70 | -0.40 | -67.1% | $42,297.45 |
+| holdout, chosen cell | 77 | 24.7% | -12.9% | $-721.28 | 0.62 | -1.70 | -74.2% | $22,551.10 |
+| random entries, same cell | 88 | 28.4% | -13.1% | $-753.91 | 0.61 | -1.95 | -87.2% | $11,745.10 |
+| SPY buy and hold | 1 | 100.0% | n/a | $15,038.42 | n/a | 1.48 | -8.9% | $93,127.96 |
+| $1,000 holdout | 0 | 0.0% | n/a | $0.00 | 0.00 | 0.00 | 0.0% | $1,000.00 |
+
+Holdout: 77 trades, expectancy $-721.28, profit factor 0.62, Sharpe -1.70, max drawdown -74.2%, ending $22,551.10. It does not clear the old gate. It beats the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+64 hit 0, 13 hit 1, 0 hit 2, 0 hit 3, 0 hit 4. Runner outcomes: all_out 13, initial_stop 51, time_stop 12, window_end 1. Armed after the first rung: 0.
+Multiple testing: 1293 cells were tried. The training Sharpe is -0.40 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 4.12 annualized. The deflated Sharpe probability is 0.0% (skew 6.83, kurtosis 62.46, 195 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| C all-out +100% stop -30% | -3.47 | $-1,151.72 | -98.3% | 50 | -2.52 | $-830.82 | -97.9% | 69 | $1,246.71 |
+| C all-out +75% stop -40% | -2.02 | $-888.80 | -86.5% | 76 | -2.93 | $-997.93 | -97.2% | 76 | $2,246.69 |
+
+0 of 2 neighbors have a positive training Sharpe. 0 of 2 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-880.87 on 70 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2024-10-17 through 2025-01-15 | 2025-01-16 through 2025-04-15 | C all-out +15% stop -30% | 32 | $-1,264.25 | -9.10 | -71.2% | $16,392.29 |
+| 2024-10-17 through 2025-04-15 | 2025-04-16 through 2025-07-15 | C all-out +75% stop -30% | 17 | $517.32 | 1.26 | -14.6% | $68,439.09 |
+| 2024-10-17 through 2025-07-15 | 2025-07-16 through 2025-10-10 | C all-out +100% stop -40% | 21 | $-1,428.54 | -6.05 | -36.0% | $53,398.62 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 77 trades, expectancy $-721.28, Sharpe -1.70, max drawdown -74.2%, ending $22,551.10. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. walk-forward pooled expectancy is not positive.
+
+### B, 60-minute
+
+235 failed-breakout signals. Calls and puts follow the setup. 14 DTE, delta 0.50.
+Holdout 2025-10-13 through 2026-10-06. Opened training quotes 112, failed opens 2. Median debit $3,742.78. Median delta -0.49. Quotes that fit five contracts in $1,000: 0 of 112. Cells tried: 1293. Cells with at least 30 training trades: 1078. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `C all-out +100% stop -30%`. highest training Sharpe among cells with at least 30 training trades. Sized account $56,162.17.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 63 | 25.4% | -8.4% | $-235.83 | 0.82 | -0.67 | -46.4% | $41,304.97 |
+| holdout, chosen cell | 37 | 10.8% | -25.6% | $-1,497.59 | 0.15 | -5.36 | -98.7% | $751.44 |
+| random entries, same cell | 44 | 13.6% | -25.0% | $-1,238.62 | 0.26 | -5.73 | -97.0% | $1,662.79 |
+| SPY buy and hold | 1 | 100.0% | n/a | $10,741.73 | n/a | 1.48 | -8.8% | $66,903.90 |
+| $1,000 holdout | 0 | 0.0% | n/a | $0.00 | 0.00 | 0.00 | 0.0% | $1,000.00 |
+
+Holdout: 37 trades, expectancy $-1,497.59, profit factor 0.15, Sharpe -5.36, max drawdown -98.7%, ending $751.44. It does not clear the old gate. It does not beat the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+35 hit 0, 2 hit 1, 0 hit 2, 0 hit 3, 0 hit 4. Runner outcomes: all_out 2, initial_stop 33, time_stop 2. Armed after the first rung: 0.
+Multiple testing: 1293 cells were tried. The training Sharpe is -0.67 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 4.61 annualized. The deflated Sharpe probability is 0.0% (skew 2.69, kurtosis 17.49, 148 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| C all-out +100% stop -25% | -1.66 | $-511.20 | -75.8% | 67 | -6.89 | $-1,295.98 | -96.9% | 35 | $1,446.75 |
+| C all-out +100% stop -40% | -2.06 | $-709.80 | -57.7% | 50 | -2.61 | $-1,169.88 | -88.4% | 56 | $9,361.17 |
+| C all-out +75% stop -30% | -2.27 | $-561.36 | -68.4% | 65 | -5.52 | $-1,127.81 | -98.5% | 49 | $899.60 |
+
+0 of 3 neighbors have a positive training Sharpe. 0 of 3 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-899.94 on 49 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2024-10-17 through 2025-01-15 | 2025-01-16 through 2025-04-15 | C all-out +75% stop -30% | 15 | $-166.23 | -0.00 | -23.4% | $49,207.03 |
+| 2024-10-17 through 2025-04-15 | 2025-04-16 through 2025-07-15 | C all-out +75% stop -30% | 15 | $-1,930.21 | -5.09 | -49.0% | $30,882.34 |
+| 2024-10-17 through 2025-07-15 | 2025-07-16 through 2025-10-10 | C all-out +100% stop -30% | 19 | $-665.81 | -4.32 | -21.1% | $47,842.81 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 56 trades, expectancy $-1,169.88, Sharpe -2.61, max drawdown -88.4%, ending $9,361.17. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. it does not beat random entries on Sharpe with a drawdown that is not worse. walk-forward pooled expectancy is not positive.
+
+### C, daily Dow
+
+1838 signals. Same daily entries. Calls, 14 DTE, delta 0.50.
+Holdout 2019-01-01 through 2026-10-06. Opened training quotes 967, failed opens 18. Median debit $408.04. Median delta 0.50. Quotes that fit five contracts in $1,000: 869 of 967. Cells tried: 1293. Cells with at least 30 training trades: 1078. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `B stop -40% rungs +15%/+30% runner +100%`. highest training Sharpe among cells with at least 30 training trades. Sized account $8,177.78.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 102 | 26.5% | -28.1% | $-79.91 | 0.15 | -3.55 | -99.7% | $26.88 |
+| holdout, chosen cell | 42 | 28.6% | -27.3% | $-192.42 | 0.13 | -6.01 | -98.8% | $96.00 |
+| random entries, same cell | 63 | 39.7% | -19.2% | $-127.62 | 0.41 | -2.20 | -98.5% | $137.88 |
+| SPY buy and hold | 1 | 100.0% | n/a | $20,740.58 | n/a | 0.95 | -33.6% | $28,918.37 |
+| $1,000 holdout | 11 | 27.3% | -30.3% | $-85.21 | 0.12 | -5.84 | -93.8% | $62.74 |
+
+Holdout: 42 trades, expectancy $-192.42, profit factor 0.13, Sharpe -6.01, max drawdown -98.8%, ending $96.00. It does not clear the old gate. It does not beat the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+23 hit 0, 6 hit 1, 10 hit 2, 3 hit 3, 0 hit 4. Runner outcomes: breakeven 11, initial_stop 28, target 3. Armed after the first rung: 19.
+Multiple testing: 1293 cells were tried. The training Sharpe is -3.55 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 2.56 annualized. The deflated Sharpe probability is 0.0% (skew -2.88, kurtosis 21.22, 260 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| B stop -30% rungs +15%/+30% runner +100% | -5.99 | $-77.40 | -99.6% | 79 | -5.73 | $-137.77 | -98.8% | 44 | $76.60 |
+| B stop -40% rungs +15%/+30% runner +75% | -5.72 | $-94.89 | -99.8% | 86 | -5.76 | $-175.82 | -98.9% | 46 | $89.88 |
+| B stop -40% rungs +15%/+30% runner +150% | -4.83 | $-84.19 | -99.9% | 97 | -5.85 | $-193.25 | -99.3% | 42 | $61.38 |
+| B stop -40% rungs +10%/+30% runner +100% | -4.28 | $-81.65 | -99.8% | 100 | -6.14 | $-192.94 | -99.1% | 42 | $74.17 |
+| B stop -40% rungs +20%/+30% runner +100% | -3.63 | $-85.82 | -99.7% | 95 | -5.85 | $-213.25 | -99.1% | 38 | $74.14 |
+
+0 of 5 neighbors have a positive training Sharpe. 0 of 5 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-132.70 on 148 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2010-01-01 through 2012-12-31 | 2013-01-01 through 2014-12-31 | A stop -40% rungs +25%/+40%/+50% runner +150% | 52 | $-111.08 | -4.52 | -99.1% | $57.19 |
+| 2010-01-01 through 2014-12-31 | 2015-01-01 through 2016-12-31 | C all-out +50% stop -40% | 49 | $-129.78 | -2.25 | -98.3% | $112.74 |
+| 2010-01-01 through 2016-12-31 | 2017-01-01 through 2018-12-31 | B stop -40% rungs +10%/+20% runner +150% | 47 | $-159.67 | -6.09 | -99.4% | $48.34 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 37 trades, expectancy $-218.49, Sharpe -3.62, max drawdown -98.9%, ending $93.63. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. it does not beat random entries on Sharpe with a drawdown that is not worse. walk-forward pooled expectancy is not positive.
+
+### D, daily Dow
+
+292 signals. Same daily entries. Calls and puts follow the setup. 14 DTE, delta 0.50.
+Holdout 2019-01-01 through 2026-10-06. Opened training quotes 171, failed opens 5. Median debit $392.92. Median delta 0.41. Quotes that fit five contracts in $1,000: 152 of 171. Cells tried: 1293. Cells with at least 30 training trades: 863. Training cells with positive expectancy: 0.
+Chosen on training only, before the holdout: `C all-out +100% stop -40%`. highest training Sharpe among cells with at least 30 training trades. Sized account $7,875.43.
+
+| Sample | Trades | Win rate | Avg capture | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| training, chosen cell | 69 | 14.5% | -28.0% | $-112.44 | 0.24 | -2.39 | -98.6% | $116.90 |
+| holdout, chosen cell | 25 | 8.0% | -39.4% | $-309.45 | 0.22 | -6.41 | -98.2% | $139.15 |
+| random entries, same cell | 21 | 19.0% | -21.7% | $-364.46 | 0.14 | -6.63 | -97.3% | $221.79 |
+| SPY buy and hold | 1 | 100.0% | n/a | $19,619.47 | n/a | 0.95 | -33.1% | $27,494.90 |
+| $1,000 holdout | 10 | 20.0% | -20.9% | $-82.65 | 0.47 | -1.94 | -84.8% | $173.48 |
+
+Holdout: 25 trades, expectancy $-309.45, profit factor 0.22, Sharpe -6.41, max drawdown -98.2%, ending $139.15. It does not clear the old gate. It does not beat the random entries. It does not beat SPY buy and hold on Sharpe with a drawdown that is not worse.
+23 hit 0, 2 hit 1, 0 hit 2, 0 hit 3, 0 hit 4. Runner outcomes: all_out 2, initial_stop 23. Armed after the first rung: 0.
+Multiple testing: 1293 cells were tried. The training Sharpe is -2.39 annualized. The Sharpe expected from the best of 1293 zero-edge tries, on a sample of this length and shape, is about 4.21 annualized. The deflated Sharpe probability is 0.0% (skew 0.69, kurtosis 14.66, 187 return observations). A high training Sharpe with a deflated Sharpe near zero is what trying this many cells produces when there is no edge. This probability does not include the other books. Six books were selected, plus one pooled cell, so the chance that some book looks good is higher than one book's deflated Sharpe says.
+
+Neighbors are the adjacent stop, runner, first rung, trail, or time stop inside the frozen grid. Their holdout numbers were not used to pick the cell.
+
+| Neighbor | Train Sharpe | Train exp. | Train DD | Train trades | Holdout Sharpe | Holdout exp. | Holdout DD | Holdout trades | Holdout ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| C all-out +100% stop -30% | -5.87 | $-102.43 | -98.8% | 57 | -12.42 | $-299.92 | -96.4% | 19 | $213.41 |
+| C all-out +75% stop -40% | -3.65 | $-109.79 | -99.0% | 71 | -4.68 | $-299.86 | -99.0% | 26 | $79.00 |
+
+0 of 2 neighbors have a positive training Sharpe. 0 of 2 have a positive holdout expectancy and an ending equity above the start.
+
+Walk-forward pooled expectancy $-157.30 on 74 test trades. Each fold's cell was chosen on that fold's training window only.
+
+| Fold train | Fold test | Cell chosen on that train | Test trades | Test exp. | Test Sharpe | Test DD | Test ending |
+|---|---|---|---:|---:|---:|---:|---:|
+| 2010-01-01 through 2012-12-31 | 2013-01-01 through 2014-12-31 | B stop -40% rungs +40%/+50% runner +150% | 30 | $-125.02 | -3.58 | -73.8% | $1,648.51 |
+| 2010-01-01 through 2014-12-31 | 2015-01-01 through 2016-12-31 | C all-out +100% stop -40% | 18 | $-298.47 | -9.12 | -93.6% | $368.17 |
+| 2010-01-01 through 2016-12-31 | 2017-01-01 through 2018-12-31 | C all-out +100% stop -40% | 26 | $-96.81 | -0.93 | -40.9% | $4,008.38 |
+
+Pooled training cell on this holdout: `C all-out +100% stop -40%`. 25 trades, expectancy $-309.45, Sharpe -6.41, max drawdown -98.2%, ending $139.15. The pooled cell does not replace this book's cell.
+
+This cell does not meet the pre-registered hold-up bar. holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. it does not beat random entries on Sharpe with a drawdown that is not worse. walk-forward pooled expectancy is not positive.
+
+### Pooled cell
+
+The pooled cell is `C all-out +100% stop -40%`. It is the highest mean training Sharpe across books where that cell has at least 30 training trades, and it has to clear that bar on at least 4 books. highest training Sharpe among cells with at least 30 training trades. It was chosen before any holdout score. It is not wired unless it is also the chop book's own cell and that cell holds up.
+
+No chosen cell is profitable on its untouched holdout after costs. Profit here means expectancy above zero and ending equity above the start. Costs are the spread haircut, the option fees, and a gap fill at the worse bid.
+
+The chop book's cell does not hold up, so the sandbox options sub-book is unchanged. It is still the corrected ladder: 21 DTE, delta 0.45, contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. Live trading stays off.
+
+Not added to `config/optional_strategies.json`. The published scale-out numbers and the share forward test are unchanged. The default book is still dual momentum.
+<!-- CHART_READS_ATM_EXIT_END -->
 <!-- CHART_READS_HOLD_START -->
 ## Chop-hold retest
 

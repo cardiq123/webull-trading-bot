@@ -534,7 +534,11 @@ def render(payload: dict) -> str:
         if book["holds_up"]:
             lines.append("This cell meets the pre-registered hold-up bar.")
         else:
-            lines.append("This cell does not meet the pre-registered hold-up bar. " + " ".join(book["hold_reasons"]))
+            lines.append(
+                "This cell does not meet the pre-registered hold-up bar. "
+                + ". ".join(book["hold_reasons"])
+                + "."
+            )
         lines.append("")
     pooled = payload["pooled"]
     lines.append("### Pooled cell")
