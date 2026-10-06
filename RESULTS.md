@@ -1122,3 +1122,146 @@ Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at l
 
 
 
+
+<!-- CHART_READS_SR_START -->
+## Support and resistance level set
+
+DOES NOT CHANGE THE GATE. Setups A, B, C, and D keep the targets already scored. This section only asks which objective level, used as the profit target on those same signals, improves the out-of-sample fractional-stock book. The definitions below were frozen before this score. Nothing was sent to a broker.
+
+These rows met the pre-registered improvement test: floor pivots PP R1 S1 R2 S2 on A, 60-minute; flipped S/R on C, daily Dow; confluence, two or more sources on C, daily Dow; horizontal pivots on D, daily Dow; confluence, two or more sources on D, daily Dow; nearest of any source on D, daily Dow. Floor pivots on A, 60-minute ended at $928.24 against the published $886.97, profit factor 0.91, Sharpe -0.40, drawdown -14.8%. In sample it ended at $675.19 against $676.70. Flipped S/R on C, daily Dow ended at $939.99 against the published $746.56, profit factor 0.98, Sharpe 0.05, drawdown -36.9%. In sample it ended at $1,030.41 against $1,129.36. Confluence, two or more sources on C, daily Dow ended at $812.57 against the published $746.56, profit factor 0.95, Sharpe -0.05, drawdown -46.5%. In sample it ended at $1,146.01 against $1,129.36. Horizontal pivots on D, daily Dow ended at $921.85 against the published $919.45, profit factor 0.92, Sharpe -0.05, drawdown -21.5%. In sample it ended at $828.26 against $1,118.89. Confluence, two or more sources on D, daily Dow ended at $970.48 against the published $919.45, profit factor 0.97, Sharpe 0.02, drawdown -18.1%. In sample it ended at $804.52 against $1,118.89. Nearest of any source on D, daily Dow ended at $922.48 against the published $919.45, profit factor 0.92, Sharpe -0.05, drawdown -20.7%. In sample it ended at $740.32 against $1,118.89. None of those rows clears a 1.10 profit factor, a 0.40 Sharpe, a drawdown no worse than -30%, and 300 trades. Meeting the test does not make the row the gate. The comparison was scored after the A-D defaults were already frozen, so choosing one of these rows now would be after the fact. None is added to the optional list or the registry.
+
+A level is known only at the close that completes it. Horizontal pivots are the last six confirmed pivot highs and the last six confirmed pivot lows, four bars on each side, inside 120 bars. Floor pivots use the prior session's high, low, and close: PP = (H+L+C)/3, R1 = 2×PP−L, S1 = 2×PP−H, R2 = PP+(H−L), S2 = PP−(H−L). Prior-day high and low are that same session. A demand or supply zone is a four-bar base no wider than 1.25 ATR followed by a bar whose body is at least 1 ATR and at least 55% of its range. The level is the near edge of the base. It expires after 60 bars or when a later close trades through the far edge. Fibonacci is 38.2%, 50%, and 61.8% of the latest confirmed swing, five to 80 bars long, with the end pivot no more than 80 bars old. The trendline is the rising line through the latest confirmed pivot low and the nearest earlier lower one, and the falling mirror on pivot highs. A flipped level is a pivot high that a later close has traded above, or a pivot low that a later close has traded below. Confluence is two or more of those sources within 0.50 ATR; the target is their average. "Nearest of any source" takes the closest single-source price.
+
+The target is the nearest level between 0.5R and 4R from the next open, on the trade side. If that source has no such level, the target is 2R. Stops, the 20 EMA trail, the hold limit, the one-position rule, and the 20% risk cap are unchanged. "Signals with a level" is the share of out-of-sample signals that had a level in that range, before the one-position book skipped any. A row improves the book only when the out-of-sample ending equity is higher, profit factor is not lower, max drawdown is not worse by more than five points, there are at least 20 trades, and at least 30% of the out-of-sample signals had a level. In-sample ending equity is shown so a late improvement is visible next to the training window. It is not used to pick a row.
+
+### A, 60-minute
+
+457 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 117 | $676.70 | 131 | 0.86 | -0.65 | -14.0% | $886.97 | — | — |
+| horizontal pivots | 118 | $650.32 | 131 | 0.84 | -0.81 | -17.8% | $872.42 | 42% | no |
+| floor pivots PP R1 S1 R2 S2 | 120 | $675.19 | 131 | 0.91 | -0.40 | -14.8% | $928.24 | 49% | yes |
+| prior-day high and low | 117 | $669.15 | 131 | 0.83 | -0.88 | -16.4% | $860.05 | 14% | no |
+| demand and supply zones | 117 | $674.19 | 131 | 0.83 | -0.81 | -16.4% | $863.52 | 5% | no |
+| Fibonacci 38.2/50/61.8 | 117 | $676.70 | 131 | 0.85 | -0.70 | -14.8% | $879.40 | 1% | no |
+| trendline | 119 | $696.52 | 131 | 0.97 | -0.06 | -12.6% | $976.07 | 21% | no |
+| flipped S/R | 117 | $612.32 | 131 | 0.81 | -0.95 | -16.7% | $848.03 | 11% | no |
+| confluence, two or more sources | 118 | $662.13 | 131 | 0.82 | -0.92 | -16.1% | $857.24 | 34% | no |
+| nearest of any source | 121 | $643.48 | 132 | 0.84 | -0.81 | -18.7% | $882.10 | 64% | no |
+
+### B, 60-minute
+
+235 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 70 | $972.61 | 85 | 0.86 | -0.36 | -23.8% | $921.86 | — | — |
+| horizontal pivots | 75 | $1,081.52 | 87 | 0.66 | -1.04 | -27.1% | $828.33 | 96% | no |
+| floor pivots PP R1 S1 R2 S2 | 75 | $849.77 | 86 | 0.77 | -0.68 | -26.8% | $876.10 | 61% | no |
+| prior-day high and low | 71 | $960.15 | 85 | 0.86 | -0.35 | -24.3% | $924.03 | 19% | no |
+| demand and supply zones | 70 | $1,028.75 | 85 | 0.93 | -0.13 | -22.1% | $961.54 | 20% | no |
+| Fibonacci 38.2/50/61.8 | 70 | $973.55 | 85 | 0.86 | -0.36 | -23.8% | $921.86 | 5% | no |
+| trendline | 71 | $1,054.39 | 85 | 0.82 | -0.49 | -25.2% | $899.22 | 24% | no |
+| flipped S/R | 70 | $949.21 | 88 | 0.76 | -0.68 | -25.0% | $877.49 | 74% | no |
+| confluence, two or more sources | 71 | $877.66 | 87 | 0.72 | -0.88 | -26.3% | $851.92 | 87% | no |
+| nearest of any source | 75 | $925.37 | 87 | 0.68 | -0.96 | -27.1% | $839.06 | 97% | no |
+
+### A and B, 60-minute
+
+692 signals. In sample 2024-10-17 through 2025-10-10. Out of sample 2025-10-13 through 2026-10-06. Named large-cap list. Stock only. Hourly history is inside the free Yahoo cap, so the sample is short.
+
+The published-target row matches the gated out-of-sample stock book ($967.77 on 164 trades).
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 134 | $880.43 | 164 | 0.97 | -0.03 | -19.9% | $967.77 | — | — |
+| horizontal pivots | 144 | $938.34 | 169 | 0.89 | -0.39 | -18.4% | $896.81 | 61% | no |
+| floor pivots PP R1 S1 R2 S2 | 144 | $795.34 | 172 | 0.94 | -0.20 | -19.7% | $935.40 | 53% | no |
+| prior-day high and low | 140 | $819.95 | 165 | 0.96 | -0.08 | -19.8% | $956.97 | 15% | no |
+| demand and supply zones | 137 | $914.55 | 169 | 1.04 | 0.29 | -14.7% | $1,040.15 | 10% | no |
+| Fibonacci 38.2/50/61.8 | 137 | $868.70 | 164 | 0.97 | -0.03 | -19.9% | $967.77 | 2% | no |
+| trendline | 136 | $938.94 | 163 | 1.02 | 0.20 | -19.5% | $1,019.61 | 22% | no |
+| flipped S/R | 133 | $838.08 | 169 | 0.93 | -0.19 | -19.2% | $934.52 | 33% | no |
+| confluence, two or more sources | 141 | $771.98 | 170 | 0.91 | -0.32 | -17.9% | $912.67 | 52% | no |
+| nearest of any source | 144 | $896.71 | 172 | 0.83 | -0.73 | -23.3% | $840.22 | 76% | no |
+
+### A and B, 15-minute
+
+397 signals. In sample 2026-08-13 through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06. Named large-cap list. Stock only. This clock is inside the free Yahoo intraday cap.
+
+The published-target row matches the gated out-of-sample stock book ($1,001.48 on 10 trades).
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | — | — |
+| horizontal pivots | 14 | $954.63 | 10 | 0.86 | -0.72 | -1.4% | $996.94 | 54% | no |
+| floor pivots PP R1 S1 R2 S2 | 14 | $954.63 | 10 | 1.32 | 1.39 | -1.4% | $1,006.30 | 63% | no |
+| prior-day high and low | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | 21% | no |
+| demand and supply zones | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | 3% | no |
+| Fibonacci 38.2/50/61.8 | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | 0% | no |
+| trendline | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | 16% | no |
+| flipped S/R | 14 | $954.63 | 10 | 1.07 | 0.39 | -1.4% | $1,001.48 | 24% | no |
+| confluence, two or more sources | 14 | $954.63 | 10 | 1.01 | 0.09 | -1.4% | $1,000.24 | 47% | no |
+| nearest of any source | 14 | $954.63 | 10 | 0.86 | -0.72 | -1.4% | $996.94 | 77% | no |
+
+### A and B, 5-minute
+
+908 signals. In sample 2026-08-13 through 2026-09-14. Out of sample 2026-09-15 through 2026-10-06. Named large-cap list. Stock only. This clock is inside the free Yahoo intraday cap.
+
+The published-target row matches the gated out-of-sample stock book ($978.07 on 11 trades).
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 15 | $1,019.80 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | — | — |
+| horizontal pivots | 15 | $1,030.19 | 11 | 0.31 | -5.79 | -2.0% | $980.43 | 44% | no |
+| floor pivots PP R1 S1 R2 S2 | 15 | $1,026.03 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | 57% | no |
+| prior-day high and low | 15 | $1,025.29 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | 23% | no |
+| demand and supply zones | 15 | $1,019.80 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | 1% | no |
+| Fibonacci 38.2/50/61.8 | 15 | $1,019.80 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | 0% | no |
+| trendline | 15 | $1,019.80 | 11 | 0.31 | -5.79 | -2.0% | $980.43 | 16% | no |
+| flipped S/R | 15 | $1,016.94 | 11 | 0.27 | -6.46 | -2.2% | $978.07 | 20% | no |
+| confluence, two or more sources | 15 | $1,016.93 | 11 | 0.31 | -5.79 | -2.0% | $980.43 | 35% | no |
+| nearest of any source | 15 | $1,017.69 | 11 | 0.31 | -5.79 | -2.0% | $980.43 | 75% | no |
+
+### C, daily Dow
+
+1838 Dow point-in-time long breakout-retest signals from 2010-01-01. In sample through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+The published-target row matches the gated out-of-sample stock book ($746.56 on 207 trades).
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 216 | $1,129.36 | 207 | 0.92 | -0.12 | -46.6% | $746.56 | — | — |
+| horizontal pivots | 233 | $1,275.58 | 228 | 0.91 | -0.14 | -44.7% | $728.89 | 63% | no |
+| floor pivots PP R1 S1 R2 S2 | 208 | $1,316.16 | 196 | 0.92 | -0.14 | -47.8% | $734.54 | 26% | no |
+| prior-day high and low | 206 | $1,197.04 | 195 | 0.92 | -0.12 | -47.3% | $744.95 | 12% | no |
+| demand and supply zones | 201 | $1,228.27 | 193 | 0.92 | -0.15 | -48.6% | $717.87 | 3% | no |
+| Fibonacci 38.2/50/61.8 | 201 | $1,217.94 | 193 | 0.93 | -0.11 | -47.6% | $754.35 | 2% | no |
+| trendline | 202 | $1,205.19 | 196 | 0.89 | -0.18 | -47.6% | $679.09 | 8% | no |
+| flipped S/R | 214 | $1,030.41 | 210 | 0.98 | 0.05 | -36.9% | $939.99 | 40% | yes |
+| confluence, two or more sources | 218 | $1,146.01 | 208 | 0.95 | -0.05 | -46.5% | $812.57 | 49% | yes |
+| nearest of any source | 242 | $1,307.27 | 225 | 0.89 | -0.18 | -48.6% | $691.44 | 71% | no |
+
+### D, daily Dow
+
+292 Dow point-in-time breakout signals from 2010-01-01. In sample through 2018-12-31. Out of sample 2019-01-01 through 2026-10-06.
+
+The published-target row matches the gated out-of-sample stock book ($919.45 on 73 trades).
+
+| Level | IS trades | IS ending | OOS trades | OOS PF | OOS Sharpe | OOS max DD | OOS ending | Signals with a level | Improves |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| published target | 99 | $1,118.89 | 73 | 0.92 | -0.03 | -26.3% | $919.45 | — | — |
+| horizontal pivots | 108 | $828.26 | 73 | 0.92 | -0.05 | -21.5% | $921.85 | 40% | yes |
+| floor pivots PP R1 S1 R2 S2 | 111 | $809.37 | 73 | 1.04 | 0.11 | -18.6% | $1,043.97 | 25% | no |
+| prior-day high and low | 105 | $814.10 | 72 | 0.99 | 0.05 | -19.6% | $993.81 | 9% | no |
+| demand and supply zones | 105 | $815.94 | 72 | 1.03 | 0.09 | -18.6% | $1,032.16 | 1% | no |
+| Fibonacci 38.2/50/61.8 | 105 | $815.94 | 72 | 1.01 | 0.07 | -18.7% | $1,014.72 | 0% | no |
+| trendline | 105 | $791.53 | 72 | 1.01 | 0.07 | -18.7% | $1,014.72 | 5% | no |
+| flipped S/R | 105 | $857.41 | 72 | 0.93 | -0.04 | -20.5% | $925.78 | 18% | no |
+| confluence, two or more sources | 108 | $804.52 | 73 | 0.97 | 0.02 | -18.1% | $970.48 | 32% | yes |
+| nearest of any source | 111 | $740.32 | 74 | 0.92 | -0.05 | -20.7% | $922.48 | 50% | yes |
+
+The level set on the last SPY daily close is in `reports/setups/readSR_SPY_1d.png`. Profit factor gate 1.10, Sharpe gate 0.40, drawdown no worse than -30%, and at least 300 trades still apply to the published defaults. This level set was not in that gate. It does not join the optional list or the registry. The default book is still dual momentum.
+<!-- CHART_READS_SR_END -->
