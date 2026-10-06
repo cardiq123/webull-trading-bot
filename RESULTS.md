@@ -2703,7 +2703,7 @@ The pooled cell is `C all-out +100% stop -40%`. It is the highest mean training 
 
 No chosen cell is profitable on its untouched holdout after costs. Profit here means expectancy above zero and ending equity above the start. Costs are the spread haircut, the option fees, and a gap fill at the worse bid.
 
-The chop book's cell does not hold up, so the sandbox options sub-book is unchanged. It is still the corrected ladder: 21 DTE, delta 0.45, contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. Live trading stays off.
+The chop book's cell does not hold up, so the exit ladder is unchanged. It is still the corrected ladder: contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. The contract is 14 DTE at the nearest strike. Live trading stays off.
 
 Not added to `config/optional_strategies.json`. The published scale-out numbers and the share forward test are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_ATM_EXIT_END -->
@@ -3135,7 +3135,7 @@ Sensitivity, cell chosen on this list's training only: `C all-out +75% stop -40%
 
 ### Wiring
 
-The Dow chop book's cell does not hold up (holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. walk-forward pooled expectancy is not positive). The sandbox options sub-book stays the corrected ladder: 21 DTE, delta 0.45, contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. It now scans the liquid list above. The share book stays on the named list. Live trading stays off.
+The Dow chop book's cell does not hold up (holdout expectancy is not positive after costs. holdout ending equity is not above the start. holdout Sharpe is not positive. walk-forward pooled expectancy is not positive). The sandbox options sub-book stays the corrected ladder: contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. The contract is 14 DTE at the nearest strike. It now scans the liquid list above. The share book stays on the named list. Live trading stays off.
 
 No Dow-gate cell is profitable out of sample after costs. No liquid-list pool is either. No symbol on either list has a positive holdout expectancy on 20 or more trades. The positive symbol rows are 1 to 7 trades and were not used to pick the cell. The earlier ATM section, on the named hourly list and the Dow daily books, is unchanged.
 

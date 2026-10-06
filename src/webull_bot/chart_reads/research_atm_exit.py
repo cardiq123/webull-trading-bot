@@ -575,9 +575,10 @@ def render(payload: dict) -> str:
         )
     else:
         lines.append(
-            "The chop book's cell does not hold up, so the sandbox options sub-book is unchanged. "
-            "It is still the corrected ladder: 21 DTE, delta 0.45, contracts 1-4 at the -20% stop, "
-            "runner break-even only after +15%, target +100%. Live trading stays off."
+            "The chop book's cell does not hold up, so the exit ladder is unchanged. "
+            "It is still the corrected ladder: contracts 1-4 at the -20% stop, "
+            "runner break-even only after +15%, target +100%. The contract is 14 DTE at the nearest strike. "
+            "Live trading stays off."
         )
     lines.append("")
     lines.append(

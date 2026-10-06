@@ -6,11 +6,15 @@ premium stop. Only the runner moves to break-even, and only after the
 bot-managed. There is no option OCO, and a stop sells only contracts the
 journal still shows open.
 
-The premium is the same Black-Scholes model as the backtest, not a Webull
-quote. Five contracts are taken only when the debit fits in $1,000. Longs
-buy calls. Shorts buy puts. The share book does not send those shorts.
-The caller passes the signals. The production cycle passes the
-pre-registered liquid list, not the share book's named list.
+The contract is 14 DTE at the money: the listed expiry closest to 14
+days and the strike nearest the spot, delta about 0.50. The entry uses a
+Webull sandbox quote when the API returns an ask. The Black-Scholes model
+is the fallback, and the journal says which one was used. Five contracts
+are skipped only when the debit is above $10,000. The paper notional is
+$25,000, with at most 3 option positions. Longs buy calls. Shorts buy puts.
+The share book does not send those shorts. The caller passes the signals.
+The production cycle passes the pre-registered liquid list, not the share
+book's named list.
 """
 
 from __future__ import annotations
@@ -24,8 +28,6 @@ import pandas as pd
 from webull_bot.broker.webull import build_single_option_order, new_client_order_id
 from webull_bot.calendar import to_ny
 from webull_bot.chart_reads.premium_scale import (
-    CORRECTED_DELTA,
-    CORRECTED_DTE,
     CORRECTED_STOP,
     SCALE_CONTRACTS,
     SCALE_TIERS,
@@ -35,13 +37,14 @@ from webull_bot.chart_reads.premium_scale import (
 from webull_bot.chart_reads.simulate import (
     DIVIDEND,
     RATE,
+    VOL_FLOOR,
     _buy,
     _option_bid,
     _realized,
-    _right_strike,
     _vol,
     _years,
 )
+from webull_bot.options.pricing import listed_strike, option_delta, option_price
 from webull_bot.execution.forward_chop import (
     MAX_HOLD_SESSIONS,
     _bar,
@@ -53,7 +56,10 @@ from webull_bot.execution.forward_chop import (
 from webull_bot.mtf_vwap.detect import rth
 from webull_bot.options.fees import CONTRACT_MULTIPLIER, option_leg_fees
 
-OPTION_CASH = 1_000.0
+FORWARD_DTE = 14
+FORWARD_DELTA = 0.50
+OPTION_NOTIONAL = 25_000.0
+OPTION_MAX_DEBIT = 10_000.0
 OPTION_MAX_POSITIONS = 3
 IV_PREMIUM = 1.15
 SPREAD_MULTIPLIER = 1.0
@@ -71,20 +77,31 @@ def option_lines(state: dict[str, Any]) -> list[str]:
     lines = [
         "Options sub-book. Corrected five-contract ladder. Sandbox paper only.",
         (
-            f"21 DTE, delta {CORRECTED_DELTA:.2f}, initial stop {CORRECTED_STOP:.0%}. "
+            f"14 DTE at the money, nearest listed strike, delta about {FORWARD_DELTA:.2f}, "
+            f"initial stop {CORRECTED_STOP:.0%}. "
             "Break-even is the runner only, after the +15% tier. "
-            f"Five contracts only when the debit fits in ${OPTION_CASH:,.0f}."
+            f"Paper notional ${OPTION_NOTIONAL:,.0f}, at most {OPTION_MAX_POSITIONS} positions. "
+            f"A five-lot is skipped only when the debit is above ${OPTION_MAX_DEBIT:,.0f}."
         ),
         "Signals",
     ]
-    lines.extend(_rows(signals, lambda row: f"- {row.get('signal_time')} {row.get('symbol')} {row.get('right')} {row.get('status')}"))
+    lines.extend(
+        _rows(
+            signals,
+            lambda row: (
+                f"- {row.get('signal_time')} {row.get('symbol')} {row.get('right')} {row.get('status')} "
+                f"{_source_label(row.get('price_source'))}"
+            ).rstrip(),
+        )
+    )
     lines.append("Orders")
     lines.extend(
         _rows(
             orders,
             lambda row: (
                 f"- {row.get('session')} {row.get('side')} {row.get('qty')} {row.get('symbol')} "
-                f"{row.get('right')} {row.get('order_type')} {row.get('limit') or ''} {row.get('status')}"
+                f"{row.get('right')} {row.get('order_type')} {row.get('limit') or ''} {row.get('status')} "
+                f"{_source_label(row.get('price_source'))}"
             ).rstrip(),
         )
     )
@@ -126,9 +143,17 @@ def mark_options(state, setups, frames, now, lines, broker, dry_run, journal) ->
     """One cycle of the options book. Dry-run prints and does not write or send."""
     _ensure(state)
     lines.append(
-        "Options sub-book, corrected ladder. Sandbox paper only. "
-        "Each tier is its own option LIMIT sell. Stops are bot-managed. No option OCO."
+        "Options sub-book, corrected ladder, 14 DTE at the money. "
+        f"Paper notional ${OPTION_NOTIONAL:,.0f}, at most {OPTION_MAX_POSITIONS} positions. "
+        f"Skip a five-lot only when the debit is above ${OPTION_MAX_DEBIT:,.0f}. "
+        "Sandbox paper only. Each tier is its own option LIMIT sell. "
+        "Stops are bot-managed. No option OCO."
     )
+    if dry_run:
+        lines.append(
+            "Dry run prices the option with the model and does not call Webull. "
+            "A sandbox cycle uses a Webull quote when the API returns an ask, and says which price was used."
+        )
     _mark_open_options(state, frames, now, lines, broker, dry_run, journal)
     for setup in setups:
         _on_option(state, setup, frames, now, lines, broker, dry_run, journal)
@@ -167,25 +192,81 @@ def _daily_from_hourly(frames) -> dict[str, pd.DataFrame]:
     return daily
 
 
+def _source_label(source) -> str:
+    if source == "webull":
+        return "Webull sandbox quote"
+    if source == "model":
+        return "Black-Scholes model, no Webull quote"
+    return ""
+
+
 def _contract(frame, symbol: str, direction: str, now, rv) -> Optional[dict]:
+    """Black-Scholes fallback. Nearest listed strike, 14 calendar days."""
     spot = _quote(frame, now)
     if spot is None:
         return None
     sigma = _vol(rv.get(symbol, pd.Series(dtype=float)), to_ny(now).date(), IV_PREMIUM)
     if sigma is None:
         return None
-    years = _years(CORRECTED_DTE, pd.Timestamp(to_ny(now)))
-    right, strike, _raw, years = _right_strike(direction, spot, years, sigma, CORRECTED_DELTA)
-    from webull_bot.options.pricing import option_delta, option_price
-
+    years = _years(FORWARD_DTE, pd.Timestamp(to_ny(now)))
+    right = "call" if direction == "long" else "put"
+    strike = listed_strike(spot, spot)
     mid = option_price(right, spot, strike, years, sigma, RATE, DIVIDEND)
     delta = option_delta(right, spot, strike, years, sigma, RATE, DIVIDEND)
     ask = _buy(mid, delta, SPREAD_MULTIPLIER)
     if ask <= 0:
         return None
+    return _pack(right, strike, _expiry_days(now, FORWARD_DTE), ask, spot, sigma, delta, years, "model")
+
+
+def _quoted_contract(broker, frame, symbol: str, direction: str, now, rv) -> Optional[dict]:
+    """Sandbox chain and snapshot. None sends the caller to the model."""
+    if broker is None:
+        return None
+    getter = getattr(broker, "option_atm_quote", None)
+    if getter is None:
+        return None
+    spot = _quote(frame, now)
+    if spot is None:
+        return None
+    option_type = "CALL" if direction == "long" else "PUT"
+    try:
+        raw = getter(symbol, option_type, float(spot), to_ny(now).date())
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    try:
+        ask = float(raw["ask"])
+        strike = float(raw["strike"])
+        expiry = str(raw["expiry"])[:10]
+    except (KeyError, TypeError, ValueError):
+        return None
+    if ask <= 0 or strike <= 0:
+        return None
+    right = "call" if option_type == "CALL" else "put"
+    sigma = _vol(rv.get(symbol, pd.Series(dtype=float)), to_ny(now).date(), IV_PREMIUM)
+    if sigma is None:
+        sigma = VOL_FLOOR
+    dte = max(0, (date.fromisoformat(expiry) - to_ny(now).date()).days)
+    years = _years(dte, pd.Timestamp(to_ny(now)))
+    delta = raw.get("delta")
+    try:
+        delta = float(delta) if delta is not None else option_delta(right, spot, strike, years, sigma, RATE, DIVIDEND)
+    except (TypeError, ValueError):
+        delta = option_delta(right, spot, strike, years, sigma, RATE, DIVIDEND)
+    packed = _pack(right, strike, expiry, ask, spot, sigma, delta, years, "webull")
+    packed["option_symbol"] = raw.get("option_symbol")
+    return packed
+
+
+def _expiry_days(now, days: int) -> str:
+    return (to_ny(now).date() + timedelta(days=days)).isoformat()
+
+
+def _pack(right, strike, expiry, ask, spot, sigma, delta, years, source: str) -> dict:
     fees = option_leg_fees(SCALE_CONTRACTS, ask, sell=False)
     debit = SCALE_CONTRACTS * ask * CONTRACT_MULTIPLIER + fees
-    expiry = (to_ny(now).date() + timedelta(days=CORRECTED_DTE)).isoformat()
     return {
         "right": right,
         "option_type": "CALL" if right == "call" else "PUT",
@@ -197,6 +278,7 @@ def _contract(frame, symbol: str, direction: str, now, rv) -> Optional[dict]:
         "delta": float(delta),
         "years": float(years),
         "spot": float(spot),
+        "price_source": source,
     }
 
 
@@ -214,7 +296,10 @@ def _on_option(state, setup, frames, now, lines, broker, dry_run, journal) -> No
         lines.append(f"Option {setup.symbol} skipped. Max {OPTION_MAX_POSITIONS} option positions.")
         return
     rv = _realized(_daily_from_hourly(frames))
-    contract = _contract(frames.get(setup.symbol), setup.symbol, setup.direction, now, rv)
+    frame = frames.get(setup.symbol)
+    contract = None if dry_run else _quoted_contract(broker, frame, setup.symbol, setup.direction, now, rv)
+    if contract is None:
+        contract = _contract(frame, setup.symbol, setup.direction, now, rv)
     record = {
         "id": signal_id,
         "symbol": setup.symbol,
@@ -223,14 +308,17 @@ def _on_option(state, setup, frames, now, lines, broker, dry_run, journal) -> No
     }
     if contract is None:
         lines.append(
-            f"Option {setup.symbol} {setup.direction} has no modeled premium. Not sent."
+            f"Option {setup.symbol} {setup.direction} has no premium. "
+            "No Webull quote and no modeled premium. Not sent."
         )
         return
     record["right"] = contract["option_type"]
-    if contract["debit"] > OPTION_CASH:
+    record["price_source"] = contract.get("price_source") or "model"
+    if contract["debit"] > OPTION_MAX_DEBIT:
         lines.append(
             f"Option {setup.symbol} {contract['option_type']} skipped. "
-            f"Five contracts cost ${contract['debit']:.2f}, above the ${OPTION_CASH:,.0f} sub-book."
+            f"Five contracts cost ${contract['debit']:.2f}, above the ${OPTION_MAX_DEBIT:,.0f} cap "
+            f"on the ${OPTION_NOTIONAL:,.0f} paper book."
         )
         if not dry_run:
             record["status"] = "too_expensive"
@@ -241,7 +329,7 @@ def _on_option(state, setup, frames, now, lines, broker, dry_run, journal) -> No
     lines.append(
         f"{verb} {SCALE_CONTRACTS} {setup.symbol} {contract['option_type']} "
         f"strike {contract['strike']:.2f} expiry {contract['expiry']} LIMIT {contract['ask']:.2f} DAY. "
-        f"Modeled ask, not a Webull quote. Debit ${contract['debit']:.2f}."
+        f"{_source_label(contract.get('price_source') or 'model')}. Debit ${contract['debit']:.2f}."
     )
     for pct, qty in SCALE_TIERS:
         limit = contract["ask"] * (1.0 + pct)
@@ -277,6 +365,7 @@ def _on_option(state, setup, frames, now, lines, broker, dry_run, journal) -> No
         "last_bar": None,
         "limits": [],
         "opened_on": to_ny(now).date().isoformat(),
+        "price_source": contract.get("price_source") or "model",
     }
     if not _place_option_orders(state, position, now, lines, broker, journal, include_entry=True):
         lines.append(f"Option entry for {setup.symbol} was not opened. Not tracked. Not sent again this attempt.")
@@ -337,7 +426,7 @@ def _bar_index(frame, now):
 
 
 def _terminal(position, now, entry_bar: bool) -> Optional[str]:
-    """Same five-session clock as the share book, and the 21 DTE expiry."""
+    """Same five-session clock as the share book, and the option expiry."""
     if entry_bar:
         return None
     today = to_ny(now).date()
@@ -638,6 +727,8 @@ def _send(
             "status": "intent",
             "kind": kind,
         }
+        if kind == "entry":
+            order["price_source"] = position.get("price_source") or "model"
         state["option_orders"].append(order)
     else:
         order = existing

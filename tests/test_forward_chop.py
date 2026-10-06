@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -582,6 +582,12 @@ def test_dry_run_prints_the_option_ladder_and_does_not_send(tmp_path, monkeypatc
     )
     text = "\n".join(lines)
     assert "Would BUY 5 NVDA CALL strike 200.00 expiry 2026-10-27 LIMIT 1.00 DAY" in text
+    assert "Black-Scholes model, no Webull quote" in text
+    assert "14 DTE at the money" in text
+    assert "Paper notional $25,000" in text
+    assert "above $10,000" in text
+    assert "Dry run prices the option with the model" in text
+    assert "Whole shares, $10,000 notional" in text
     assert "Would place SELL 2 NVDA CALL LIMIT 1.15 DAY" in text
     assert "Would place SELL 1 NVDA CALL LIMIT 1.20 DAY" in text
     assert "Would place SELL 1 NVDA CALL LIMIT 1.30 DAY" in text
@@ -709,6 +715,197 @@ def test_option_stop_sells_only_the_runner_and_does_not_repeat(tmp_path, monkeyp
     assert position["scale"]["remaining"] == 2
     assert position["scale"]["runner"] == "breakeven"
     assert position["scale"]["sold"]["0.15"] == 2
+
+
+def test_model_contract_is_14_dte_at_the_nearest_strike():
+    from webull_bot.execution.forward_options import _contract
+
+    now = _at("2026-10-06T10:35:00")
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 200.2, 201.0, 199.5, 200.4),
+            ("2026-10-06 10:30", 200.6, 202.0, 200.0, 201.0),
+        ]
+    )
+    rv = pd.Series([0.25], index=pd.to_datetime(["2026-10-06"]))
+    contract = _contract(frame, "NVDA", "long", now, {"NVDA": rv})
+    assert contract["price_source"] == "model"
+    assert contract["expiry"] == "2026-10-20"
+    assert contract["strike"] == 201.0
+    assert contract["option_type"] == "CALL"
+    assert 0.35 < contract["delta"] < 0.65
+
+
+def test_quote_chain_picks_the_expiry_closest_to_14_dte():
+    from webull_bot.execution.option_quote import pick_atm
+
+    rows = [
+        {"option_symbol": "NVDA261016C00200000", "option_type": "CALL", "strike_price": "200", "expiration_date": "2026-10-16"},
+        {"option_symbol": "NVDA261020C00199000", "option_type": "CALL", "strike_price": "199", "expiration_date": "2026-10-20"},
+        {"option_symbol": "NVDA261020C00205000", "option_type": "CALL", "strike_price": "205", "expiration_date": "2026-10-20"},
+        {"option_symbol": "NVDA261020P00199000", "option_type": "PUT", "strike_price": "199", "expiration_date": "2026-10-20"},
+        {"option_symbol": "NVDA261023C00201000", "option_type": "CALL", "strike_price": "201", "expiration_date": "2026-10-23"},
+    ]
+    chosen = pick_atm(rows, spot=200.0, target=date(2026, 10, 20), option_type="CALL")
+    assert chosen["option_symbol"] == "NVDA261020C00199000"
+    assert chosen["strike"] == 199.0
+    assert chosen["expiry"] == "2026-10-20"
+
+
+def test_broker_quote_uses_the_snapshot_ask():
+    class Data:
+        def __init__(self):
+            self.instrument = self
+            self.option_market_data = self
+            self.seen = []
+
+        def list_option_contracts(self, **kwargs):
+            self.seen.append(kwargs)
+            if "start_date" in kwargs:
+                return {"result": []}
+            return {
+                "result": [
+                    {
+                        "option_symbol": "NVDA261020C00199000",
+                        "option_type": "CALL",
+                        "strike_price": "199",
+                        "expiration_date": "2026-10-20",
+                    },
+                    {
+                        "option_symbol": "NVDA261020C00205000",
+                        "option_type": "CALL",
+                        "strike_price": "205",
+                        "expiration_date": "2026-10-20",
+                    },
+                ]
+            }
+
+        def get_option_snapshot(self, symbols, category):
+            assert symbols == "NVDA261020C00199000"
+            assert category == "US_OPTION"
+            return {"result": [{"ask": "3.40", "delta": "0.49"}]}
+
+    broker = WebullBroker(app_key="k", app_secret="s", environment="sandbox")
+    broker._data = Data()
+    quote = broker.option_atm_quote("NVDA", "CALL", 200.0, date(2026, 10, 6))
+    assert quote["expiry"] == "2026-10-20"
+    assert quote["strike"] == 199.0
+    assert quote["ask"] == 3.40
+    assert quote["delta"] == 0.49
+    assert broker._data.seen[0]["start_date"] == "2026-10-10"
+    assert "start_date" not in broker._data.seen[1]
+
+
+def test_sandbox_quote_is_journaled_and_a_missing_quote_uses_the_model(tmp_path, monkeypatch):
+    def _priced(frame, symbol, direction, now, rv):
+        return {
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 200.0,
+            "expiry": "2026-10-20",
+            "ask": 1.0,
+            "debit": 520.0,
+            "sigma": 0.25,
+            "delta": 0.50,
+            "years": 14 / 365,
+            "spot": 200.0,
+            "price_source": "model",
+        }
+
+    monkeypatch.setattr("webull_bot.execution.forward_options._contract", _priced)
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 198, 205, 197, 204),
+            ("2026-10-06 10:30", 200, 206, 199, 205),
+        ]
+    )
+    signal = _setup("NVDA", "long", "2026-10-06 09:30")
+
+    class Quoted(_OptionBroker):
+        def option_atm_quote(self, symbol, option_type, spot, as_of):
+            return {
+                "ask": 2.5,
+                "strike": 201.0,
+                "expiry": "2026-10-20",
+                "delta": 0.51,
+                "option_symbol": "NVDA261020C00201000",
+            }
+
+    journal = Journal(tmp_path / "quote.sqlite")
+    quoted = "\n".join(
+        run_cycle(
+            journal=journal,
+            frames=_book(frame),
+            now=_at("2026-10-06T10:35:00"),
+            broker=Quoted(),
+            dry_run=False,
+            scan=lambda frames: [signal],
+        )
+    )
+    assert "BUY 5 NVDA CALL strike 201.00 expiry 2026-10-20 LIMIT 2.50 DAY" in quoted
+    assert "Webull sandbox quote" in quoted
+    saved = journal.forward_load("chop_breakout_60m")
+    assert saved["option_signals"][0]["price_source"] == "webull"
+    assert saved["option_orders"][0]["price_source"] == "webull"
+    assert saved["option_orders"][0]["limit"] == "2.50"
+
+    class Empty(_OptionBroker):
+        def option_atm_quote(self, symbol, option_type, spot, as_of):
+            raise RuntimeError("snapshot unavailable")
+
+    fallback = Journal(tmp_path / "model.sqlite")
+    text = "\n".join(
+        run_cycle(
+            journal=fallback,
+            frames=_book(frame),
+            now=_at("2026-10-06T10:35:00"),
+            broker=Empty(),
+            dry_run=False,
+            scan=lambda frames: [signal],
+        )
+    )
+    assert "Black-Scholes model, no Webull quote" in text
+    assert "LIMIT 1.00 DAY" in text
+    assert fallback.forward_load("chop_breakout_60m")["option_signals"][0]["price_source"] == "model"
+
+
+def test_five_lot_above_10000_is_skipped(tmp_path, monkeypatch):
+    def _priced(frame, symbol, direction, now, rv):
+        return {
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 200.0,
+            "expiry": "2026-10-20",
+            "ask": 20.1,
+            "debit": 10001.0,
+            "sigma": 0.25,
+            "delta": 0.50,
+            "years": 14 / 365,
+            "spot": 200.0,
+            "price_source": "model",
+        }
+
+    monkeypatch.setattr("webull_bot.execution.forward_options._contract", _priced)
+    journal = Journal(tmp_path / "journal.sqlite")
+    frame = _frame(
+        [
+            ("2026-10-06 09:30", 198, 205, 197, 204),
+            ("2026-10-06 10:30", 200, 206, 199, 205),
+        ]
+    )
+    lines = run_cycle(
+        journal=journal,
+        frames=_book(frame),
+        now=_at("2026-10-06T10:35:00"),
+        broker=_Broker(),
+        dry_run=True,
+        scan=lambda frames: [_setup("NVDA", "long", "2026-10-06 09:30")],
+    )
+    text = "\n".join(lines)
+    assert "above the $10,000 cap" in text
+    assert "$25,000 paper book" in text
+    assert "Would BUY 5 NVDA" not in text
+    assert journal.forward_load("chop_breakout_60m") is None
 
 
 def test_cli_idle_returns_before_any_broker_or_download(monkeypatch, capsys):

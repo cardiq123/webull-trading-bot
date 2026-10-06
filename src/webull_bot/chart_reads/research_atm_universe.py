@@ -289,8 +289,8 @@ def render(payload: dict) -> str:
         lines.append(
             "The Dow chop book's cell does not hold up"
             + (f" ({reasons})." if reasons else ".")
-            + " The sandbox options sub-book stays the corrected ladder: 21 DTE, delta 0.45, "
-            "contracts 1-4 at the -20% stop, runner break-even only after +15%, target +100%. "
+            + " The sandbox options sub-book stays the corrected ladder: contracts 1-4 at the -20% stop, "
+            "runner break-even only after +15%, target +100%. The contract is 14 DTE at the nearest strike. "
             "It now scans the liquid list above. The share book stays on the named list. Live trading stays off."
         )
     lines.append("")

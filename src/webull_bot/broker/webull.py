@@ -814,6 +814,22 @@ class WebullBroker(Broker):
         order.note = f"submitted keys={_keys(body)}"
         return order
 
+    def option_atm_quote(self, symbol: str, option_type: str, spot: float, as_of) -> Optional[dict]:
+        """Expiry closest to 14 DTE and the strike nearest spot. None if the API has no ask."""
+        if self._data is None:
+            return None
+        try:
+            from datetime import date as date_cls
+            from datetime import timedelta
+
+            from webull_bot.execution.forward_options import FORWARD_DTE
+            from webull_bot.execution.option_quote import atm_from_client
+
+            day = as_of if isinstance(as_of, date_cls) else date_cls.fromisoformat(str(as_of)[:10])
+            return atm_from_client(self._data, symbol, option_type, float(spot), day + timedelta(days=FORWARD_DTE))
+        except Exception:
+            return None
+
     def place_option_order(self, payload: dict) -> dict:
         """One option payload. Sandbox forward test only. Live trading does not call this."""
         self._require_account()
