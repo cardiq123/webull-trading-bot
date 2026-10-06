@@ -69,6 +69,66 @@ def grid() -> list[dict]:
     return cells
 
 
+# Daily setup C. Frozen to the UNH June-October 2026 drawing before scoring.
+# The line is two confirmed pivot highs. Three touches is a grid variant.
+# Rejection shorts are a separate variant, not this default.
+DAILY_DEFAULTS: dict = {
+    "pivot_left": 4,
+    "pivot_right": 4,
+    "min_span": 10,
+    "max_span": 126,
+    # A stale pair stays eligible only when price is still near its line.
+    "max_anchor_age": 80,
+    "touch_atr": 0.50,
+    "break_buffer_atr": 0.25,
+    "retest_days": 10,
+    "require_three_touches": False,
+    "include_long": True,
+    "include_short": False,
+    "short_cooldown": 5,
+    "strong_body": 0.50,
+    "strong_close_frac": 2.0 / 3.0,
+    "reward_r": 2.0,
+    "target_mode": "level",
+    "level_source": "reference",
+    "trail": "ema20",
+    "flatten_eod": False,
+    "max_hold_sessions": 30,
+    "pdt_prospective": False,
+    "risk_fraction": 0.20,
+    "max_positions": 1,
+    "account": "margin_pdt",
+    "expression": "stock",
+    "delta": 0.45,
+    "dte": 45,
+    "spread_width": 5.0,
+    "spread_dte": 45,
+    "iv_premium": 1.15,
+    "spread_multiplier": 1.0,
+}
+
+_DAILY_GRID = (
+    ("pivot_left", 3, {"pivot_right": 3}),
+    ("touch_atr", 0.25, {}),
+    ("touch_atr", 1.00, {}),
+    ("break_buffer_atr", 0.10, {}),
+    ("break_buffer_atr", 0.50, {}),
+    ("retest_days", 5, {}),
+    ("retest_days", 20, {}),
+    ("require_three_touches", True, {}),
+)
+
+
+def daily_grid() -> list[dict]:
+    cells = [dict(DAILY_DEFAULTS)]
+    for key, value, extra in _DAILY_GRID:
+        cell = dict(DAILY_DEFAULTS)
+        cell[key] = value
+        cell.update(extra)
+        cells.append(cell)
+    return cells
+
+
 def htf_allows(labels: list[str], direction: str, kind: str) -> bool:
     """Higher-timeframe gate.
 

@@ -37,7 +37,7 @@ from webull_bot.options.pricing import (
     strike_for_delta,
     strike_for_put_delta,
 )
-from webull_bot.risk.pdt import check_day_trade
+from webull_bot.risk.pdt import check_day_trade, day_trades_in_window
 
 RATE = 0.02
 DIVIDEND = 0.018
@@ -124,6 +124,7 @@ def simulate(
     *,
     starting_equity: float = 1_000.0,
     costs: CostModel | None = None,
+    session_filter: bool = True,
 ) -> BookStats:
     return _simulate(
         setups,
@@ -132,6 +133,7 @@ def simulate(
         params,
         starting_equity=starting_equity,
         costs=costs or CostModel(),
+        session_filter=session_filter,
     )
 
 
@@ -143,8 +145,13 @@ def _simulate(
     *,
     starting_equity: float,
     costs: CostModel,
+    session_filter: bool = True,
 ) -> BookStats:
-    frames = {symbol: rth(frame) for symbol, frame in execution.items() if frame is not None and len(frame)}
+    frames = {}
+    for symbol, frame in execution.items():
+        if frame is None or len(frame) == 0:
+            continue
+        frames[symbol] = rth(frame) if session_filter else frame.sort_index()
     if not frames:
         return _empty(starting_equity)
     clock = pd.DatetimeIndex(sorted(set().union(*[set(frame.index) for frame in frames.values()])))
@@ -197,11 +204,16 @@ def _simulate(
             if any(pos["symbol"] == setup.symbol for pos in positions):
                 continue
             if account == "margin_pdt":
+                # Intraday books treat every entry as a possible day trade.
+                # A daily swing does not: the count blocks only after three
+                # completed same-day round trips, not because a stop might hit today.
+                prospective = bool(params.get("pdt_prospective", True))
+                already = day_trades_in_window(day_trades, session, 5)
                 decision = check_day_trade(
                     as_of=session,
                     equity=equity_now,
                     trade_days=day_trades,
-                    opening_same_day=True,
+                    opening_same_day=prospective or already >= 3,
                     account_type="margin",
                     mode="on",
                 )
@@ -341,19 +353,32 @@ def _context(setup, ts, bands, priors) -> tuple[float, float]:
     return band, prior
 
 
-def _target(direction: str, fill: float, stop: float, params: dict, band: float, prior: float) -> float:
+def _target(
+    direction: str,
+    fill: float,
+    stop: float,
+    params: dict,
+    band: float,
+    prior: float,
+    reference: float = np.nan,
+) -> float:
     risk = abs(fill - stop)
     r_multiple = fill + float(params["reward_r"]) * risk if direction == "long" else fill - float(params["reward_r"]) * risk
     if str(params.get("target_mode", "r")) != "level":
         return float(r_multiple)
+    if str(params.get("level_source", "band")) == "reference":
+        pool = (reference,)
+    else:
+        pool = (band, prior)
     if direction == "long":
-        candidates = [value for value in (band, prior) if np.isfinite(value) and value >= fill + 0.5 * risk]
+        candidates = [value for value in pool if np.isfinite(value) and value >= fill + 0.5 * risk]
         return float(min(candidates) if candidates else r_multiple)
-    candidates = [value for value in (band, prior) if np.isfinite(value) and value <= fill - 0.5 * risk]
+    candidates = [value for value in pool if np.isfinite(value) and value <= fill - 0.5 * risk]
     return float(max(candidates) if candidates else r_multiple)
 
 
 def _base(setup, ts, fill: float, stop: float, quantity: float, debit: float, expression: str, params, band, prior) -> dict:
+    reference = float(getattr(setup, "reference", np.nan))
     return {
         "symbol": setup.symbol,
         "direction": setup.direction,
@@ -364,7 +389,7 @@ def _base(setup, ts, fill: float, stop: float, quantity: float, debit: float, ex
         "opened_on": _session(ts),
         "entry_time": ts,
         "stop": float(stop),
-        "target": _target(setup.direction, fill, stop, params, band, prior),
+        "target": _target(setup.direction, fill, stop, params, band, prior, reference),
         "bars": 0,
     }
 
@@ -623,7 +648,7 @@ def _sessions_held(opened: date, today: date) -> int:
         return 1
     cursor = opened
     count = 1
-    while cursor < today and count < 12:
+    while cursor < today and count < 80:
         cursor = next_trading_day(cursor)
         count += 1
     return count
