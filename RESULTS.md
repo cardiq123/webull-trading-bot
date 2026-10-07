@@ -5026,3 +5026,46 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_trendline_bounce
 ```
 <!-- TRENDLINE_BOUNCE_END -->
+
+<!-- PLAYBOOK_START -->
+### Combined SPY playbook
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. Walk-forward from 2020 through 2026-10-06, each year tuned on the prior three calendar years. The grid is 5376 cells: four books, caps of 3 and 5, eight exits, the two-close 9/20 rule off or as an exit or as the put/call trigger or both, a late cutoff of none, 15:00, or 15:15, and seven contracts: 0 DTE flat, plus 1, 3, and 7 DTE each flat and overnight. 0 DTE and 1 DTE use prior VIX1D, otherwise prior VIX. 3 DTE and 7 DTE use prior VIX. The cell chosen most often is trend, cap 3, 1r, two-close off, cutoff none, 0dte-flat (1 of 7 folds). The stitched $1,000 account, using only each year's own pick, finished at $2 (113 trades, 0.07 a day, win 32.7% against break-even 54.1%, profit factor 0.41, Sharpe -0.75, drawdown -99.8%). From $5,000 it finished at $22,693. Worst month 2020-03 -96.3%. Profitable folds 0 of 7. Deflated Sharpe probability 0.00 on the stitch and 0.00 on the single rule. Replaying that one rule on every test day finished at $0. The original 2 SD continuation, 1R, no daily cap, on the same dates finished at $0 from $1,000 and $36,091 from $5,000. SPY bought at the first test open finished at $2,409 and $12,046. Seed 17 random 1R entries finished at $987. The stitched books did not clear the gate. No sandbox book was added. The existing books were not changed. The expiry table holds every other choice at trend, cap 3, 1R, the two-close rule off, and no late cutoff. No contract clears the published gate on both the train window and the holdout. 0dte-flat has the highest holdout Sharpe on the anchor and is not a promotion. On that anchor the $1,000 holdout finished at $14,676 (3340 trades, 2.80 a day, win 44.4% against break-even 39.5%, profit factor 1.22, Sharpe 1.33, drawdown -42.9%). The same anchor in training finished at $1. From $5,000 the holdout finished at $18,676 and training at $3. Holdout same-day round trips 3340, overnight holds 0, worst same-day count in any five sessions 15, five-session windows over 3 day trades 1190 of 1190. A $1,000 or $5,000 margin account would be under the $25,000 pattern-day-trader line. This test is a cash account: it does not refuse the fourth day trade, and a sale settles the next session. An overnight hold that closes on a later session is not a day trade. The debit stays invested until that exit. One SPY position. At most 3 entries a day. The entries are the 2 SD VWAP continuation, the filtered 9 EMA wick, and the trendline-plus-support bounce. The stop is the setup's own price stop. The target is 1R from the fill to that stop. If one bar can hit both, the stop fills. The two-close 9/20 rule is off. There is no extra late-day cutoff. A fill is still refused at the setup's own flat. The contract is at the money and expires the same day. The continuation is flat at 15:45. The 5-minute setups are flat at 15:30. A new signal while a trade is open is skipped. A contract that costs more than settled cash is skipped. A sale settles the next session. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line, so same-day round trips are limited to three in any five business days. This test is a cash account and does not apply that cap. An overnight hold that closes on a later session is not a day trade. The debit stays invested until the exit. The folds picked this cell because it held up next to its neighbors, not because it had the highest training Sharpe. This rule was not added to the sandbox forward test, and it was not added to the live list.
+
+| Fold | Pick | Eligible | Train end |
+|---|---|---|---:|
+| 2020 | trend, cap 3, 1r, two-close off, cutoff none, 0dte-flat | fallback | $1 |
+| 2021 | confirmed, cap 3, ema200, two-close confirm, cutoff 15:00, 0dte-flat | yes | $9,401 |
+| 2022 | all, cap 3, band, two-close confirm, cutoff 15:00, 0dte-flat | yes | $5,299 |
+| 2023 | trend, cap 3, band, two-close both, cutoff 15:00, 0dte-flat | yes | $5,394 |
+| 2024 | all, cap 3, prem100, two-close both, cutoff 15:00, 0dte-flat | yes | $4,876 |
+| 2025 | all, cap 5, 2r, two-close off, cutoff 15:00, 0dte-flat | yes | $26,915 |
+| 2026 | confirmed, cap 5, 2r, two-close off, cutoff 15:00, 0dte-flat | yes | $22,737 |
+
+Expiry comparison on the pre-declared anchor (trend, cap 3, 1R, two-close off, no late cutoff). 0 DTE and 1 DTE use prior VIX1D, or prior VIX when that print is missing. 3 DTE and 7 DTE use prior VIX. Half-spread is the greater of $0.01 and 1.5% of the mid.
+
+| Contract | Window | Trades/day | Win | Break-even | PF | Sharpe | Max DD | $1k end | $5k end |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0dte-flat | train | 0.22 | 25.1% | 46.1% | 0.39 | -1.29 | -99.9% | $1 | $3 |
+| 0dte-flat | holdout | 2.80 | 44.4% | 39.5% | 1.22 | 1.33 | -42.9% | $14,676 | $18,676 |
+| 1dte-flat | train | 0.16 | 25.3% | 52.2% | 0.31 | -1.94 | -97.2% | $28 | $75 |
+| 1dte-flat | holdout | 0.10 | 37.0% | 44.7% | 0.72 | -0.24 | -94.1% | $59 | $63 |
+| 1dte-overnight | train | 0.13 | 30.1% | 58.0% | 0.31 | -1.10 | -98.4% | $16 | $57 |
+| 1dte-overnight | holdout | 0.04 | 23.3% | 49.5% | 0.31 | -0.63 | -99.3% | $7 | $61 |
+| 3dte-flat | train | 0.14 | 23.0% | 51.8% | 0.28 | -2.21 | -94.1% | $59 | $108 |
+| 3dte-flat | holdout | 0.03 | 28.6% | 55.6% | 0.32 | -0.98 | -82.7% | $173 | $175 |
+| 3dte-overnight | train | 0.12 | 27.0% | 54.5% | 0.31 | -1.40 | -94.6% | $54 | $102 |
+| 3dte-overnight | holdout | 0.03 | 28.6% | 55.6% | 0.32 | -0.98 | -82.7% | $173 | $187 |
+| 7dte-flat | train | 0.10 | 24.4% | 58.1% | 0.23 | -2.08 | -88.2% | $118 | $176 |
+| 7dte-flat | holdout | 0.02 | 32.1% | 70.4% | 0.20 | -1.14 | -72.1% | $279 | $319 |
+| 7dte-overnight | train | 0.09 | 28.9% | 60.2% | 0.27 | -1.72 | -88.0% | $120 | $171 |
+| 7dte-overnight | holdout | 0.02 | 32.1% | 70.4% | 0.20 | -1.14 | -72.1% | $279 | $279 |
+
+One SPY position. At most 3 entries a day. The entries are the 2 SD VWAP continuation, the filtered 9 EMA wick, and the trendline-plus-support bounce. The stop is the setup's own price stop. The target is 1R from the fill to that stop. If one bar can hit both, the stop fills. The two-close 9/20 rule is off. There is no extra late-day cutoff. A fill is still refused at the setup's own flat. The contract is at the money and expires the same day. The continuation is flat at 15:45. The 5-minute setups are flat at 15:30. A new signal while a trade is open is skipped. A contract that costs more than settled cash is skipped. A sale settles the next session. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line, so same-day round trips are limited to three in any five business days. This test is a cash account and does not apply that cap. An overnight hold that closes on a later session is not a day trade. The debit stays invested until the exit. The folds picked this cell because it held up next to its neighbors, not because it had the highest training Sharpe. This rule was not added to the sandbox forward test, and it was not added to the live list.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json` unless the promote line above says a separate sandbox book was added.
+
+```
+python3 -m webull_bot.chart_reads.research_playbook
+```
+<!-- PLAYBOOK_END -->

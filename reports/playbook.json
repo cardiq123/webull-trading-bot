@@ -1,0 +1,1133 @@
+{
+  "notes": {
+    "dropped_stop": 768,
+    "plays": 68365,
+    "vwap": 5482,
+    "vwap5": 3845,
+    "reclaim": 21110,
+    "reentry": 7023,
+    "wick": 9053,
+    "exhaustion": 637,
+    "bounce": 1499,
+    "stack2": 19716,
+    "missing_iv": 0,
+    "tickets": 68365
+  },
+  "folds": [
+    {
+      "fold": "2020",
+      "train_start": "2017-01-01",
+      "train_end": "2019-12-31",
+      "test_start": "2020-01-01",
+      "test_end": "2020-12-31",
+      "cell": "trend, cap 3, 1r, two-close off, cutoff none, 0dte-flat",
+      "eligible": false,
+      "stability": null,
+      "train": {
+        "ending_equity": 0.7737735877408037,
+        "trades": 267,
+        "win_rate": 0.250936329588015,
+        "breakeven_win_rate": 0.46055956882230326,
+        "profit_factor": 0.3923760500875671,
+        "sharpe": -1.6910046483879888,
+        "max_drawdown": -0.9992262264122592,
+        "cagr": -0.9174626806362673
+      },
+      "best_sharpe_cell_not_used": null
+    },
+    {
+      "fold": "2021",
+      "train_start": "2018-01-01",
+      "train_end": "2020-12-31",
+      "test_start": "2021-01-01",
+      "test_end": "2021-12-31",
+      "cell": "confirmed, cap 3, ema200, two-close confirm, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 1.5194610010037741,
+      "train": {
+        "ending_equity": 9401.186499783227,
+        "trades": 1894,
+        "win_rate": 0.25343189017951423,
+        "breakeven_win_rate": 0.2164107129968961,
+        "profit_factor": 1.2291405934105992,
+        "sharpe": 2.31514515466262,
+        "max_drawdown": -0.20242199046055986,
+        "cagr": 1.1116231305244457
+      },
+      "best_sharpe_cell_not_used": "confirmed, cap 3, ema200, two-close confirm, cutoff none, 0dte-flat"
+    },
+    {
+      "fold": "2022",
+      "train_start": "2019-01-01",
+      "train_end": "2021-12-31",
+      "test_start": "2022-01-01",
+      "test_end": "2022-12-31",
+      "cell": "all, cap 3, band, two-close confirm, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 1.0145387761506695,
+      "train": {
+        "ending_equity": 5299.472012933107,
+        "trades": 2229,
+        "win_rate": 0.4993270524899058,
+        "breakeven_win_rate": 0.454718545190022,
+        "profit_factor": 1.1959390049075982,
+        "sharpe": 1.407761552250584,
+        "max_drawdown": -0.4059716355315881,
+        "cagr": 0.745006450820551
+      },
+      "best_sharpe_cell_not_used": "all, cap 3, band, two-close both, cutoff 15:00, 0dte-flat"
+    },
+    {
+      "fold": "2023",
+      "train_start": "2020-01-01",
+      "train_end": "2022-12-31",
+      "test_start": "2023-01-01",
+      "test_end": "2023-12-31",
+      "cell": "trend, cap 3, band, two-close both, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 1.3769406576718066,
+      "train": {
+        "ending_equity": 5393.54361138574,
+        "trades": 2257,
+        "win_rate": 0.49047408063801506,
+        "breakeven_win_rate": 0.4548800144451859,
+        "profit_factor": 1.1535728579081892,
+        "sharpe": 1.5609967497392832,
+        "max_drawdown": -0.35209447927733206,
+        "cagr": 0.7552876961455286
+      },
+      "best_sharpe_cell_not_used": "all, cap 3, band, two-close confirm, cutoff 15:00, 0dte-flat"
+    },
+    {
+      "fold": "2024",
+      "train_start": "2021-01-01",
+      "train_end": "2023-12-31",
+      "test_start": "2024-01-01",
+      "test_end": "2024-12-31",
+      "cell": "all, cap 3, prem100, two-close both, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 1.1831935432008636,
+      "train": {
+        "ending_equity": 4876.341380265669,
+        "trades": 2241,
+        "win_rate": 0.2766622043730477,
+        "breakeven_win_rate": 0.26100640278986664,
+        "profit_factor": 1.0829245243362569,
+        "sharpe": 1.2287456541022121,
+        "max_drawdown": -0.42842121382730325,
+        "cagr": 0.7004922306143788
+      },
+      "best_sharpe_cell_not_used": "confirmed, cap 3, ema200, two-close confirm, cutoff 15:15, 0dte-flat"
+    },
+    {
+      "fold": "2025",
+      "train_start": "2022-01-01",
+      "train_end": "2024-12-31",
+      "test_start": "2025-01-01",
+      "test_end": "2025-12-31",
+      "cell": "all, cap 5, 2r, two-close off, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 2.071320808099806,
+      "train": {
+        "ending_equity": 26914.873865714704,
+        "trades": 2806,
+        "win_rate": 0.3225231646471846,
+        "breakeven_win_rate": 0.2548824863389126,
+        "profit_factor": 1.3917179824287744,
+        "sharpe": 2.4081204376221974,
+        "max_drawdown": -0.23135538165192282,
+        "cagr": 2.0021100238900496
+      },
+      "best_sharpe_cell_not_used": "confirmed, cap 5, 2r, two-close off, cutoff none, 0dte-flat"
+    },
+    {
+      "fold": "2026",
+      "train_start": "2023-01-01",
+      "train_end": "2025-12-31",
+      "test_start": "2026-01-01",
+      "test_end": "2026-10-06",
+      "cell": "confirmed, cap 5, 2r, two-close off, cutoff 15:00, 0dte-flat",
+      "eligible": true,
+      "stability": 1.715674374160348,
+      "train": {
+        "ending_equity": 22736.67670769827,
+        "trades": 2766,
+        "win_rate": 0.31778741865509763,
+        "breakeven_win_rate": 0.25659349074269416,
+        "profit_factor": 1.34957709670876,
+        "sharpe": 1.7550674916027424,
+        "max_drawdown": -0.5317007109946814,
+        "cagr": 1.8376952370367161
+      },
+      "best_sharpe_cell_not_used": "trend, cap 3, 1r, two-close off, cutoff 15:00, 0dte-flat"
+    }
+  ],
+  "modal": "trend, cap 3, 1r, two-close off, cutoff none, 0dte-flat",
+  "modal_count": 1,
+  "decision": {
+    "promote": false,
+    "adaptive_gate": false,
+    "fixed_gate": false,
+    "adaptive_dsr": false,
+    "fixed_dsr": false,
+    "stable": false
+  },
+  "sheet": "One SPY position. At most 3 entries a day. The entries are the 2 SD VWAP continuation, the filtered 9 EMA wick, and the trendline-plus-support bounce. The stop is the setup's own price stop. The target is 1R from the fill to that stop. If one bar can hit both, the stop fills. The two-close 9/20 rule is off. There is no extra late-day cutoff. A fill is still refused at the setup's own flat. The contract is at the money and expires the same day. The continuation is flat at 15:45. The 5-minute setups are flat at 15:30. A new signal while a trade is open is skipped. A contract that costs more than settled cash is skipped. A sale settles the next session. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line, so same-day round trips are limited to three in any five business days. This test is a cash account and does not apply that cap. An overnight hold that closes on a later session is not a day trade. The debit stays invested until the exit. The folds picked this cell because it held up next to its neighbors, not because it had the highest training Sharpe. This rule was not added to the sandbox forward test, and it was not added to the live list.",
+  "adaptive_1000": {
+    "stake": 1000.0,
+    "metrics": {
+      "ending_equity": 1.5426883352452827,
+      "trades": 113,
+      "win_rate": 0.3274336283185841,
+      "breakeven_win_rate": 0.5408542107032724,
+      "profit_factor": 0.4132934499914039,
+      "sharpe": -0.7499625479032087,
+      "max_drawdown": -0.9984573116647547,
+      "cagr": -0.6161000450755092
+    },
+    "trades_per_day": 0.06662735849056604,
+    "worst_month": {
+      "month": "2020-03",
+      "return": -0.962998944137017
+    },
+    "folds": [
+      {
+        "fold": "2020",
+        "start": 1000.0,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2021",
+        "start": 5.783196985550795,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2022",
+        "start": 5.783196985550795,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2023",
+        "start": 5.783196985550795,
+        "end": 1.5426883352452827,
+        "profit": false
+      },
+      {
+        "fold": "2024",
+        "start": 1.5426883352452827,
+        "end": 1.5426883352452827,
+        "profit": false
+      },
+      {
+        "fold": "2025",
+        "start": 1.5426883352452827,
+        "end": 1.5426883352452827,
+        "profit": false
+      },
+      {
+        "fold": "2026",
+        "start": 1.5426883352452827,
+        "end": 1.5426883352452827,
+        "profit": false
+      }
+    ],
+    "folds_profitable": 0,
+    "skips": {
+      "overlap": 41,
+      "cap": 75,
+      "premium": 26308,
+      "bust": 0,
+      "exit": 0,
+      "cutoff": 2374,
+      "stack": 4668
+    }
+  },
+  "adaptive_5000": {
+    "stake": 5000.0,
+    "metrics": {
+      "ending_equity": 22692.76047669268,
+      "trades": 5134,
+      "win_rate": 0.37884690299961044,
+      "breakeven_win_rate": 0.344520079912221,
+      "profit_factor": 1.1604059292739597,
+      "sharpe": 0.7077761479155976,
+      "max_drawdown": -0.8054939910347669,
+      "cagr": 0.25066592360665774
+    },
+    "trades_per_day": 3.027122641509434,
+    "worst_month": {
+      "month": "2020-11",
+      "return": -0.38474042697140054
+    },
+    "folds": [
+      {
+        "fold": "2020",
+        "start": 5000.0,
+        "end": 1004.0365590622782,
+        "profit": false
+      },
+      {
+        "fold": "2021",
+        "start": 1004.0365590622782,
+        "end": 3846.592312118296,
+        "profit": true
+      },
+      {
+        "fold": "2022",
+        "start": 3846.592312118296,
+        "end": 5331.480698621846,
+        "profit": true
+      },
+      {
+        "fold": "2023",
+        "start": 5331.480698621846,
+        "end": 4572.894446665359,
+        "profit": false
+      },
+      {
+        "fold": "2024",
+        "start": 4572.894446665359,
+        "end": 6116.097922878194,
+        "profit": true
+      },
+      {
+        "fold": "2025",
+        "start": 6116.097922878194,
+        "end": 18158.401259881794,
+        "profit": true
+      },
+      {
+        "fold": "2026",
+        "start": 18158.401259881794,
+        "end": 22692.76047669268,
+        "profit": true
+      }
+    ],
+    "folds_profitable": 5,
+    "skips": {
+      "overlap": 8429,
+      "cap": 12974,
+      "premium": 0,
+      "bust": 0,
+      "exit": 0,
+      "cutoff": 2374,
+      "stack": 4668
+    }
+  },
+  "fixed_1000": {
+    "stake": 1000.0,
+    "metrics": {
+      "ending_equity": 0.3867894250178421,
+      "trades": 114,
+      "win_rate": 0.32456140350877194,
+      "breakeven_win_rate": 0.5377751033120147,
+      "profit_factor": 0.4130129228217824,
+      "sharpe": -0.8298182990483287,
+      "max_drawdown": -0.9996132105749822,
+      "cagr": -0.6871223563090179
+    },
+    "trades_per_day": 0.06721698113207547,
+    "worst_month": {
+      "month": "2020-03",
+      "return": -0.962998944137017
+    },
+    "folds": [
+      {
+        "fold": "2020",
+        "start": 1000.0,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2021",
+        "start": 5.783196985550795,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2022",
+        "start": 5.783196985550795,
+        "end": 5.783196985550795,
+        "profit": false
+      },
+      {
+        "fold": "2023",
+        "start": 5.783196985550795,
+        "end": 0.3867894250178421,
+        "profit": false
+      },
+      {
+        "fold": "2024",
+        "start": 0.3867894250178421,
+        "end": 0.3867894250178421,
+        "profit": false
+      },
+      {
+        "fold": "2025",
+        "start": 0.3867894250178421,
+        "end": 0.3867894250178421,
+        "profit": false
+      },
+      {
+        "fold": "2026",
+        "start": 0.3867894250178421,
+        "end": 0.3867894250178421,
+        "profit": false
+      }
+    ],
+    "folds_profitable": 0,
+    "skips": {
+      "overlap": 42,
+      "cap": 75,
+      "premium": 5745,
+      "bust": 0,
+      "exit": 0,
+      "cutoff": 0,
+      "stack": 0
+    }
+  },
+  "fixed_5000": {
+    "stake": 5000.0,
+    "metrics": {
+      "ending_equity": 1.0289579978302643,
+      "trades": 1125,
+      "win_rate": 0.38755555555555554,
+      "breakeven_win_rate": 0.457684173989327,
+      "profit_factor": 0.7498141816721745,
+      "sharpe": -0.06377250101696429,
+      "max_drawdown": -0.999794208400434,
+      "cagr": -0.7149966411300175
+    },
+    "trades_per_day": 0.6633254716981132,
+    "worst_month": {
+      "month": "2021-09",
+      "return": -0.7438521694444343
+    },
+    "folds": [
+      {
+        "fold": "2020",
+        "start": 5000.0,
+        "end": 1004.0365590622782,
+        "profit": false
+      },
+      {
+        "fold": "2021",
+        "start": 1004.0365590622782,
+        "end": 14.818054733537856,
+        "profit": false
+      },
+      {
+        "fold": "2022",
+        "start": 14.818054733537856,
+        "end": 13.794912886157688,
+        "profit": false
+      },
+      {
+        "fold": "2023",
+        "start": 13.794912886157688,
+        "end": 1.0289579978302643,
+        "profit": false
+      },
+      {
+        "fold": "2024",
+        "start": 1.0289579978302643,
+        "end": 1.0289579978302643,
+        "profit": false
+      },
+      {
+        "fold": "2025",
+        "start": 1.0289579978302643,
+        "end": 1.0289579978302643,
+        "profit": false
+      },
+      {
+        "fold": "2026",
+        "start": 1.0289579978302643,
+        "end": 1.0289579978302643,
+        "profit": false
+      }
+    ],
+    "folds_profitable": 0,
+    "skips": {
+      "overlap": 479,
+      "cap": 1041,
+      "premium": 8966,
+      "bust": 0,
+      "exit": 0,
+      "cutoff": 0,
+      "stack": 0
+    }
+  },
+  "dsr_adaptive": {
+    "dsr": 6.512353989407416e-10,
+    "sr": -0.0472431998658156,
+    "sr0": 0.07416040182695324,
+    "trials": 5376,
+    "observations": 1696
+  },
+  "dsr_fixed": {
+    "dsr": 6.583000811133388e-11,
+    "sr": -0.052273639348869146,
+    "sr0": 0.07124876167382165,
+    "trials": 5376,
+    "observations": 1696
+  },
+  "vwap_1000": {
+    "ending_equity": 0.3016944542010389,
+    "trades": 434,
+    "win_rate": 0.43548387096774194,
+    "breakeven_win_rate": 0.4564066878059361,
+    "profit_factor": 0.9187933119032138,
+    "sharpe": -0.36507330806090865,
+    "max_drawdown": -0.9998406690439724,
+    "cagr": -0.6984094008415384
+  },
+  "vwap_5000": {
+    "ending_equity": 36091.267349375965,
+    "trades": 3305,
+    "win_rate": 0.48714069591527986,
+    "breakeven_win_rate": 0.4070846094155455,
+    "profit_factor": 1.3834523766845863,
+    "sharpe": 1.5022508145739089,
+    "max_drawdown": -0.4158343992384059,
+    "cagr": 0.3394922849173827
+  },
+  "spy_1000": {
+    "ending_equity": 2409.17522522244,
+    "trades": 0,
+    "win_rate": 0.0,
+    "breakeven_win_rate": null,
+    "profit_factor": null,
+    "sharpe": 0.7531212289895466,
+    "max_drawdown": -0.3417026760222027,
+    "cagr": 0.13885542438848675
+  },
+  "spy_5000": {
+    "ending_equity": 12045.8761261122,
+    "trades": 0,
+    "win_rate": 0.0,
+    "breakeven_win_rate": null,
+    "profit_factor": null,
+    "sharpe": 0.7531212289895499,
+    "max_drawdown": -0.3417026760222027,
+    "cagr": 0.13885542438848675
+  },
+  "random_1000": {
+    "ending_equity": 986.7139261159421,
+    "trades": 112,
+    "win_rate": 0.38392857142857145,
+    "breakeven_win_rate": 0.3879530676593848,
+    "profit_factor": 0.9831615827645268,
+    "sharpe": 0.008227542936664079,
+    "max_drawdown": -0.19720732889004566,
+    "cagr": -0.0019758849664403
+  },
+  "expiry": [
+    {
+      "contract": "0dte-flat",
+      "dte": 0,
+      "hold": "flat",
+      "train_1000": {
+        "ending_equity": 0.7737735877408037,
+        "trades": 267,
+        "win_rate": 0.250936329588015,
+        "breakeven_win_rate": 0.46055956882230326,
+        "profit_factor": 0.3923760500875671,
+        "sharpe": -1.2949874998844284,
+        "max_drawdown": -0.9992262264122592,
+        "cagr": -0.7702819181546862,
+        "trades_per_day": 0.21849427168576105,
+        "pdt": {
+          "day_trades": 267,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 108,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 2.7360407611221973,
+        "trades": 2648,
+        "win_rate": 0.3704682779456193,
+        "breakeven_win_rate": 0.4126877737023626,
+        "profit_factor": 0.8374923461572981,
+        "sharpe": -0.14260179715275337,
+        "max_drawdown": -0.9994839536298359,
+        "cagr": -0.7860542487914849,
+        "trades_per_day": 2.1669394435351883,
+        "pdt": {
+          "day_trades": 2648,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 976,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 14675.914571716694,
+        "trades": 3340,
+        "win_rate": 0.4437125748502994,
+        "breakeven_win_rate": 0.39529311907790277,
+        "profit_factor": 1.2201919341543983,
+        "sharpe": 1.334729660118569,
+        "max_drawdown": -0.428900663919747,
+        "cagr": 0.7586050665142638,
+        "trades_per_day": 2.797319932998325,
+        "pdt": {
+          "day_trades": 3340,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 1190,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 18675.914571716698,
+        "trades": 3340,
+        "win_rate": 0.4437125748502994,
+        "breakeven_win_rate": 0.39529311907790277,
+        "profit_factor": 1.2201919341543983,
+        "sharpe": 1.637625047070157,
+        "max_drawdown": -0.1641491993915417,
+        "cagr": 0.3190899236172249,
+        "trades_per_day": 2.797319932998325,
+        "pdt": {
+          "day_trades": 3340,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 1190,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": true,
+      "robust": false
+    },
+    {
+      "contract": "1dte-flat",
+      "dte": 1,
+      "hold": "flat",
+      "train_1000": {
+        "ending_equity": 27.64497530850471,
+        "trades": 198,
+        "win_rate": 0.25252525252525254,
+        "breakeven_win_rate": 0.5215643580104533,
+        "profit_factor": 0.30990166477416164,
+        "sharpe": -1.9437996748017807,
+        "max_drawdown": -0.9723550246914953,
+        "cagr": -0.5213201474149822,
+        "trades_per_day": 0.16202945990180032,
+        "pdt": {
+          "day_trades": 198,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 82,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 74.58904549488682,
+        "trades": 1932,
+        "win_rate": 0.36231884057971014,
+        "breakeven_win_rate": 0.43800405126805453,
+        "profit_factor": 0.7290249463147415,
+        "sharpe": -1.7655237230031489,
+        "max_drawdown": -0.985308346106663,
+        "cagr": -0.5782648691974643,
+        "trades_per_day": 1.5810147299509,
+        "pdt": {
+          "day_trades": 1932,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 701,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 59.05088811865643,
+        "trades": 119,
+        "win_rate": 0.3697478991596639,
+        "breakeven_win_rate": 0.44740510625491753,
+        "profit_factor": 0.7245983557141958,
+        "sharpe": -0.2398161788944225,
+        "max_drawdown": -0.9409491118813436,
+        "cagr": -0.4482191042032101,
+        "trades_per_day": 0.09966499162479062,
+        "pdt": {
+          "day_trades": 119,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 14,
+          "windows_over_3": 52,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 62.76370290446894,
+        "trades": 887,
+        "win_rate": 0.4137542277339346,
+        "breakeven_win_rate": 0.47502580749902296,
+        "profit_factor": 0.7799800056460608,
+        "sharpe": -0.47568183860856766,
+        "max_drawdown": -0.9874472594191062,
+        "cagr": -0.6014895323763354,
+        "trades_per_day": 0.7428810720268006,
+        "pdt": {
+          "day_trades": 887,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 359,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    },
+    {
+      "contract": "1dte-overnight",
+      "dte": 1,
+      "hold": "overnight",
+      "train_1000": {
+        "ending_equity": 15.887844046511557,
+        "trades": 153,
+        "win_rate": 0.3006535947712418,
+        "breakeven_win_rate": 0.5803942970101462,
+        "profit_factor": 0.3108080794877674,
+        "sharpe": -1.100220624333501,
+        "max_drawdown": -0.9842366078507775,
+        "cagr": -0.5727745663408743,
+        "trades_per_day": 0.12520458265139117,
+        "pdt": {
+          "day_trades": 143,
+          "overnight_holds": 10,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 61,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 57.10931284136153,
+        "trades": 1545,
+        "win_rate": 0.37022653721682847,
+        "breakeven_win_rate": 0.4601696048968854,
+        "profit_factor": 0.6896402380117184,
+        "sharpe": -0.9768601798481755,
+        "max_drawdown": -0.9885961441080665,
+        "cagr": -0.6007635942755223,
+        "trades_per_day": 1.2643207855973813,
+        "pdt": {
+          "day_trades": 1501,
+          "overnight_holds": 44,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 575,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 6.858827701280619,
+        "trades": 43,
+        "win_rate": 0.23255813953488372,
+        "breakeven_win_rate": 0.4950594057737962,
+        "profit_factor": 0.309078667117745,
+        "sharpe": -0.627292975109884,
+        "max_drawdown": -0.9931411722987193,
+        "cagr": -0.6490248754087782,
+        "trades_per_day": 0.036013400335008376,
+        "pdt": {
+          "day_trades": 41,
+          "overnight_holds": 2,
+          "worst_day_trades_in_5_sessions": 14,
+          "windows_over_3": 14,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 60.65923473100456,
+        "trades": 413,
+        "win_rate": 0.387409200968523,
+        "breakeven_win_rate": 0.49628499495605805,
+        "profit_factor": 0.6418790556613797,
+        "sharpe": -0.8222486671914067,
+        "max_drawdown": -0.987868153053799,
+        "cagr": -0.6043355875539532,
+        "trades_per_day": 0.3458961474036851,
+        "pdt": {
+          "day_trades": 406,
+          "overnight_holds": 7,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 158,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    },
+    {
+      "contract": "3dte-flat",
+      "dte": 3,
+      "hold": "flat",
+      "train_1000": {
+        "ending_equity": 59.168688409220685,
+        "trades": 165,
+        "win_rate": 0.23030303030303031,
+        "breakeven_win_rate": 0.5184983039247869,
+        "profit_factor": 0.27786276741553784,
+        "sharpe": -2.209761015982051,
+        "max_drawdown": -0.9408313115907794,
+        "cagr": -0.4403767181761157,
+        "trades_per_day": 0.13502454991816695,
+        "pdt": {
+          "day_trades": 165,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 78,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 108.03257239206519,
+        "trades": 1195,
+        "win_rate": 0.32719665271966525,
+        "breakeven_win_rate": 0.4524910132469978,
+        "profit_factor": 0.5884397501531781,
+        "sharpe": -1.170195342045661,
+        "max_drawdown": -0.978393485521587,
+        "cagr": -0.5449382825840325,
+        "trades_per_day": 0.9779050736497545,
+        "pdt": {
+          "day_trades": 1195,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 484,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 172.580216176594,
+        "trades": 35,
+        "win_rate": 0.2857142857142857,
+        "breakeven_win_rate": 0.555905435817648,
+        "profit_factor": 0.31954684057309846,
+        "sharpe": -0.9785410706825787,
+        "max_drawdown": -0.827419783823406,
+        "cagr": -0.30872702666455043,
+        "trades_per_day": 0.02931323283082077,
+        "pdt": {
+          "day_trades": 35,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 11,
+          "windows_over_3": 10,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 175.21048683232354,
+        "trades": 298,
+        "win_rate": 0.33557046979865773,
+        "breakeven_win_rate": 0.4796361542629826,
+        "profit_factor": 0.5479362236638358,
+        "sharpe": -1.4939091946133736,
+        "max_drawdown": -0.9649579026335353,
+        "cagr": -0.5055324224785811,
+        "trades_per_day": 0.24958123953098826,
+        "pdt": {
+          "day_trades": 298,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 111,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    },
+    {
+      "contract": "3dte-overnight",
+      "dte": 3,
+      "hold": "overnight",
+      "train_1000": {
+        "ending_equity": 53.571616143535095,
+        "trades": 141,
+        "win_rate": 0.2695035460992908,
+        "breakeven_win_rate": 0.5453219501982465,
+        "profit_factor": 0.3076078266533712,
+        "sharpe": -1.399406294190865,
+        "max_drawdown": -0.9464283838564649,
+        "cagr": -0.4516787396448295,
+        "trades_per_day": 0.11538461538461539,
+        "pdt": {
+          "day_trades": 131,
+          "overnight_holds": 10,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 62,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 102.0515740837027,
+        "trades": 929,
+        "win_rate": 0.3078579117330463,
+        "breakeven_win_rate": 0.48138955792321547,
+        "profit_factor": 0.4791810684945732,
+        "sharpe": -2.17864864085464,
+        "max_drawdown": -0.9795896851832595,
+        "cagr": -0.5502285256356534,
+        "trades_per_day": 0.7602291325695582,
+        "pdt": {
+          "day_trades": 900,
+          "overnight_holds": 29,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 361,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 172.580216176594,
+        "trades": 35,
+        "win_rate": 0.2857142857142857,
+        "breakeven_win_rate": 0.555905435817648,
+        "profit_factor": 0.31954684057309846,
+        "sharpe": -0.9785410706825787,
+        "max_drawdown": -0.827419783823406,
+        "cagr": -0.30872702666455043,
+        "trades_per_day": 0.02931323283082077,
+        "pdt": {
+          "day_trades": 35,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 11,
+          "windows_over_3": 10,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 186.88618037950656,
+        "trades": 290,
+        "win_rate": 0.3448275862068966,
+        "breakeven_win_rate": 0.48652691075795407,
+        "profit_factor": 0.5554656656440677,
+        "sharpe": -1.2323480566140521,
+        "max_drawdown": -0.9626227639240987,
+        "cagr": -0.4987830358348908,
+        "trades_per_day": 0.24288107202680068,
+        "pdt": {
+          "day_trades": 286,
+          "overnight_holds": 4,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 121,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    },
+    {
+      "contract": "7dte-flat",
+      "dte": 7,
+      "hold": "flat",
+      "train_1000": {
+        "ending_equity": 117.60766642193379,
+        "trades": 123,
+        "win_rate": 0.24390243902439024,
+        "breakeven_win_rate": 0.5812464770112168,
+        "profit_factor": 0.23240017264943894,
+        "sharpe": -2.084186204713982,
+        "max_drawdown": -0.8823923335780662,
+        "cagr": -0.3556092380325633,
+        "trades_per_day": 0.10065466448445172,
+        "pdt": {
+          "day_trades": 123,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 70,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 176.39825809030222,
+        "trades": 735,
+        "win_rate": 0.2503401360544218,
+        "breakeven_win_rate": 0.5075525386576593,
+        "profit_factor": 0.3240000839431778,
+        "sharpe": -2.349454779380976,
+        "max_drawdown": -0.9647203483819395,
+        "cagr": -0.4967435545892007,
+        "trades_per_day": 0.6014729950900164,
+        "pdt": {
+          "day_trades": 735,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 315,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 278.90576956657964,
+        "trades": 28,
+        "win_rate": 0.32142857142857145,
+        "breakeven_win_rate": 0.7039160893183263,
+        "profit_factor": 0.19924288648752358,
+        "sharpe": -1.1360430153559695,
+        "max_drawdown": -0.7210942304334204,
+        "cagr": -0.23535487163624536,
+        "trades_per_day": 0.023450586264656615,
+        "pdt": {
+          "day_trades": 28,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 5,
+          "windows_over_3": 7,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 318.8728672064971,
+        "trades": 215,
+        "win_rate": 0.34418604651162793,
+        "breakeven_win_rate": 0.5351443750238283,
+        "profit_factor": 0.45588965013698407,
+        "sharpe": -1.5763547581597983,
+        "max_drawdown": -0.9362254265587006,
+        "cagr": -0.439222876028295,
+        "trades_per_day": 0.1800670016750419,
+        "pdt": {
+          "day_trades": 215,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 84,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    },
+    {
+      "contract": "7dte-overnight",
+      "dte": 7,
+      "hold": "overnight",
+      "train_1000": {
+        "ending_equity": 119.66230864502856,
+        "trades": 114,
+        "win_rate": 0.2894736842105263,
+        "breakeven_win_rate": 0.6023430235150753,
+        "profit_factor": 0.26896368265670934,
+        "sharpe": -1.721130016312285,
+        "max_drawdown": -0.8803376913549714,
+        "cagr": -0.3533137753399235,
+        "trades_per_day": 0.09328968903436989,
+        "pdt": {
+          "day_trades": 104,
+          "overnight_holds": 10,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 58,
+          "windows": 1218
+        }
+      },
+      "train_1000_gate": false,
+      "train_5000": {
+        "ending_equity": 170.84554687918404,
+        "trades": 694,
+        "win_rate": 0.25504322766570603,
+        "breakeven_win_rate": 0.5253585884328632,
+        "profit_factor": 0.3093089692901664,
+        "sharpe": -2.2001478604439466,
+        "max_drawdown": -0.9658308906241632,
+        "cagr": -0.5000374973189894,
+        "trades_per_day": 0.5679214402618658,
+        "pdt": {
+          "day_trades": 670,
+          "overnight_holds": 24,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 304,
+          "windows": 1218
+        }
+      },
+      "train_5000_gate": false,
+      "hold_1000": {
+        "ending_equity": 278.90576956657964,
+        "trades": 28,
+        "win_rate": 0.32142857142857145,
+        "breakeven_win_rate": 0.7039160893183263,
+        "profit_factor": 0.19924288648752358,
+        "sharpe": -1.1360430153559695,
+        "max_drawdown": -0.7210942304334204,
+        "cagr": -0.23535487163624536,
+        "trades_per_day": 0.023450586264656615,
+        "pdt": {
+          "day_trades": 28,
+          "overnight_holds": 0,
+          "worst_day_trades_in_5_sessions": 5,
+          "windows_over_3": 7,
+          "windows": 1190
+        }
+      },
+      "hold_1000_gate": false,
+      "hold_5000": {
+        "ending_equity": 278.67908187035266,
+        "trades": 222,
+        "win_rate": 0.35585585585585583,
+        "breakeven_win_rate": 0.5358771394037821,
+        "profit_factor": 0.47847448513405927,
+        "sharpe": -1.4168908170245182,
+        "max_drawdown": -0.9442641836259295,
+        "cagr": -0.4548783537804645,
+        "trades_per_day": 0.18592964824120603,
+        "pdt": {
+          "day_trades": 219,
+          "overnight_holds": 3,
+          "worst_day_trades_in_5_sessions": 15,
+          "windows_over_3": 92,
+          "windows": 1190
+        }
+      },
+      "hold_5000_gate": false,
+      "robust": false
+    }
+  ],
+  "expiry_best": "0dte-flat",
+  "books": {
+    "trend": [
+      "bounce",
+      "vwap",
+      "wick"
+    ],
+    "turn": [
+      "exhaustion",
+      "reclaim",
+      "reentry"
+    ],
+    "all": [
+      "bounce",
+      "exhaustion",
+      "reclaim",
+      "reentry",
+      "vwap",
+      "wick"
+    ],
+    "confirmed": [
+      "bounce",
+      "exhaustion",
+      "reclaim",
+      "reentry",
+      "vwap5",
+      "wick"
+    ]
+  }
+}
