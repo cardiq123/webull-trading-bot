@@ -4906,3 +4906,44 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_band_exit
 ```
 <!-- BAND_EXIT_END -->
+
+<!-- REENTRY_START -->
+### Band-tag re-entry
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. The re-entry was frozen before this score. After a bar trades the opposite 2 SD session VWAP band, a rejection candle closes back through that band: red and back under the upper band for a long, green and back above the lower band for a short. A later bar tests the 20 EMA within 0.10 ATR and closes back on the near side. The primary also requires the trade color, green for a long and red for a short. A hold of any color is the looser book. The fill is the next open. One position at a time. The stop is a close back through the 20 EMA, or through VWAP, scored separately. A gap through that level at the open fills at the open. The target is the opposite band again, or the 200 EMA when it is beyond the fill, scored separately. A target tag during the bar fills before the close stop. Flat at the 15:30 open. The standalone book does not need a position already open. The add-on keeps a re-entry only when that band tag is the bar where a base reversal exited at the band. The campaign account takes the base band exit and then the linked re-entry. Shares are long only, 1% of equity to the stop on the fill bar. Options are one at-the-money 0 DTE contract, calls and puts.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| green_ema20_band_shares | 1087 | 16.7% | 53.1% | 0.18 | -10.77 | -75.2% | $248 | n/a | $232 | no |
+| green_ema20_band_0dte | 3552 | 31.8% | 30.1% | 1.08 | 0.74 | -93.3% | $5,528 | $9,482 | $1 | no |
+| green_vwap_band_shares | 821 | 22.9% | 56.0% | 0.23 | -7.50 | -63.6% | $364 | n/a | $354 | no |
+| green_vwap_band_0dte | 2671 | 46.8% | 41.6% | 1.23 | 1.13 | -67.7% | $12,645 | n/a | $0 | no |
+| green_ema20_ema200_shares | 1087 | 14.4% | 45.2% | 0.20 | -9.65 | -76.5% | $235 | n/a | $208 | no |
+| green_ema20_ema200_0dte | 807 | 21.1% | 22.2% | 0.94 | -0.49 | -99.8% | $5 | n/a | $1 | no |
+| hold_ema20_band_shares | 1092 | 16.2% | 51.7% | 0.18 | -10.87 | -75.5% | $245 | n/a | $239 | no |
+| hold_ema20_band_0dte | 3694 | 30.6% | 28.4% | 1.11 | 0.88 | -60.2% | $7,126 | n/a | $0 | no |
+| addon_strict_shares | 9 | 0.0% | 100.0% | 0.00 | -1.13 | -1.9% | $981 | n/a | $985 | no |
+| addon_strict_0dte | 23 | 21.7% | 38.1% | 0.45 | -0.55 | -21.7% | $783 | n/a | $888 | no |
+| addon_no_crack_shares | 55 | 12.7% | 66.4% | 0.07 | -2.39 | -7.1% | $929 | n/a | $916 | no |
+| addon_no_crack_0dte | 134 | 36.6% | 37.1% | 0.98 | 0.07 | -30.1% | $955 | n/a | $1,049 | no |
+| campaign_no_crack_base_shares | 581 | 15.5% | 61.1% | 0.12 | -8.06 | -54.2% | $458 | n/a | $464 | no |
+| campaign_no_crack_both_shares | 581 | 15.5% | 61.1% | 0.12 | -8.06 | -54.2% | $458 | n/a | $463 | no |
+| campaign_no_crack_base_0dte | 644 | 37.6% | 40.0% | 0.90 | -0.32 | -99.9% | $1 | n/a | $1 | no |
+| campaign_no_crack_both_0dte | 538 | 37.7% | 40.6% | 0.89 | -0.21 | -99.9% | $1 | n/a | $0 | no |
+| addon_reversal_shares | 37 | 16.2% | 50.6% | 0.19 | -1.58 | -4.3% | $958 | n/a | $943 | no |
+| addon_reversal_0dte | 80 | 36.2% | 30.9% | 1.27 | 0.37 | -23.4% | $1,339 | n/a | $582 | no |
+| campaign_reversal_base_shares | 435 | 16.8% | 58.0% | 0.15 | -6.22 | -42.0% | $580 | n/a | $588 | no |
+| campaign_reversal_both_shares | 435 | 16.8% | 58.0% | 0.15 | -6.22 | -42.0% | $580 | n/a | $586 | no |
+| campaign_reversal_base_0dte | 1157 | 42.4% | 39.4% | 1.13 | 0.75 | -89.1% | $3,202 | n/a | $680 | no |
+| campaign_reversal_both_0dte | 145 | 30.3% | 39.8% | 0.66 | -0.25 | -99.9% | $1 | n/a | $86 | no |
+
+The green hold fires about 64.2 times a month on the holdout. Standalone, green, 20 EMA stop, upper band again, shares finished at $248 (1087 trades, win 16.7% against break-even 53.1%, profit factor 0.18, Sharpe -10.77, drawdown -75.2%, train $232). The same cell as one 0 DTE contract finished at $5,528 (3552 trades, win 31.8% against break-even 30.1%, profit factor 1.08, Sharpe 0.74, drawdown -93.3%, train $1). From $5,000 that 0 DTE book finished at $9,482 (3559 trades, profit factor 1.08, drawdown -34.1%). The VWAP close stop, same band target, finished at $12,645 (2671 trades, win 46.8% against break-even 41.6%, profit factor 1.23, Sharpe 1.13, drawdown -67.7%, train $0). The 200 EMA target, 20 EMA stop, finished at $5 (807 trades, win 21.1% against break-even 22.2%, profit factor 0.94, Sharpe -0.49, drawdown -99.8%, train $1). The looser hold, any candle color, finished at $7,126 (3694 trades, win 30.6% against break-even 28.4%, profit factor 1.11, Sharpe 0.88, drawdown -60.2%, train $0). As an add-on to the strict reclaim's band exit, the green re-entry finished at $783 (23 trades, win 21.7% against break-even 38.1%, profit factor 0.45, Sharpe -0.55, drawdown -21.7%, train $888). On the drop-the-crack tape it finished at $955 (134 trades, win 36.6% against break-even 37.1%, profit factor 0.98, Sharpe 0.07, drawdown -30.1%, train $1,049). On the simpler reversal it finished at $1,339 (80 trades, win 36.2% against break-even 30.9%, profit factor 1.27, Sharpe 0.37, drawdown -23.4%, train $582). The drop-the-crack campaign, base band exit alone, finished at $1 (644 trades, win 37.6% against break-even 40.0%, profit factor 0.90, Sharpe -0.32, drawdown -99.9%, train $1). Base plus the linked re-entry finished at $1 (538 trades, win 37.7% against break-even 40.6%, profit factor 0.89, Sharpe -0.21, drawdown -99.9%, train $0). The simpler reversal campaign, base alone, finished at $3,202 (1157 trades, win 42.4% against break-even 39.4%, profit factor 1.13, Sharpe 0.75, drawdown -89.1%, train $680). Base plus the re-entry finished at $1 (145 trades, win 30.3% against break-even 39.8%, profit factor 0.66, Sharpe -0.25, drawdown -99.9%, train $86). green_ema20_band_shares random holdout, seed 17, 256 trades, ending $751, profit factor 0.17, Sharpe -4.48, drawdown -25.2%. green_ema20_band_0dte random holdout, seed 17, 1672 trades, ending $3,696, profit factor 1.11, Sharpe 0.82, drawdown -39.1%. Share books are long only. A row that clears the holdout arithmetic is not promoted.
+
+Yahoo 5-minute cache. Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through 13:25 ET in this file. 11:35 G high 775.95 low 775.04 close 775.78 ema20 775.05 upper 776.11 11:40 G high 776.09 low 775.69 close 775.96 ema20 775.14 upper 776.12 11:45 G high 776.45 low 775.94 close 776.26 ema20 775.25 upper 776.15 11:50 R high 776.60 low 776.22 close 776.27 ema20 775.35 upper 776.94 11:55 G high 776.48 low 776.00 close 776.34 ema20 775.44 upper 776.94 12:00 R high 776.54 low 775.80 close 776.24 ema20 775.52 upper 777.15 12:05 G high 776.65 low 776.19 close 776.48 ema20 775.61 upper 777.15 12:10 G high 776.65 low 776.35 close 776.61 ema20 775.70 upper 777.15 12:15 R high 776.65 low 776.38 close 776.58 ema20 775.79 upper 777.16 12:20 G high 776.91 low 776.54 close 776.77 ema20 775.88 upper 777.16 12:25 R high 776.79 low 776.60 close 776.69 ema20 775.96 upper 777.17 12:30 G high 776.85 low 776.49 close 776.69 ema20 776.03 upper 777.17 12:35 R high 776.75 low 776.32 close 776.32 ema20 776.06 upper 777.18 12:40 G high 776.48 low 776.27 close 776.48 ema20 776.10 upper 777.18 12:45 G high 776.88 low 776.37 close 776.49 ema20 776.13 upper 777.19 12:50 R high 776.67 low 776.28 close 776.34 ema20 776.15 upper 777.38 12:55 G high 776.47 low 776.21 close 776.35 ema20 776.17 upper 777.38 13:00 G high 777.20 low 776.12 close 776.63 ema20 776.22 upper 777.39 13:05 G high 777.40 low 776.56 close 777.25 ema20 776.31 upper 777.40 13:10 G high 777.40 low 777.03 close 777.30 ema20 776.41 upper 777.41 13:15 G high 777.48 low 777.01 close 777.45 ema20 776.51 upper 777.42 13:20 G high 777.70 low 777.44 close 777.61 ema20 776.61 upper 777.44 13:25 D high 777.68 low 777.68 close 777.68 ema20 776.71 upper 777.44 The long tag is 11:45, high 776.45, band 776.15. The red rejection is 11:50, high 776.60, close 776.27, band 776.94. The 11:40 20 EMA is 775.14. That print is before the rejection. The hold is 12:55, low 776.21 against the 20 EMA 776.17, gap 0.04, inside a 0.10 ATR touch of 0.04, close 776.35. The fill is the 13:00 open at 776.34. Green long fills this session: 13:00. Other fills, same session: hold long 13:00, hold short 11:15. With the 20 EMA stop and the upper band as the target, this file exits band at 777.40 at 13:05. The 200 EMA is not beyond the fill, so that target does not replace the band.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_reentry
+```
+<!-- REENTRY_END -->
