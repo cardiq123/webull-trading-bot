@@ -1,0 +1,29 @@
+{
+  "trend": "EMA 9 > 20 > 50, each rising over 3 bars, close above the 200 EMA and VWAP, and ADX(14) > 25 or higher highs and higher lows",
+  "touch_atr": 0.25,
+  "swing_bars": 5,
+  "adx_min": 25.0,
+  "primary_target": 0.15,
+  "primary_stop": -0.3,
+  "breakeven_before_costs": 0.6666666666666667,
+  "dte": 14,
+  "dte_sensitivities": [
+    7,
+    30
+  ],
+  "exit_sensitivities": [
+    "+20%/-20%",
+    "+15%/-15%"
+  ],
+  "time_bars": {
+    "15m": 16,
+    "60m": 8,
+    "1d": 5
+  },
+  "share_r": 1.5,
+  "cash_account": 1000.0,
+  "max_contracts": 2,
+  "risk_fraction": 0.02,
+  "iv_premium": 1.15,
+  "seed": 17
+}

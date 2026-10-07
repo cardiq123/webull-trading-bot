@@ -3339,3 +3339,190 @@ Charts: `reports/setups/readCHOPv2_SPY_1d.png` and `reports/setups/readCHOPv2_NV
 
 Not added to `config/optional_strategies.json`. The published A-D books, the v1 chop flag, the 120-bar level set, and the bounce's published trail are unchanged. The default book is still dual momentum.
 <!-- CHART_READS_CHOP_V2_END -->
+
+<!-- CHART_READS_PULLBACK_START -->
+## Strong-trend pullback continuation
+
+BACKTESTS ONLY. The rules were written down before this score, in `reports/pullback_rules.json`. Nothing was sent to a broker. The sandbox forward test was not changed, and live trading stays off.
+
+A long needs EMA 9 above EMA 20 above EMA 50, each higher than it was 3 bars ago, the close above the 200 EMA and above VWAP, and either ADX(14) above 25 or a higher-high and higher-low swing. The bar then touches the 9 EMA, the 20 EMA, VWAP, or the previous swing low within 0.25 ATR, closes back at or above that level, and does not trade below the previous swing low. The close is up from the open and up from the prior close. The previous bar was already in that trend and was not itself an entry. Short is the mirror, and it buys a put. The fill is the next bar's open. Intraday VWAP is the session VWAP. Daily VWAP is the 20-session volume-weighted typical price.
+
+The contract is the listed strike nearest the spot, so the model delta is about 0.50. The reported exit is +15% of the entry ask and -30% of that ask, 14 calendar days. Before costs that payoff breaks even at a 66.7% win rate. A limit fills at the limit. A stop that gaps through fills at the open bid. The same bar cannot take the target if it also hits the stop. Spreads are the Black-Scholes haircut and the option fees. +20%/-20%, +15%/-15%, a time stop, and 7 or 30 DTE are sensitivities. They were not used to pick an exit.
+
+The universe is the pre-registered liquid list: NVDA, AAPL, UNH, MSFT, AMZN, META, GOOGL, JPM, AMD, TSLA, AVGO, COST, V, MA, LLY, XOM, SPY, QQQ. The verdict is the point-in-time Dow gate on the signal day. Names that were never in the Dow stay in the liquid table and cannot pass the gate. The $1,000 book buys two contracts when the debit fits in $1,000, otherwise one, and it skips a larger debit. The sized book is one contract at the training median equity that puts the -30% loss near 2% of the account. The share control uses the same entries, a stop at the swing, a 1.5R target, and the clock's time stop.
+
+### Daily
+
+Window train 2010-01-01 through 2018-12-31, holdout 2019-01-01 through 2026-10-06. 3967 liquid signals, 1169 after the Dow gate, 3967 priced at 14 DTE.
+
+Daily, $1,000, 14 DTE, +15%/-30%: realized win rate 35.7% against an after-cost break-even of 66.3%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-32.16 expectancy, ending $99.64 from $1,000.00, 28 trades).
+
+Daily, sized at $1,280.80, one contract: realized win rate 36.2% against an after-cost break-even of 68.0%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-25.51 expectancy, ending $81.70 from $1,280.80, 47 trades).
+
+Daily shares, $1,000, swing stop and 1.5R: realized win rate 49.5% against an after-cost break-even of 50.3%. The win rate does not clear that rate. The before-cost break-even is 40.0%. On the holdout it is not profitable ($-0.12 expectancy, ending $976.29 from $1,000.00, 204 trades).
+
+| Book | Trades | Win rate | After-cost BE | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| $1,000 train, +15%/-30% | 43 | 14.0% | 56.7% | $-22.91 | 0.12 | -13.74 | -98.5% | $14.66 |
+| $1,000 holdout, +15%/-30% | 28 | 35.7% | 66.3% | $-32.16 | 0.28 | -6.71 | -90.9% | $99.64 |
+| sized holdout, +15%/-30% | 47 | 36.2% | 68.0% | $-25.51 | 0.27 | -6.04 | -94.1% | $81.70 |
+| liquid list holdout, not the gate | 39 | 28.2% | 54.5% | $-25.39 | 0.33 | -11.14 | -99.1% | $9.97 |
+| random entries, same exit | 24 | 37.5% | 75.3% | $-39.77 | 0.20 | -6.93 | -95.5% | $45.42 |
+| +20%/-20% | 25 | 12.0% | 40.4% | $-36.74 | 0.20 | -14.62 | -92.8% | $81.47 |
+| +15%/-15% | 24 | 4.2% | 61.3% | $-38.69 | 0.03 | -25.00 | -92.9% | $71.42 |
+| time stop 5 bars, stop -30% | 21 | 9.5% | 31.2% | $-44.07 | 0.23 | -2.54 | -94.0% | $74.46 |
+| 7 DTE, +15%/-30% | 28 | 28.6% | 59.2% | $-33.77 | 0.28 | -7.80 | -95.2% | $54.40 |
+| 30 DTE, +15%/-30% | 19 | 31.6% | 65.9% | $-47.28 | 0.24 | -7.05 | -91.1% | $101.64 |
+| shares train | 238 | 52.1% | 54.8% | $-0.31 | 0.90 | -0.48 | -17.7% | $927.32 |
+| shares holdout | 204 | 49.5% | 50.3% | $-0.12 | 0.97 | -0.11 | -14.6% | $976.29 |
+| shares, random entries | 255 | 51.4% | 51.1% | $0.06 | 1.01 | 0.17 | -27.7% | $1,015.08 |
+
+Walk-forward inside the training span, frozen +15%/-30% rule, no re-selection: 101 trades, pooled expectancy $-28.97.
+
+Holdout by symbol on the $1,000 Dow-gated option book. A zero means that name had no holdout trade.
+
+| Symbol | Trades | Win rate | Expectancy | Sum of P&L |
+|---|---:|---:|---:|---:|
+| NVDA | 0 | n/a | n/a | n/a |
+| AAPL | 5 | 20.0% | $-40.86 | $-204.28 |
+| UNH | 2 | 50.0% | $-48.40 | $-96.80 |
+| MSFT | 4 | 50.0% | $-29.83 | $-119.33 |
+| AMZN | 0 | n/a | n/a | n/a |
+| META | 0 | n/a | n/a | n/a |
+| GOOGL | 0 | n/a | n/a | n/a |
+| JPM | 3 | 66.7% | $3.62 | $10.87 |
+| AMD | 0 | n/a | n/a | n/a |
+| TSLA | 0 | n/a | n/a | n/a |
+| AVGO | 0 | n/a | n/a | n/a |
+| COST | 0 | n/a | n/a | n/a |
+| V | 4 | 25.0% | $-55.65 | $-222.61 |
+| MA | 0 | n/a | n/a | n/a |
+| LLY | 0 | n/a | n/a | n/a |
+| XOM | 10 | 30.0% | $-26.82 | $-268.22 |
+| SPY | 0 | n/a | n/a | n/a |
+| QQQ | 0 | n/a | n/a | n/a |
+
+Median model delta on the trades that filled: 0.49. Skipped 519, PDT blocked 2, overlapped 8. Exit reasons: {'target': 10, 'stop': 18}.
+
+### 60-minute
+
+Window train 2024-10-17 through 2025-10-10, holdout 2025-10-13 through 2026-10-06. 3671 liquid signals, 1429 after the Dow gate, 3671 priced at 14 DTE.
+
+60-minute, $1,000, 14 DTE, +15%/-30%: realized win rate 30.0% against an after-cost break-even of 71.4%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-77.89 expectancy, ending $221.15 from $1,000.00, 10 trades).
+
+60-minute, sized at $9,365.35, one contract: realized win rate 31.9% against an after-cost break-even of 68.6%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-130.45 expectancy, ending $364.22 from $9,365.35, 69 trades).
+
+60-minute shares, $1,000, swing stop and 1.5R: realized win rate 43.6% against an after-cost break-even of 53.5%. The win rate does not clear that rate. The before-cost break-even is 40.0%. On the holdout it is not profitable ($-1.20 expectancy, ending $801.20 from $1,000.00, 165 trades).
+
+| Book | Trades | Win rate | After-cost BE | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| $1,000 train, +15%/-30% | 12 | 33.3% | 64.5% | $-66.51 | 0.27 | -16.91 | -79.8% | $201.88 |
+| $1,000 holdout, +15%/-30% | 10 | 30.0% | 71.4% | $-77.89 | 0.17 | -18.73 | -77.9% | $221.15 |
+| sized holdout, +15%/-30% | 69 | 31.9% | 68.6% | $-130.45 | 0.21 | -7.01 | -96.1% | $364.22 |
+| liquid list holdout, not the gate | 10 | 20.0% | 63.7% | $-85.82 | 0.14 | -13.51 | -85.8% | $141.81 |
+| random entries, same exit | 13 | 46.2% | 66.1% | $-56.19 | 0.44 | -7.40 | -79.8% | $269.58 |
+| +20%/-20% | 14 | 28.6% | 55.3% | $-48.88 | 0.32 | -10.61 | -73.3% | $315.66 |
+| +15%/-15% | 14 | 7.1% | 44.2% | $-56.75 | 0.10 | -38.72 | -79.5% | $205.49 |
+| time stop 8 bars, stop -30% | 22 | 27.3% | 33.6% | $-29.40 | 0.74 | 0.82 | -74.5% | $353.15 |
+| 7 DTE, +15%/-30% | 16 | 37.5% | 62.4% | $-53.76 | 0.36 | -9.38 | -86.0% | $139.86 |
+| 30 DTE, +15%/-30% | 6 | 33.3% | 70.3% | $-109.74 | 0.21 | -9.91 | -69.5% | $341.56 |
+| shares train | 154 | 49.4% | 49.6% | $-0.03 | 0.99 | 0.01 | -8.1% | $995.31 |
+| shares holdout | 165 | 43.6% | 53.5% | $-1.20 | 0.67 | -2.15 | -22.7% | $801.20 |
+| shares, random entries | 181 | 43.6% | 51.9% | $-1.23 | 0.72 | -1.81 | -29.3% | $776.58 |
+
+Walk-forward inside the training span, frozen +15%/-30% rule, no re-selection: 41 trades, pooled expectancy $-45.55.
+
+Holdout by symbol on the $1,000 Dow-gated option book. A zero means that name had no holdout trade.
+
+| Symbol | Trades | Win rate | Expectancy | Sum of P&L |
+|---|---:|---:|---:|---:|
+| NVDA | 0 | n/a | n/a | n/a |
+| AAPL | 6 | 33.3% | $-52.68 | $-316.09 |
+| UNH | 0 | n/a | n/a | n/a |
+| MSFT | 0 | n/a | n/a | n/a |
+| AMZN | 3 | 33.3% | $-87.47 | $-262.40 |
+| META | 0 | n/a | n/a | n/a |
+| GOOGL | 0 | n/a | n/a | n/a |
+| JPM | 0 | n/a | n/a | n/a |
+| AMD | 0 | n/a | n/a | n/a |
+| TSLA | 0 | n/a | n/a | n/a |
+| AVGO | 0 | n/a | n/a | n/a |
+| COST | 0 | n/a | n/a | n/a |
+| V | 1 | 0.0% | $-200.36 | $-200.36 |
+| MA | 0 | n/a | n/a | n/a |
+| LLY | 0 | n/a | n/a | n/a |
+| XOM | 0 | n/a | n/a | n/a |
+| SPY | 0 | n/a | n/a | n/a |
+| QQQ | 0 | n/a | n/a | n/a |
+
+Median model delta on the trades that filled: 0.49. Skipped 644, PDT blocked 4, overlapped 16. Exit reasons: {'target': 3, 'stop': 7}.
+
+### 15-minute
+
+Window train 2026-08-13 through 2026-09-09, holdout 2026-09-10 through 2026-10-06. 992 liquid signals, 425 after the Dow gate, 992 priced at 14 DTE.
+
+15-minute, $1,000, 14 DTE, +15%/-30%: realized win rate 25.0% against an after-cost break-even of 74.0%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-140.82 expectancy, ending $436.74 from $1,000.00, 4 trades).
+
+15-minute, sized at $11,901.91, one contract: realized win rate 41.2% against an after-cost break-even of 74.3%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-125.11 expectancy, ending $9,774.97 from $11,901.91, 17 trades).
+
+15-minute shares, $1,000, swing stop and 1.5R: realized win rate 21.4% against an after-cost break-even of 68.5%. The win rate does not clear that rate. The before-cost break-even is 40.0%. On the holdout it is not profitable ($-2.99 expectancy, ending $958.19 from $1,000.00, 14 trades).
+
+| Book | Trades | Win rate | After-cost BE | Expectancy | PF | Sharpe | Max DD | Ending |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| $1,000 train, +15%/-30% | 3 | 33.3% | 78.7% | $-195.94 | 0.14 | -9.54 | -62.3% | $412.19 |
+| $1,000 holdout, +15%/-30% | 4 | 25.0% | 74.0% | $-140.82 | 0.12 | -34.33 | -56.3% | $436.74 |
+| sized holdout, +15%/-30% | 17 | 41.2% | 74.3% | $-125.11 | 0.24 | -9.13 | -17.9% | $9,774.97 |
+| liquid list holdout, not the gate | 9 | 44.4% | 74.4% | $-80.35 | 0.28 | -11.01 | -72.3% | $276.84 |
+| random entries, same exit | 6 | 33.3% | 68.7% | $-107.32 | 0.23 | -18.82 | -64.4% | $356.07 |
+| +20%/-20% | 8 | 25.0% | 55.0% | $-71.69 | 0.27 | -8.38 | -60.6% | $426.46 |
+| +15%/-15% | 6 | 0.0% | 100.0% | $-96.42 | 0.00 | -48.52 | -57.9% | $421.45 |
+| time stop 16 bars, stop -30% | 14 | 35.7% | 45.8% | $-26.59 | 0.66 | -3.69 | -52.6% | $627.72 |
+| 7 DTE, +15%/-30% | 4 | 0.0% | 100.0% | $-179.24 | 0.00 | -32.50 | -71.7% | $283.03 |
+| 30 DTE, +15%/-30% | 3 | 33.3% | 69.8% | $-129.69 | 0.22 | -24.36 | -38.9% | $610.93 |
+| shares train | 9 | 33.3% | 57.4% | $-1.68 | 0.37 | -6.48 | -2.0% | $984.88 |
+| shares holdout | 14 | 21.4% | 68.5% | $-2.99 | 0.13 | -12.74 | -4.2% | $958.19 |
+| shares, random entries | 15 | 20.0% | 69.7% | $-5.55 | 0.11 | -13.37 | -8.5% | $916.69 |
+
+Walk-forward inside the training span, frozen +15%/-30% rule, no re-selection: 10 trades, pooled expectancy $-109.26.
+
+Holdout by symbol on the $1,000 Dow-gated option book. A zero means that name had no holdout trade.
+
+| Symbol | Trades | Win rate | Expectancy | Sum of P&L |
+|---|---:|---:|---:|---:|
+| NVDA | 1 | 0.0% | $-318.72 | $-318.72 |
+| AAPL | 0 | n/a | n/a | n/a |
+| UNH | 0 | n/a | n/a | n/a |
+| MSFT | 0 | n/a | n/a | n/a |
+| AMZN | 0 | n/a | n/a | n/a |
+| META | 0 | n/a | n/a | n/a |
+| GOOGL | 1 | 0.0% | $-177.96 | $-177.96 |
+| JPM | 2 | 50.0% | $-33.29 | $-66.58 |
+| AMD | 0 | n/a | n/a | n/a |
+| TSLA | 0 | n/a | n/a | n/a |
+| AVGO | 0 | n/a | n/a | n/a |
+| COST | 0 | n/a | n/a | n/a |
+| V | 0 | n/a | n/a | n/a |
+| MA | 0 | n/a | n/a | n/a |
+| LLY | 0 | n/a | n/a | n/a |
+| XOM | 0 | n/a | n/a | n/a |
+| SPY | 0 | n/a | n/a | n/a |
+| QQQ | 0 | n/a | n/a | n/a |
+
+Median model delta on the trades that filled: 0.49. Skipped 157, PDT blocked 49, overlapped 32. Exit reasons: {'stop': 3, 'target': 1}.
+
+### Verdict
+
+Daily: realized win rate 35.7% against an after-cost break-even of 66.3%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-32.16 expectancy, ending $99.64 from $1,000.00, 28 trades).
+
+60-minute: realized win rate 30.0% against an after-cost break-even of 71.4%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-77.89 expectancy, ending $221.15 from $1,000.00, 10 trades).
+
+15-minute: realized win rate 25.0% against an after-cost break-even of 74.0%. The win rate does not clear that rate. The before-cost break-even is 66.7%. On the holdout it is not profitable ($-140.82 expectancy, ending $436.74 from $1,000.00, 4 trades).
+
+Holdout rows above the starting equity: Daily random shares, $1,015.08 on 255 trades. A random-entry row is the baseline. It was not used to change the rule.
+
+No sensitivity was promoted after the score. No cell was wired into the sandbox, and the forward-test code was left as it is. Not added to `config/optional_strategies.json`. The default book is still dual momentum.
+
+Charts, most recent long and short the detector marked, not chosen for P&L: `reports/setups/pullback_long_60m.png`, `reports/setups/pullback_short_60m.png`.
+
+SPY buy and hold over 2019-01-01 through 2026-10-06, $1,000 whole shares: 4 shares, ending $3,242.23, Sharpe 0.95, max drawdown -30.7%.
+<!-- CHART_READS_PULLBACK_END -->
