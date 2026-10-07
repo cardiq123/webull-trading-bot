@@ -4947,3 +4947,28 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_reentry
 ```
 <!-- REENTRY_END -->
+
+<!-- WICK_START -->
+### 9 EMA wick continuation
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. The wick was frozen before this score. In an established bullish stack (9 EMA above the 20, both higher than 3 bars ago, close above the 9, the 20, and session VWAP), a bar wicks into the 9 EMA within 0.10 ATR and closes back above it. The candle may be red. With the filter on, the lower wick is at least 1.5 times the body, or at least 50% of the range. A zero body uses the range test only. The filter off drops that size test. A green wick bar fills on the next open. A red wick bar waits for a later green close that is still above the 9 EMA, then fills on the open after that close. A close back through the 9 EMA before the green close cancels the wick. The bearish stack buys the put on an upper wick. The primary stop is a close back through the 9 EMA. The 20 EMA stop is the same stop as the 20 EMA continuation. The target is the opposite 2 SD band. Flat at the 15:30 open.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| filtered_ema9_band_shares | 866 | 10.3% | 55.0% | 0.09 | -11.82 | -67.6% | $324 | n/a | $285 | no |
+| filtered_ema9_band_0dte | 218 | 35.8% | 43.9% | 0.71 | -1.20 | -99.8% | $3 | $5 | $1 | no |
+| plain_ema9_band_shares | 1069 | 12.4% | 57.3% | 0.11 | -12.68 | -76.4% | $236 | n/a | $230 | no |
+| plain_ema9_band_0dte | 290 | 40.3% | 45.8% | 0.80 | -0.48 | -99.9% | $2 | n/a | $0 | no |
+| filtered_ema20_band_shares | 872 | 17.3% | 54.1% | 0.18 | -8.96 | -65.4% | $346 | n/a | $305 | no |
+| filtered_ema20_band_0dte | 3464 | 46.0% | 44.9% | 1.04 | 0.71 | -51.7% | $3,229 | n/a | $0 | no |
+
+The filtered wick fires about 85.7 times a month on the holdout. Filter on, stop at a close through the 9 EMA, target the upper band, shares finished at $324 (866 trades, win 10.3% against break-even 55.0%, profit factor 0.09, Sharpe -11.82, drawdown -67.6%, train $285). The same cell as one 0 DTE contract finished at $3 (218 trades, win 35.8% against break-even 43.9%, profit factor 0.71, Sharpe -1.20, drawdown -99.8%, train $1). From $5,000 that 0 DTE book finished at $5 (1750 trades, profit factor 0.76, drawdown -99.9%). Filter off, same 9 EMA stop, finished at $2 (290 trades, win 40.3% against break-even 45.8%, profit factor 0.80, Sharpe -0.48, drawdown -99.9%, train $0). Filter on with the 20 EMA stop, the same stop as the 20 EMA continuation, finished at $3,229 (3464 trades, win 46.0% against break-even 44.9%, profit factor 1.04, Sharpe 0.71, drawdown -51.7%, train $0). The 20 EMA continuation, green_ema20_band_shares, finished at $248 (1087 trades, win 16.7% against break-even 53.1%, profit factor 0.18, Sharpe -10.77, drawdown -75.2%, train $232). The 20 EMA continuation, green_ema20_band_0dte, finished at $5,528 (3552 trades, win 31.8% against break-even 30.1%, profit factor 1.08, Sharpe 0.74, drawdown -93.3%, train $1). From $5,000 it finished at $9,482. filtered_ema9_band_shares random holdout, seed 17, 210 trades, ending $757, profit factor 0.09, Sharpe -4.97, drawdown -24.3%. filtered_ema9_band_0dte random holdout, seed 17, 100 trades, ending $57, profit factor 0.38, Sharpe -1.48, drawdown -94.8%. Share books are long only. A row that clears the holdout arithmetic is not promoted.
+
+Yahoo 5-minute cache. Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through 13:35 ET in this file. The stamp is the bar open, so the bar that closes at 12:05 is the 12:00 bar. 11:50 R high 776.60 low 776.22 close 776.27 ema9 775.53 lower/body 1.67 lower/range 0.13 11:55 G high 776.48 low 776.00 close 776.34 ema9 775.69 lower/body 3.25 lower/range 0.54 12:00 R high 776.54 low 775.80 close 776.24 ema9 775.80 lower/body 4.41 lower/range 0.60 12:05 G high 776.65 low 776.19 close 776.48 ema9 775.94 lower/body 0.04 lower/range 0.02 12:10 G high 776.65 low 776.35 close 776.61 ema9 776.07 lower/body 1.22 lower/range 0.48 12:15 R high 776.65 low 776.38 close 776.58 ema9 776.17 lower/body 10.02 lower/range 0.74 The filtered long wick is 12:00. The green close is 12:05. The fill is the 12:10 open at 776.49. The 9 EMA stop exits stop at 776.32 at 12:35. The 20 EMA stop exits band at 777.40 at 13:05. Other filtered long fills this session: 12:50. The wick filter is 1.5 times the body, or 50% of the range.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_wick
+```
+<!-- WICK_END -->

@@ -40,6 +40,8 @@ def _money(value) -> str:
     if value is None or not np.isfinite(value):
         return "n/a"
     number = float(value)
+    if abs(number) < 0.5:
+        return "$0"
     if number < 0:
         return f"-${abs(number):,.0f}"
     return f"${number:,.0f}"
@@ -161,14 +163,16 @@ def _day_note(prep, items: list) -> str:
             f"The filtered long wick is {_clock(prep, wick_i)}. The green close is {_clock(prep, confirm_i)}. "
             f"The fill is the {_clock(prep, fill_i)} open at {prep.open[fill_i]:.2f}."
         )
-        path = walk_reentry(
-            prep,
-            next(item for item in items if item.fill_i == fill_i and item.variant == "filtered" and item.direction == "long" and item.tag_i == wick_i),
-            "band",
-            "ema9",
+        sample = next(
+            item for item in items
+            if item.fill_i == fill_i and item.variant == "filtered" and item.direction == "long" and item.tag_i == wick_i
         )
-        if path is not None:
-            marked += f" The 9 EMA stop and the upper band exit {path['reason']} at {path['exit_spot']:.2f}."
+        for stop_name, label in (("ema9", "9 EMA stop"), ("ema20", "20 EMA stop")):
+            path = walk_reentry(prep, sample, "band", stop_name)
+            if path is None:
+                continue
+            when = pd.Timestamp(path["exit_time"]).tz_convert("America/New_York").strftime("%H:%M")
+            marked += f" The {label} exits {path['reason']} at {path['exit_spot']:.2f} at {when}."
     others = [
         _clock(prep, step["fill"]) for step in steps if chosen is None or step["wick"] != chosen["wick"]
     ]
