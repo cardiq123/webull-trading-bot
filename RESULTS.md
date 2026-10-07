@@ -4278,3 +4278,212 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.research_account_hunt
 ```
 <!-- ACCOUNT_HUNT_END -->
+
+<!-- VWAP_BAND_START -->
+## Session VWAP bands, 15-minute SPY and QQQ
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox forward test was not changed. The rules were frozen before this score. The gate reads the 2 standard deviation default: continuation targets 1R, and the reversal targets VWAP. Bands at 2.5 and 3, and the reversal's 1 SD and 1R targets, are variants. A variant that looks better was not promoted. Train is a fresh account through 2021-12-31. The holdout is a fresh account from 2022-01-01 through 2026-10-06.
+
+SPY is Dukascopy 1-minute bids resampled to 15 minutes, 2017-02-16 through 2026-10-06, 2416 sessions, 936992 minute bars, 0 days missing, 2 empty files. Volume is a bid-tick count. Dukascopy publishes QQQUSUSD, but this cache has 81 sessions and 2337 days still missing, short of the 2017+ file. The QQQ rows are Yahoo 15-minute bars from 2026-08-13 through 2026-10-07, about 60 days. That sample cannot clear 300 out-of-sample trades. It is not the gate.
+
+The cash share book is long only. A $1,000 cash account cannot short. Calls and puts are long premium, so the option books take both directions. Shares risk 1% of equity to the stop, with fractional shares. Options are exactly one at-the-money contract when the debit fits in settled cash, so a $5,000 account does not buy more contracts. When the debit already fits in $1,000, the extra cash sits idle and the dollar profit matches. A sale settles the next session. The option price is Black-Scholes with the prior session's VIX1D close, or the prior VIX close before that print exists, a half-spread of the greater of one cent and 1.5% of the mid, and the repo's option fees. There is no listed chain. Time left uses the bar's left timestamp. QQQ, when it is scored, uses the same SPX volatility print. Dukascopy prices are bids and omit dividends, so that buy-and-hold is the lower reference. Yahoo adjusted daily SPY and QQQ include dividends. Taxes are ignored: these books realize short-term gains, and a buy-and-hold defers them.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Gate |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| extension_2sd_r_shares | 812 | 39.8% | 63.0% | 0.39 | -4.92 | -60.8% | $393 | $1,963 | no |
+| reversal_2sd_vwap_shares | 908 | 13.1% | 58.5% | 0.11 | -12.08 | -70.3% | $297 | $1,487 | no |
+| extension_2sd_r_0dte | 2355 | 50.0% | 39.3% | 1.55 | 2.66 | -16.2% | $32,844 | $36,844 | yes |
+| reversal_2sd_vwap_0dte | 396 | 31.1% | 34.0% | 0.87 | -0.15 | -99.9% | $2 | $13 | no |
+| extension_2sd_r_7dte | 42 | 38.1% | 57.5% | 0.45 | -0.75 | -82.6% | $174 | $178 | no |
+| reversal_2sd_vwap_7dte | 59 | 25.4% | 55.4% | 0.27 | -1.84 | -82.8% | $183 | $185 | no |
+| QQQ extension_2sd_r_shares | 28 | 39.3% | 78.6% | 0.18 | -8.93 | -4.6% | $954 | $4,769 | no |
+| QQQ reversal_2sd_vwap_shares | 28 | 10.7% | 63.3% | 0.07 | -12.81 | -4.1% | $959 | $4,796 | no |
+| QQQ extension_2sd_r_0dte | 65 | 41.5% | 41.9% | 0.99 | 1.27 | -78.5% | $968 | $4,968 | no |
+| QQQ reversal_2sd_vwap_0dte | 134 | 36.6% | 32.9% | 1.18 | 2.32 | -39.7% | $1,458 | $5,458 | no |
+| QQQ extension_2sd_r_7dte | 23 | 34.8% | 51.0% | 0.51 | -3.16 | -67.2% | $362 | $3,267 | no |
+| QQQ reversal_2sd_vwap_7dte | 36 | 36.1% | 57.9% | 0.41 | -4.88 | -60.6% | $425 | $3,234 | no |
+
+### Training account, through 2021-12-31
+
+Fresh $1,000 and $5,000. This is not the gate. An option account that cannot pay for the next contract stops, and the rest of the signals are skips.
+
+| Book | Trades | PF | Sharpe | Max DD | $1,000 | $5,000 |
+|---|---:|---:|---:|---:|---:|---:|
+| extension_2sd_r_shares | 813 | 0.29 | -5.40 | -61.8% | $384 | $1,918 |
+| reversal_2sd_vwap_shares | 935 | 0.10 | -10.30 | -69.2% | $308 | $1,538 |
+| extension_2sd_r_0dte | 255 | 0.56 | -1.11 | -99.9% | $1 | $7,554 |
+| reversal_2sd_vwap_0dte | 446 | 0.54 | -1.74 | -100.0% | $0 | $0 |
+| extension_2sd_r_7dte | 123 | 0.33 | -1.89 | -91.3% | $89 | $151 |
+| reversal_2sd_vwap_7dte | 175 | 0.24 | -2.49 | -89.5% | $105 | $140 |
+| QQQ extension_2sd_r_shares | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ reversal_2sd_vwap_shares | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ extension_2sd_r_0dte | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ reversal_2sd_vwap_0dte | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ extension_2sd_r_7dte | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ reversal_2sd_vwap_7dte | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+
+The holdout gate is profit factor at least 1.10, Sharpe at least 0.40, max drawdown no worse than -30%, and at least 300 trades. These default books cleared it: extension_2sd_r_0dte. Clearing the gate is not the same thing as beating buy-and-hold. SPY buy-and-hold on the same bid series finished the holdout at $1,635 from $1,000 (Sharpe 0.69, max drawdown -25.3%) and $8,176 from $5,000. That series pays no dividends. Yahoo adjusted SPY, which includes dividends, finished at $1,737 (Sharpe 0.76, max drawdown -24.5%). Yahoo adjusted QQQ finished at $1,945 (Sharpe 0.72, max drawdown -34.9%).
+
+### Rolling windows, full sample
+
+One continuous account from the first SPY session, not a fresh holdout. Each window is that account's percentage change, restated from the starting stake. After a $1,000 option account dies, later windows are flat and show $1,000. The $5,000 continuation is the path that stayed open.
+
+**extension_2sd_r_shares, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $908 (SPY $1,078), bad $878 (SPY $958), good $933 (SPY $1,182). 100.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $908 (QQQ $1,117), bad $878 (QQQ $951), good $933 (QQQ $1,244). 100.0% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_shares, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $817 (SPY $1,143), bad $793 (SPY $936), good $850 (SPY $1,290). 100.0% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $817 (QQQ $1,235), bad $793 (QQQ $928), good $850 (QQQ $1,438). 100.0% lost money, against 13.5% for QQQ.
+
+**extension_2sd_r_shares, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $4,541 (SPY $5,392), bad $4,389 (SPY $4,791), good $4,665 (SPY $5,912). 100.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $4,541 (QQQ $5,587), bad $4,389 (QQQ $4,756), good $4,665 (QQQ $6,220). 100.0% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_shares, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $4,085 (SPY $5,714), bad $3,964 (SPY $4,682), good $4,249 (SPY $6,450). 100.0% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $4,085 (QQQ $6,176), bad $3,964 (QQQ $4,638), good $4,249 (QQQ $7,192). 100.0% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_shares, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $884 (SPY $1,078), bad $862 (SPY $958), good $900 (SPY $1,182). 100.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $884 (QQQ $1,117), bad $862 (QQQ $951), good $900 (QQQ $1,244). 100.0% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_shares, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $779 (SPY $1,143), bad $751 (SPY $936), good $814 (SPY $1,290). 100.0% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $779 (QQQ $1,235), bad $751 (QQQ $928), good $814 (QQQ $1,438). 100.0% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_shares, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $4,419 (SPY $5,392), bad $4,311 (SPY $4,791), good $4,498 (SPY $5,912). 100.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $4,419 (QQQ $5,587), bad $4,311 (QQQ $4,756), good $4,498 (QQQ $6,220). 100.0% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_shares, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $3,896 (SPY $5,714), bad $3,756 (SPY $4,682), good $4,070 (SPY $6,450). 100.0% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $3,896 (QQQ $6,176), bad $3,756 (QQQ $4,638), good $4,070 (QQQ $7,192). 100.0% lost money, against 13.5% for QQQ.
+
+**extension_2sd_r_0dte, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $1,000 (SPY $1,078), bad $1,000 (SPY $958), good $1,000 (SPY $1,182). 9.1% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $1,000 (QQQ $1,117), bad $1,000 (QQQ $951), good $1,000 (QQQ $1,244). 9.1% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_0dte, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $1,000 (SPY $1,143), bad $1,000 (SPY $936), good $1,000 (SPY $1,290). 9.6% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $1,000 (QQQ $1,235), bad $1,000 (QQQ $928), good $1,000 (QQQ $1,438). 9.6% lost money, against 13.5% for QQQ.
+
+**extension_2sd_r_0dte, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $5,571 (SPY $5,392), bad $4,714 (SPY $4,791), good $6,900 (SPY $5,912). 20.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $5,571 (QQQ $5,587), bad $4,714 (QQQ $4,756), good $6,900 (QQQ $6,220). 20.0% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_0dte, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $6,486 (SPY $5,714), bad $4,528 (SPY $4,682), good $8,578 (SPY $6,450). 15.4% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $6,486 (QQQ $6,176), bad $4,528 (QQQ $4,638), good $8,578 (QQQ $7,192). 15.4% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_0dte, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $1,000 (SPY $1,078), bad $1,000 (SPY $958), good $1,000 (SPY $1,182). 5.5% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $1,000 (QQQ $1,117), bad $1,000 (QQQ $951), good $1,000 (QQQ $1,244). 5.5% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_0dte, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $1,000 (SPY $1,143), bad $1,000 (SPY $936), good $1,000 (SPY $1,290). 5.8% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $1,000 (QQQ $1,235), bad $1,000 (QQQ $928), good $1,000 (QQQ $1,438). 5.8% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_0dte, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $5,000 (SPY $5,392), bad $1,901 (SPY $4,791), good $5,000 (SPY $5,912). 30.0% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $5,000 (QQQ $5,587), bad $1,901 (QQQ $4,756), good $5,000 (QQQ $6,220). 30.0% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_0dte, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $5,000 (SPY $5,714), bad $10 (SPY $4,682), good $5,000 (SPY $6,450). 31.7% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $5,000 (QQQ $6,176), bad $10 (QQQ $4,638), good $5,000 (QQQ $7,192). 31.7% lost money, against 13.5% for QQQ.
+
+**extension_2sd_r_7dte, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $1,000 (SPY $1,078), bad $1,000 (SPY $958), good $1,000 (SPY $1,182). 3.6% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $1,000 (QQQ $1,117), bad $1,000 (QQQ $951), good $1,000 (QQQ $1,244). 3.6% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_7dte, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $1,000 (SPY $1,143), bad $1,000 (SPY $936), good $1,000 (SPY $1,290). 3.8% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $1,000 (QQQ $1,235), bad $1,000 (QQQ $928), good $1,000 (QQQ $1,438). 3.8% lost money, against 13.5% for QQQ.
+
+**extension_2sd_r_7dte, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $5,000 (SPY $5,392), bad $2,449 (SPY $4,791), good $5,000 (SPY $5,912). 26.4% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $5,000 (QQQ $5,587), bad $2,449 (QQQ $4,756), good $5,000 (QQQ $6,220). 26.4% lost money, against 19.1% for QQQ.
+
+**extension_2sd_r_7dte, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $5,000 (SPY $5,714), bad $860 (SPY $4,682), good $5,000 (SPY $6,450). 27.9% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $5,000 (QQQ $6,176), bad $860 (QQQ $4,638), good $5,000 (QQQ $7,192). 27.9% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_7dte, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $1,000 (SPY $1,078), bad $1,000 (SPY $958), good $1,000 (SPY $1,182). 6.4% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $1,000 (QQQ $1,117), bad $1,000 (QQQ $951), good $1,000 (QQQ $1,244). 6.4% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_7dte, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $1,000 (SPY $1,143), bad $1,000 (SPY $936), good $1,000 (SPY $1,290). 6.7% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $1,000 (QQQ $1,235), bad $1,000 (QQQ $928), good $1,000 (QQQ $1,438). 6.7% lost money, against 13.5% for QQQ.
+
+**reversal_2sd_vwap_7dte, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $5,000 (SPY $5,392), bad $2,422 (SPY $4,791), good $5,000 (SPY $5,912). 16.4% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $5,000 (QQQ $5,587), bad $2,422 (QQQ $4,756), good $5,000 (QQQ $6,220). 16.4% lost money, against 19.1% for QQQ.
+
+**reversal_2sd_vwap_7dte, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $5,000 (SPY $5,714), bad $1,739 (SPY $4,682), good $5,000 (SPY $6,450). 17.3% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $5,000 (QQQ $6,176), bad $1,739 (QQQ $4,638), good $5,000 (QQQ $7,192). 17.3% lost money, against 13.5% for QQQ.
+
+### Variants and the both-directions share baseline
+
+These rows use the same holdout and the same $1,000 stake. They do not replace the 2 SD default.
+
+| Book | Trades | Win | PF | Sharpe | Max DD | Ending | Clears the numbers |
+|---|---:|---:|---:|---:|---:|---:|---|
+| extension_2.5sd_r_shares | 572 | 40.4% | 0.38 | -4.06 | -47.8% | $523 | no |
+| extension_3sd_r_shares | 365 | 38.1% | 0.36 | -3.23 | -34.9% | $651 | no |
+| reversal_2.5sd_vwap_shares | 760 | 12.4% | 0.13 | -10.38 | -61.8% | $382 | no |
+| reversal_3sd_vwap_shares | 549 | 9.7% | 0.10 | -8.56 | -51.9% | $481 | no |
+| reversal_2sd_inner_shares | 908 | 4.0% | 0.02 | -18.25 | -71.8% | $282 | no |
+| reversal_2sd_r_shares | 908 | 22.9% | 0.19 | -9.08 | -68.6% | $315 | no |
+| reversal_2.5sd_vwap_0dte | 330 | 29.1% | 0.83 | -0.37 | -99.9% | $1 | no |
+| reversal_3sd_vwap_0dte | 205 | 28.8% | 0.70 | 0.32 | -99.7% | $3 | no |
+| reversal_2sd_inner_0dte | 205 | 30.7% | 0.64 | -0.56 | -99.7% | $3 | no |
+| reversal_2sd_r_0dte | 3206 | 40.3% | 0.98 | -0.47 | -99.9% | $2 | no |
+| extension_2sd_r_shares_both | 1320 | 43.6% | 0.44 | -5.31 | -70.6% | $295 | no |
+| reversal_2sd_vwap_shares_both | 1288 | 11.2% | 0.09 | -17.59 | -80.1% | $199 | no |
+
+Random entries use seed 17, the same count, and a 1R target. One draw. It was not used to change the rule.
+
+
+
+**extension_2sd_r_shares.** Random holdout trades 554, ending $486, profit factor 0.14, Sharpe -7.64, max drawdown -51.4%.
+
+**reversal_2sd_vwap_shares.** Random holdout trades 845, ending $333, profit factor 0.15, Sharpe -10.07, max drawdown -66.8%.
+
+**extension_2sd_r_0dte.** Random holdout trades 1401, ending $6, profit factor 0.94, Sharpe 0.18, max drawdown -99.6%.
+
+**reversal_2sd_vwap_0dte.** Random holdout trades 837, ending $1, profit factor 0.93, Sharpe -0.85, max drawdown -100.0%.
+
+**extension_2sd_r_7dte.** Random holdout trades 59, ending $190, profit factor 0.42, Sharpe -1.13, max drawdown -81.0%.
+
+**reversal_2sd_vwap_7dte.** Random holdout trades 79, ending $191, profit factor 0.50, Sharpe -0.97, max drawdown -80.9%.
+
+Same holdout trades, split by the volatility print. VIX1D starts in 2023. Earlier sessions use the 30-day VIX as same-day vol. This split was not used to change the rule.
+
+
+
+**extension_2sd_r_0dte.** VIX 623 trades, profit factor 1.60, dollar profit $10,035; VIX1D 1732 trades, profit factor 1.53, dollar profit $21,809. Largest trade $1,499 on 2025-04-09 (flat), 4.7% of that book's dollar profit.
+
+**reversal_2sd_vwap_0dte.** VIX 396 trades, profit factor 0.87, dollar profit $-998. Largest trade $372 on 2022-01-24 (target), -37.2% of that book's dollar profit.
+
+**extension_2sd_r_7dte.** VIX 26 trades, profit factor 0.38, dollar profit $-643; VIX1D 16 trades, profit factor 0.62, dollar profit $-183. Largest trade $107 on 2023-05-02 (target), -12.9% of that book's dollar profit.
+
+**reversal_2sd_vwap_7dte.** VIX 48 trades, profit factor 0.32, dollar profit $-657; VIX1D 11 trades, profit factor 0.01, dollar profit $-160. Largest trade $66 on 2022-01-06 (target), -8.0% of that book's dollar profit.
+
+Fractional share counts are a research fill. Webull equity orders in this repo are whole shares, so a $1,000 or $5,000 account would skip most of these ETF orders. No sandbox forward command was added.
+
+
+
+**extension_2sd_r_shares.** 336 of 812 holdout trades were under one share.
+
+**reversal_2sd_vwap_shares.** 438 of 908 holdout trades were under one share.
+
+Charts: `reports/vwap_band_equity.png` and `reports/vwap_band_examples.png`. The equity chart has two linear panels so one option book does not hide the rest. The example panel is the first holdout reversal that hit its target, the first that hit its stop, and the first holdout continuation. They are illustrations, not a pick.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_vwap_band
+```
+<!-- VWAP_BAND_END -->
