@@ -65,6 +65,8 @@ def _signal(direction: str = "long", fill: str = "2024-06-03 10:00", stop: float
 
 def test_rules_are_frozen_before_any_score():
     rules = frozen_rules()
+    assert "opposite 2 SD" in rules["targets"]["band"]
+    assert "sells at the first tag" in rules["targets"]["band200"]
     assert rules["gate_variant"] == "vwap"
     assert rules["touch_atr"] == 0.10
     assert rules["vwap_atr"] == 0.10

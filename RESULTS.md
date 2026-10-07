@@ -4851,3 +4851,58 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_ema_reclaim
 ```
 <!-- EMA_RECLAIM_END -->
+
+<!-- BAND_EXIT_START -->
+### Opposite VWAP band exit
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. The exit was frozen before this score. A long takes the upper 2 standard deviation session VWAP band. A short takes the lower band. The band has to be beyond the fill. Alone, the whole position exits there. Combined with the 200 EMA, shares sell half at the first of the two and the rest at the other or on a close back across the 9 EMA. The original stop is not moved. One 0 DTE contract sells at the first tag. The +50% and +100% premium targets are the comparison, not a new gate. This exit does not replace the VWAP-confluence rejection gate. On the 15-minute VWAP study the 9 and the 200 are 15-minute EMAs. On the 5-minute studies they are 5-minute EMAs.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| reclaim_strict_band_shares | 250 | 15.2% | 63.5% | 0.10 | -5.24 | -29.2% | $711 | n/a | $702 | no |
+| reclaim_strict_band_0dte | 576 | 39.6% | 36.8% | 1.13 | 0.51 | -77.5% | $1,941 | $5,941 | $553 | no |
+| reclaim_strict_band200_shares | 250 | 14.0% | 62.4% | 0.10 | -5.33 | -29.2% | $711 | n/a | $706 | no |
+| reclaim_strict_band200_0dte | 577 | 42.1% | 40.5% | 1.07 | 0.42 | -80.1% | $1,494 | $5,494 | $403 | no |
+| reclaim_no_crack_band_shares | 581 | 15.5% | 61.1% | 0.12 | -8.06 | -54.2% | $458 | n/a | $464 | no |
+| reclaim_no_crack_band_0dte | 644 | 37.6% | 40.0% | 0.90 | -0.32 | -99.9% | $1 | $6,209 | $1 | no |
+| reclaim_no_crack_band200_shares | 581 | 15.5% | 62.6% | 0.11 | -8.18 | -54.2% | $458 | n/a | $466 | no |
+| reclaim_no_crack_band200_0dte | 633 | 39.7% | 42.2% | 0.90 | -0.94 | -100.0% | $0 | $6,083 | $2 | no |
+| reclaim_no_pullback_band_shares | 494 | 15.0% | 59.9% | 0.12 | -7.46 | -47.8% | $523 | n/a | $532 | no |
+| reclaim_no_pullback_band_0dte | 1747 | 41.8% | 40.7% | 1.04 | 0.67 | -94.9% | $2,034 | n/a | $2 | no |
+| reclaim_no_pullback_band200_shares | 494 | 14.8% | 59.0% | 0.12 | -7.37 | -47.3% | $528 | n/a | $539 | no |
+| reclaim_no_pullback_band200_0dte | 1781 | 44.2% | 43.2% | 1.04 | 0.60 | -88.7% | $1,912 | n/a | $1 | no |
+| reject_reversal_band_shares | 435 | 17.0% | 59.5% | 0.14 | -6.32 | -42.4% | $576 | n/a | $587 | no |
+| reject_reversal_band_0dte | 1134 | 43.0% | 40.0% | 1.13 | 0.79 | -95.8% | $3,260 | $7,338 | $856 | no |
+| reject_reversal_band200_shares | 435 | 17.0% | 61.3% | 0.13 | -6.55 | -42.9% | $571 | n/a | $589 | no |
+| reject_reversal_band200_0dte | 1158 | 45.3% | 42.4% | 1.12 | 0.72 | -94.6% | $3,083 | $6,982 | $679 | no |
+| reject_reversal_prem50_0dte | 1165 | 46.8% | 46.1% | 1.03 | 0.45 | -73.5% | $1,545 | n/a | $2 | no |
+| reject_reversal_prem100_0dte | 1167 | 34.5% | 32.6% | 1.09 | 0.70 | -55.2% | $2,937 | n/a | $658 | no |
+| reject_vwap_band_shares | 101 | 11.9% | 51.1% | 0.13 | -3.23 | -12.7% | $873 | n/a | $951 | no |
+| reject_vwap_band_0dte | 199 | 25.1% | 36.8% | 0.58 | -1.04 | -99.1% | $10 | n/a | $709 | no |
+| reject_vwap_band200_shares | 101 | 12.9% | 55.6% | 0.12 | -3.30 | -12.9% | $871 | n/a | $951 | no |
+| reject_vwap_band200_0dte | 174 | 23.6% | 37.0% | 0.52 | -0.90 | -99.1% | $16 | n/a | $720 | no |
+| reject_vwap_prem50_0dte | 249 | 26.9% | 33.5% | 0.73 | -0.18 | -96.3% | $175 | n/a | $519 | no |
+| reject_vwap_prem100_0dte | 223 | 15.7% | 21.4% | 0.68 | -0.78 | -96.6% | $38 | n/a | $615 | no |
+| vwap_extension_band_shares | 813 | 15.9% | 56.7% | 0.14 | -8.36 | -61.7% | $383 | n/a | $397 | no |
+| vwap_extension_band_0dte | 2747 | 58.0% | 50.9% | 1.33 | 2.00 | -16.4% | $11,730 | n/a | $3 | yes, not promoted |
+| vwap_extension_band200_shares | 812 | 17.0% | 52.7% | 0.18 | -7.88 | -62.3% | $377 | n/a | $414 | no |
+| vwap_extension_band200_0dte | 2749 | 58.4% | 51.6% | 1.32 | 2.06 | -16.7% | $11,006 | n/a | $4 | yes, not promoted |
+| vwap_extension_prem50_0dte | 2606 | 58.4% | 52.1% | 1.29 | 2.39 | -15.9% | $13,413 | n/a | $12 | yes, not promoted |
+| vwap_extension_prem100_0dte | 2414 | 44.8% | 36.6% | 1.41 | 2.72 | -15.7% | $21,823 | n/a | $5,108 | yes, not promoted |
+| vwap_reversal_band_shares | 907 | 19.5% | 51.9% | 0.22 | -8.84 | -65.1% | $350 | n/a | $340 | no |
+| vwap_reversal_band_0dte | 5755 | 35.1% | 31.2% | 1.19 | 1.71 | -29.5% | $15,089 | n/a | $1 | yes, not promoted |
+| vwap_reversal_band200_shares | 907 | 19.1% | 51.5% | 0.22 | -8.84 | -65.6% | $345 | n/a | $333 | no |
+| vwap_reversal_band200_0dte | 5760 | 35.6% | 32.2% | 1.16 | 1.61 | -31.2% | $12,865 | n/a | $0 | no |
+| vwap_reversal_prem50_0dte | 2763 | 39.9% | 40.7% | 0.97 | -0.74 | -99.9% | $1 | n/a | $1 | no |
+| vwap_reversal_prem100_0dte | 5465 | 34.5% | 33.2% | 1.06 | 1.03 | -49.9% | $5,316 | n/a | $1 | no |
+
+Share books lost on every variant. On the five-step reclaim, dropping the crack is the 2026-10-07 tape. Its opposite-band 0 DTE book finished at $1 (644 trades, profit factor 0.90, drawdown -99.9%, train $1). The $1,000 account died, so that row stops early. The same book from $5,000 finished at $6,209, profit factor 1.03. Half at the band or the 200 EMA finished at $0 (633 trades, profit factor 0.90, drawdown -100.0%, train $2). The same entries at +50% of premium finished at $1,592 (train $1) and at +100% finished at $5,375 (train $2). The percent targets did not repair that tape, and the band did not beat them. The strict band 0 DTE book finished at $1,941 (576 trades, profit factor 1.13, drawdown -77.5%, train $553). From $5,000 it finished at $5,941, profit factor 1.13. The strict +50% book finished at $832 (train $180) and the +100% book at $1,495 (train $883). The strict band made more than those percent targets and less than the structure exit already scored, and the $1,000 drawdown misses the gate. The simpler reversal, band alone, finished at $3,260 (1134 trades, profit factor 1.13, drawdown -95.8%, train $856). Its +50% book finished at $1,545 (1165 trades, profit factor 1.03, drawdown -73.5%, train $2) and its +100% book at $2,937 (1167 trades, profit factor 1.09, drawdown -55.2%, train $658). The band won that dollar comparison and the drawdown still misses the gate. The 9/20 rejection gate with the band finished at $10 (199 trades, profit factor 0.58, drawdown -99.1%, train $709). On the 15-minute VWAP extension, the band finished at $11,730 (2747 trades, profit factor 1.33, drawdown -16.4%, train $3) and +100% of premium finished at $21,823 (2414 trades, profit factor 1.41, drawdown -15.7%, train $5,108). The +100% book is the one whose training account finished above the stake. Its training drawdown is still past 60%, so it is not a new gate. The 15-minute VWAP reversal with the band finished at $15,089 (5755 trades, profit factor 1.19, drawdown -29.5%, train $1) and training went to about $1. A row that clears the holdout arithmetic is not promoted.
+
+Yahoo 5-minute cache. Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through 13:00 ET in this file. 11:25 close 774.72 high 774.89 upper band 775.46 11:30 close 775.04 high 775.10 upper band 775.46 11:35 close 775.78 high 775.95 upper band 776.11 11:40 close 775.96 high 776.09 upper band 776.12 11:45 close 776.26 high 776.45 upper band 776.15 11:50 close 776.27 high 776.60 upper band 776.94 11:55 close 776.34 high 776.48 upper band 776.94 12:00 close 776.24 high 776.54 upper band 777.15 12:05 close 776.48 high 776.65 upper band 777.15 The first high at or through the upper band after 11:35 is 11:45, high 776.45, band 776.15. The rule was not moved onto that print.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_band_exit
+```
+<!-- BAND_EXIT_END -->

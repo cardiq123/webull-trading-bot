@@ -48,6 +48,8 @@ def _quiet_then(extra: list[tuple], quiet: int = 8) -> pd.DataFrame:
 
 def test_rules_are_frozen_before_any_score():
     rules = frozen_rules()
+    assert "opposite 2 SD" in rules["band"]
+    assert "15-minute 200 EMA" in rules["band200"]
     assert rules["outer_default"] == 2.0
     assert rules["outer_variants"] == [2.5, 3.0]
     assert "2022-01-01" in rules["split"]

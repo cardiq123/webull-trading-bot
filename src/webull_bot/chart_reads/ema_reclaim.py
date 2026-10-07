@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from webull_bot.calendar import next_trading_day
+from webull_bot.chart_reads.band_exit import walk_band
 from webull_bot.chart_reads.candles import detect
 from webull_bot.chart_reads.vwap_band import (
     DIVIDEND,
@@ -142,6 +143,19 @@ def frozen_rules() -> dict:
             "A 200 EMA that is not beyond the fill never scales the trade out."
         ),
         "premium": "0 DTE only. Exit when the model bid is 50% or 100% above the entry ask. A gap through the target fills at the open bid. Otherwise the limit.",
+        "band": (
+            "Take the whole position when price tags the opposite 2 standard deviation session VWAP band: "
+            "the upper band for a long, the lower band for a short. The band is that bar's session band, and it is a target "
+            "only when it is beyond the fill. A gap through it fills at the open. The price stop still fills first. "
+            "A close back across the 9 EMA still exits at that close. This cannot take the gate."
+        ),
+        "band200": (
+            "The opposite 2 SD band and the 200 EMA are both targets when each is beyond the fill. "
+            "Shares sell half at the first one tagged. The rest exits at the other, or on a close back across the 9 EMA. "
+            "The original stop is not moved to the fill. If only one of the two is beyond the fill, the whole position exits there. "
+            "One option contract cannot be split, so the 0 DTE book sells at the first tag. "
+            "A gap through both fills both halves at the open. This cannot take the gate."
+        ),
         "flat": "15:30 ET open. No overnight hold.",
         "shares": "Cash book is long only. Size risks 1% of equity to the trigger stop and cannot spend more settled cash than is on hand.",
         "options": "One at-the-money contract. Calls for longs, puts for shorts. Black-Scholes, prior-session VIX1D or else prior VIX. Both directions.",
@@ -756,6 +770,26 @@ def walk(prep: Prepared, setup: Setup, mode: str, iv: float | None = None, *, sp
         return None
     if setup.direction == "short" and not stop > fill:
         return None
+    if mode in ("band", "band200"):
+        return walk_band(
+            direction=setup.direction,
+            fill=fill,
+            stop=stop,
+            fill_i=fill_i,
+            open_=prep.open,
+            high=prep.high,
+            low=prep.low,
+            close=prep.close,
+            stamps=prep.index,
+            ema9=prep.ema9,
+            ema200=prep.ema200,
+            vwap=prep.vwap,
+            std=prep.std,
+            flat=FLAT,
+            mode=mode,
+            split_half=split_half,
+            session_end=_session_end(prep, fill_i),
+        )
     right = "call" if setup.direction == "long" else "put"
     strike = listed_strike(fill, fill) if mode.startswith("prem") else None
     entry_ask = None
@@ -1073,10 +1107,10 @@ def simulate(
     end: date | None = None,
     costs: CostModel | None = None,
 ) -> dict:
-    """Fresh account. ``mode`` is structure, ema200, prem50, or prem100. ``kind`` is shares or 0dte."""
+    """Fresh account. ``mode`` is structure, ema200, prem50, prem100, band, or band200. ``kind`` is shares or 0dte."""
     if kind not in ("shares", "0dte"):
         raise ValueError("kind must be shares or 0dte")
-    if mode not in ("structure", "ema200", "prem50", "prem100"):
+    if mode not in ("structure", "ema200", "prem50", "prem100", "band", "band200"):
         raise ValueError("unknown exit")
     if kind == "shares" and mode.startswith("prem"):
         raise ValueError("premium targets are option exits")
@@ -1142,7 +1176,7 @@ def simulate(
             if kind == "0dte" and iv is None:
                 skips["iv"] += 1
                 continue
-            path = walk(prep, setup, mode, iv, split_half=(kind == "shares" and mode == "ema200"))
+            path = walk(prep, setup, mode, iv, split_half=(kind == "shares" and mode in ("ema200", "band200")))
             if path is None:
                 skips["dust"] += 1
                 continue
