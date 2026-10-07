@@ -3627,3 +3627,55 @@ No sensitivity was promoted after the score. The strategy was not added to `conf
 python3 -m webull_bot.chart_reads.research_orb5
 ```
 <!-- CHART_READS_ORB5_END -->
+
+<!-- CHART_READS_ORB_MWF_START -->
+## Monday, Wednesday, and Friday opening range
+
+Backtests only. This rule replaces the earlier first-candle test as the pre-registered default. It was frozen before the score. Nothing was sent to a broker. The sandbox forward test was not changed, and live trading stays off. The earlier first-candle numbers are a different rule and stay as scored.
+
+The range is only the 09:30-09:35 ET candle. A long break of that high buys the at-the-money 0 DTE call. A short break of that low buys the at-the-money 0 DTE put. The break is the first later 5-minute bar that trades through the level. A print equal to the level is not a break. One trade a day. The default fill prices the underlying at the level plus stock slippage, then buys the option at the ask. A bar that opens through the level fills at that open. The next bar's open is a sensitivity.
+
+The book trades Monday, Wednesday, and Friday only, and it skips CPI, the Employment Situation, and FOMC decision days from the 2026 BLS schedule and the Federal Reserve's 2026 calendar. Friday SPY expirations were already listed before 2016. Wednesday expirations start August 31, 2016. Monday expirations start February 26, 2018. Tuesday and Thursday expirations start in November 2022 and are not traded. The option exits at the first of +100% of the entry ask, -50% of the entry ask, or 15:30 ET. Risk is the full premium, sized at $100 on a $1,000 cash account. One contract that costs more than $100 is skipped. $200 and $500 are sensitivities.
+
+There is no historical option chain. Prices are Black-Scholes with minutes left until 16:00 ET. Implied volatility is the prior session's VIX1D close when that print exists, otherwise the prior VIX close. The half-spread is the greater of one cent and 1.5% of the mid. A stop that the bid trades through fills at that bid. The model is the main source of uncertainty. A 1.3x volatility multiple is a sensitivity, not a new rule.
+
+Yahoo's 5-minute file runs from 2026-08-13 through 2026-10-06, 38 sessions. Yahoo returned no 5-minute SPY bars for January 2026. No Alpaca, Polygon, or other intraday key is in this environment, and a paid archive was not bought. A 60-minute bar does not contain the 09:30-09:35 high and low, so it was not used as a stand-in. Session marks: {"weekday": 16, "break": 18, "event": 4}. Skipped releases inside the file: [{"date": "2026-09-04", "kind": "NFP"}, {"date": "2026-09-11", "kind": "CPI"}, {"date": "2026-09-16", "kind": "FOMC"}, {"date": "2026-10-02", "kind": "NFP"}].
+
+Cash account, $100 risk, fill at the level: 13 trades, win rate 23.1%, +100% on 23.1%, -50% on 76.9%, 15:30 on 0.0%, expectancy $-17.92, profit factor 0.51, Sharpe -1.75, max drawdown -47.9%, longest losing streak 10, ending $767.02. Premium skips 5. Settlement skips 0. PDT blocked 0.
+
+Before costs, +100% against -50% needs a 33.3% win rate. After the spread, the fees, and fills through the stop, this sample needs 36.9%. The realized win rate is 23.1%.
+
+The win rate does not clear that rate. The default book is not profitable on this sample.
+
+None of the default trades were still open at 15:30. In this model a 5-minute move is enough to reach +100% or -50% of a same-day premium. A listed chain could be slower. That is part of the model uncertainty.
+
+The same signals at $200 risk: 16 trades, win rate 25.0%, +100% on 25.0%, -50% on 75.0%, 15:30 on 0.0%, expectancy $-37.46, profit factor 0.46, Sharpe 0.36, max drawdown -91.2%, longest losing streak 9, ending $400.57. Premium skips 2. Settlement skips 0. PDT blocked 0.
+
+The $200 account ended at $400.57. Its Sharpe can print positive while the dollars fall, because the Sharpe uses the average percentage change. The ending equity is the result.
+
+The same signals at $500 risk: 6 trades, win rate 0.0%, +100% on 0.0%, -50% on 100.0%, 15:30 on 0.0%, expectancy $-158.17, profit factor 0.00, Sharpe -6.77, max drawdown -94.9%, longest losing streak 6, ending $50.99. Premium skips 12. Settlement skips 0. PDT blocked 0.
+
+Next-bar open, $100, cash: 11 trades, win rate 27.3%, +100% on 27.3%, -50% on 72.7%, 15:30 on 0.0%, expectancy $-11.31, profit factor 0.68, Sharpe -0.98, max drawdown -33.8%, longest losing streak 7, ending $875.59. Premium skips 7. Settlement skips 0. PDT blocked 0.
+
+Volatility at 1.3 times the prior close, $100, cash: 3 trades, win rate 33.3%, +100% on 33.3%, -50% on 66.7%, 15:30 on 0.0%, expectancy $2.58, profit factor 1.09, Sharpe 0.31, max drawdown -9.1%, longest losing streak 2, ending $1,007.75. Premium skips 15. Settlement skips 0. PDT blocked 0. That row was not promoted. A handful of trades in this file is not an edge.
+
+A $1,000 account is under the $2,000 minimum to use margin, so the default is cash and the pattern-day-trader rule does not apply. Sale proceeds settle the next session. The same signals on a hypothetical margin account under $25,000: 13 trades, win rate 23.1%, +100% on 23.1%, -50% on 76.9%, 15:30 on 0.0%, expectancy $-17.92, profit factor 0.51, Sharpe -1.75, max drawdown -47.9%, longest losing streak 10, ending $767.02. Premium skips 5. Settlement skips 0. PDT blocked 0. Three Monday/Wednesday/Friday trades fit in five business days. A fourth appears only when a Tuesday or Thursday holiday pulls another one of those weekdays into the window. This file has no such holiday.
+
+Random call-or-put at the same break, seed 17, same exits: 13 trades, win rate 15.4%, +100% on 15.4%, -50% on 84.6%, 15:30 on 0.0%, expectancy $-26.22, profit factor 0.32, Sharpe -3.75, max drawdown -40.4%, longest losing streak 9, ending $659.14. Premium skips 5. Settlement skips 0. PDT blocked 0.
+
+First half of the break days, replayed from a fresh $1,000: 9 trades, win rate 0.0%, +100% on 0.0%, -50% on 100.0%, 15:30 on 0.0%, expectancy $-46.84, profit factor 0.00, Sharpe -14.74, max drawdown -42.2%, longest losing streak 9, ending $578.41. Premium skips 0. Settlement skips 0. PDT blocked 0.
+
+Second half of the break days, also from a fresh $1,000 and not from the equity left after the first half: 4 trades, win rate 75.0%, +100% on 75.0%, -50% on 25.0%, 15:30 on 0.0%, expectancy $47.15, profit factor 4.26, Sharpe 4.47, max drawdown -5.8%, longest losing streak 1, ending $1,188.60. Premium skips 5. Settlement skips 0. PDT blocked 0. That half was not used to change the rule. A row that finishes above $1,000 on this short file is not a durable edge.
+
+SPY buy and hold, 1 share from the first open to the last close, ended at $1,003.32.
+
+1-minute bars cover 2026-10-01 through 2026-10-06. The 09:30-09:34 high and low matched the 5-minute candle on 4 of 4 overlapping sessions. The 1-minute break, cash, $100, over that short window only: 0 trades, ending $1,000.00. Premium skips 1. Settlement skips 0. PDT blocked 0. The break days in that file were 2026-10-05, and each was skipped because one contract cost more than $100. That window is anecdotal and is not the verdict.
+
+Charts, examples only: 2026-10-06 5m high 778.73 low 777.97, no trade, after that candle 777.96-781.62, close 779.14; 2026-10-05 5m high 770.93 low 769.63, break traded, after that candle 769.98-776.60, close 774.94; 2026-10-02 5m high 770.84 low 769.49, no trade, NFP, after that candle 767.15-772.65, close 769.67; 2026-09-30 5m high 767.29 low 766.00, break traded, after that candle 762.20-769.41, close 762.44; 2026-09-25 5m high 769.52 low 767.75, break traded, after that candle 766.29-772.28, close 771.36; 2026-10-06 1m high 778.73 low 777.97, no trade, after that candle 777.96-781.62, close 779.14.
+
+Not added to `config/optional_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_orb_mwf
+```
+<!-- CHART_READS_ORB_MWF_END -->

@@ -91,12 +91,23 @@ def _counts(reads: list[SessionRead]) -> dict:
     }
 
 
-def _holdout_reads(reads: list[SessionRead]) -> list[SessionRead]:
+def _split_reads(reads: list[SessionRead]) -> tuple[list[SessionRead], list[SessionRead]]:
+    """First half and second half of the break days. Each half is replayed from $1,000."""
     breaks = [read.day for read in reads if read.status == "break"]
     if len(breaks) < 2:
-        return []
+        return [], []
     mid = breaks[len(breaks) // 2]
-    return [read for read in reads if read.day >= mid]
+    first = [read for read in reads if read.day < mid]
+    second = [read for read in reads if read.day >= mid]
+    return first, second
+
+
+def _after_cost_breakeven(book: dict) -> float | None:
+    win = float(book.get("avg_win") or 0.0)
+    loss = abs(float(book.get("avg_loss") or 0.0))
+    if int(book.get("trades") or 0) == 0 or win + loss <= 0:
+        return None
+    return loss / (win + loss)
 
 
 def _buy_hold(frame: pd.DataFrame) -> dict:
@@ -267,8 +278,16 @@ def render(payload: dict) -> str:
         f"Cash account, $100 risk, fill at the level: {_plain(default)}",
         "",
     ]
+    be = _after_cost_breakeven(default)
+    if be is not None:
+        lines.append(
+            f"Before costs, +100% against -50% needs a {100.0 * 0.5 / 1.5:.1f}% win rate. "
+            f"After the spread, the fees, and fills through the stop, this sample needs {_pct(be)}. "
+            f"The realized win rate is {_pct(default['win_rate'])}."
+        )
+        lines.append("")
     if default["trades"] == 0 or default["expectancy"] <= 0 or default["ending"] <= default["starting"]:
-        lines.append("The default book is not profitable on this sample.")
+        lines.append("The win rate does not clear that rate. The default book is not profitable on this sample.")
     else:
         lines.append(
             "The default book finished above the start. The sample is still the short Yahoo window, "
@@ -277,13 +296,21 @@ def render(payload: dict) -> str:
     lines.extend(
         [
             "",
+            "None of the default trades were still open at 15:30. In this model a 5-minute move is enough "
+            "to reach +100% or -50% of a same-day premium. A listed chain could be slower. That is part of the model uncertainty.",
+            "",
             f"The same signals at $200 risk: {_plain(payload['risk_200'])}",
+            "",
+            f"The $200 account ended at {_money(payload['risk_200']['ending'])}. "
+            "Its Sharpe can print positive while the dollars fall, because the Sharpe uses the average percentage change. "
+            "The ending equity is the result.",
             "",
             f"The same signals at $500 risk: {_plain(payload['risk_500'])}",
             "",
             f"Next-bar open, $100, cash: {_plain(payload['next_open'])}",
             "",
-            f"Volatility at 1.3 times the prior close, $100, cash: {_plain(payload['iv_130'])}",
+            f"Volatility at 1.3 times the prior close, $100, cash: {_plain(payload['iv_130'])} "
+            "That row was not promoted. A handful of trades in this file is not an edge.",
             "",
             "A $1,000 account is under the $2,000 minimum to use margin, so the default is cash and the "
             "pattern-day-trader rule does not apply. Sale proceeds settle the next session. "
@@ -293,7 +320,10 @@ def render(payload: dict) -> str:
             "",
             f"Random call-or-put at the same break, seed 17, same exits: {_plain(payload['random'])}",
             "",
-            f"Second half of the break days, same frozen rule: {_plain(payload['holdout'])}",
+            f"First half of the break days, replayed from a fresh $1,000: {_plain(payload['first_half'])}",
+            "",
+            f"Second half of the break days, also from a fresh $1,000 and not from the equity left after the first half: {_plain(payload['holdout'])} "
+            "That half was not used to change the rule. A row that finishes above $1,000 on this short file is not a durable edge.",
             "",
             payload["buy_hold_text"],
             "",
@@ -367,11 +397,14 @@ def main() -> None:
         "margin": _book(spy, reads, iv, risk=RISK_PRIMARY, account="margin", **common),
         "random": _book(spy, reads, iv, risk=RISK_PRIMARY, account="cash", seed=SEED, **common),
     }
-    hold_reads = _holdout_reads(reads)
+    first_reads, hold_reads = _split_reads(reads)
+    books["first_half"] = _book(spy, first_reads, iv, risk=RISK_PRIMARY, account="cash", **common) if first_reads else default
     books["holdout"] = _book(spy, hold_reads, iv, risk=RISK_PRIMARY, account="cash", **common) if hold_reads else default
     one_book = None
+    one_break_days: list[str] = []
     if one is not None and not one.empty:
         one_reads = scan(one, "1m")
+        one_break_days = [read.day.isoformat() for read in one_reads if read.status == "break"]
         one_book = _book(one, one_reads, iv, risk=RISK_PRIMARY, account="cash", clock="1m")
     counted = _counts(reads)
     held = _buy_hold(spy)
@@ -405,8 +438,13 @@ def main() -> None:
             f"{compared[-1]['date'] if compared else 'n/a'}. "
             f"The 09:30-09:34 high and low matched the 5-minute candle on {matched} of {len(compared)} overlapping sessions. "
             f"The 1-minute break, cash, $100, over that short window only: {_plain(one_book)} "
-            "That window is anecdotal and is not the verdict."
         )
+        if one_book["trades"] == 0 and one_break_days and one_book["premium_skipped"] >= len(one_break_days):
+            minute_text += (
+                "The break days in that file were " + ", ".join(one_break_days) + ", "
+                "and each was skipped because one contract cost more than $100. "
+            )
+        minute_text += "That window is anecdotal and is not the verdict."
     chart_bits = []
     for fact in charts:
         if "or_high" not in fact:
