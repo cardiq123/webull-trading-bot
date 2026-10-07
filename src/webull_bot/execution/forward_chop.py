@@ -1,8 +1,10 @@
 """Sandbox forward test of the hourly chop-v2 box breakout.
 
 One cycle, meant to be run at 5 minutes after each 60-minute bar close
-(10:35 through 15:35 ET). It is idempotent. Outside that window it prints
-a no-op and does not send an order.
+(10:35 through 15:45 ET). It is idempotent. Outside that window it prints
+a no-op and does not send an order. The 15:35 cycle is the last scheduled
+bar check. The window runs ten minutes past that so a trigger that lands
+at 15:38, after the 15:35 slot, is still inside it.
 
 Stock only, on the named list from the 60-minute book. The OpenAPI equity
 order is ``entrust_type=QTY`` and the published examples are whole shares.
@@ -46,7 +48,7 @@ from webull_bot.strategies.chop_breakout import (
 
 NY = ZoneInfo("America/New_York")
 WINDOW_START = time(10, 35)
-WINDOW_END = time(15, 35, 59)
+WINDOW_END = time(15, 45, 59)
 # Whole shares. See the module docstring.
 FRACTIONAL_SHARES = False
 NOTIONAL = 10_000.0
@@ -222,7 +224,7 @@ def run_cycle(
     if not in_forward_window(now):
         line = (
             f"forward-test idle at {local.isoformat()}. "
-            "Outside the 10:35-15:35 ET window. No orders."
+            "Outside the 10:35-15:45 ET window. No orders."
         )
         return [line]
 

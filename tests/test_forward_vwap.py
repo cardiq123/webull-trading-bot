@@ -356,3 +356,73 @@ def test_cli_dry_run_does_not_connect(monkeypatch):
     monkeypatch.delenv("WEBULL_ENV", raising=False)
     with pytest.raises(SystemExit, match="WEBULL_ENV=sandbox"):
         _forward_vwap(load_config("config/default.yaml"), live)
+
+
+def test_a_late_cycle_enters_inside_the_bracket_and_ignores_the_earlier_stop(tmp_path):
+    """The 11:45 bar already traded the stop. The 11:52 price is back inside."""
+    journal = Journal(tmp_path / "late.sqlite")
+    broker = Broker()
+    bars5 = _five(
+        special={
+            "11:45": (130.0, 170.0, 90.0, 130.0, 1000.0),
+            "11:50": (130.0, 131.0, 90.0, 130.0, 1000.0),
+            "12:00": (130.0, 170.0, 129.0, 160.0, 1000.0),
+        }
+    )
+    lines = _cycle(journal, _long_day(), bars5, "11:52", broker=broker)
+    text = "\n".join(lines)
+    assert "no longer between" not in text
+    assert "already traded" not in text
+    assert len(broker.orders) == 1
+    assert broker.orders[0]["side"] == "BUY"
+    saved = journal.forward_load(NAME)
+    position = saved["positions"][0]
+    assert position["modeled_entry"] == pytest.approx(130.0)
+    assert position["entry"] == pytest.approx(130.0)
+    assert "11:45" in position["fill_time"]
+    assert "11:52" in position["entry_time"]
+    assert saved["fills"][0]["modeled_entry"] == pytest.approx(130.0)
+    later = _cycle(journal, _long_day(), bars5, "12:05", broker=broker)
+    assert any("reason target" in line for line in later)
+    assert not any("reason stop" in line for line in later)
+    assert journal.forward_load(NAME)["positions"] == []
+
+
+def test_a_price_through_the_stop_is_skipped_once(tmp_path):
+    journal = Journal(tmp_path / "out.sqlite")
+    broker = Broker()
+    bars5 = _five(special={"11:50": (90.0, 91.0, 89.0, 90.0, 1000.0)})
+    lines = _cycle(journal, _long_day(), bars5, "11:52", broker=broker)
+    text = "\n".join(lines)
+    assert "no longer between the stop" in text
+    assert broker.orders == []
+    saved = journal.forward_load(NAME)
+    assert saved["signals"][0]["skip"] == "outside"
+    assert saved["signals"][0]["modeled_entry"] == pytest.approx(130.0)
+    again = _cycle(journal, _long_day(), _five(), "11:57", broker=broker)
+    assert any("already journaled" in line for line in again)
+    assert broker.orders == []
+
+
+def test_the_signal_does_not_wait_for_the_next_fifteen_minute_bar(tmp_path):
+    journal = Journal(tmp_path / "early.sqlite")
+    broker = Broker()
+    bars15 = _long_day().iloc[:9]
+    lines = _cycle(journal, bars15, _five(), "11:47", broker=broker)
+    assert len(broker.orders) == 1
+    assert "waiting on the next open" not in "\n".join(lines)
+    position = journal.forward_load(NAME)["positions"][0]
+    assert position["entry"] == pytest.approx(130.0)
+    assert position["modeled_entry"] == pytest.approx(130.0)
+    assert position["target"] == pytest.approx(160.01)
+    assert "11:47" in position["entry_time"]
+
+
+def test_the_replay_records_the_modeled_open_beside_the_actual_entry():
+    events = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV)
+    assert events[0]["status"] == "open"
+    assert events[0]["modeled_entry"] == pytest.approx(130.0)
+    assert events[0]["entry"] == pytest.approx(130.0)
+    assert "11:45" in events[0]["fill_time"]
+    assert "11:45" in events[0]["entry_time"]
+

@@ -8,11 +8,25 @@ is the scored $1,000 book: the model debit has to fit settled cash, a sale
 settles the next session, and equity at or under $1 stops new entries.
 
 The cycle is every 5 minutes from 09:50 through 15:50 ET. Signals come
-from completed 15-minute bars. Webull options have no OCO and no trailing
-stop, so each cycle walks completed 5-minute bars and sells with a
-marketable limit when the stop or the target trades. A 5-minute bar can
-close the trade before the 15-minute bar that contains both levels. The
-backtest fills the stop on that 15-minute bar.
+from completed 15-minute bars, including the bar that just closed when the
+next 15-minute bar is not in the file yet. The backtest fill is still that
+next open, and the stop and 1R target stay on that modeled fill. The order
+goes in on the first cycle after the signal bar closes when the current
+price is still strictly between the stop and that target. A stop or target
+that printed before the order is not a skip. Exits walk only 5-minute bars
+that start at or after the actual entry. The journal records the modeled
+next open and the actual entry. A 5-minute bar can still close the trade
+before the 15-minute bar that contains both levels.
+
+Run the cycle a few seconds after each 5-minute boundary so the bar that
+just closed is in the file and the new open is the price. Thirty seconds
+past the boundary (systemd, America/New_York):
+``Mon..Fri *-*-* 09..15:00/5:30``. Minute-only cron, one minute past:
+``1,6,11,16,21,26,31,36,41,46,51,56 9-15 * * 1-5``. A schedule at :02/:07
+is late enough that the first 5-minute bar of the fill can already have
+closed. The entry rule above still sends the order if price is inside the
+bracket. Stopping the clock at :00:30 and :15:30 only would leave the 5-minute
+stop unmanaged for the rest of the quarter hour.
 
 CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
@@ -178,44 +192,73 @@ def plan_day(
     settled: float = STAKE,
     stopped: bool = False,
 ) -> list[dict]:
-    """What the frozen rule would have done from the open through ``now``.
+    """What the forward rule would have done from the open through ``now``.
 
-    This is the dry-run story. It assumes every earlier cycle ran, so a
-    one-position skip is permanent even when this process was not here.
+    This is the dry-run story. It assumes a cycle at every 5-minute boundary,
+    so a one-position skip is permanent even when this process was not here.
+    The entry is the first of those cycles after the signal bar closes, at
+    the price then, and only when that price is still between the stop and
+    the 1R target measured from the modeled next open.
     """
     now_ts = pd.Timestamp(to_ny(now))
     points = iv_points or {}
-    view = _signal_view(bars15, now_ts)
-    path = _exit_path(bars5, now_ts)
-    signals = _extensions(view, now_ts)
     cash = float(settled)
     equity = cash
     bust = bool(stopped) or equity <= 1.0
     busy: Optional[pd.Timestamp] = None
+    position: Optional[dict] = None
+    seen: set[str] = set()
     events: list[dict] = []
-    for signal in signals:
-        if bust or equity <= 1.0:
-            events.append(_skip(signal, "bust", "equity is at or under $1"))
-            continue
-        if busy is not None and pd.Timestamp(signal.fill_time) <= busy:
-            events.append(_skip(signal, "overlap", "one position already open"))
-            continue
-        built = _price_signal(signal, view, path, now_ts, points, cash)
-        if built.get("status") == "skip":
+    for moment in _replay_moments(now_ts):
+        path = _exit_path(bars5, moment)
+        if position is not None:
+            outcome = _exit_after(position, path, moment)
+            if outcome is not None:
+                _mark_exit(position, *outcome)
+                equity = cash + float(position["model_credit"])
+                busy = pd.Timestamp(position["exit_time"])
+                position = None
+                if equity <= 1.0:
+                    bust = True
+        view = _signal_view(bars15, moment)
+        for signal in _extensions(view, moment):
+            sid = _signal_id(signal)
+            if sid in seen:
+                continue
+            if bust or equity <= 1.0:
+                row = _skip(signal, "bust", "equity is at or under $1")
+                events.append(row)
+                seen.add(sid)
+                continue
+            fill_at = pd.Timestamp(signal.fill_time)
+            blocked = position is not None or (busy is not None and fill_at <= busy)
+            if blocked:
+                row = _skip(signal, "overlap", "one position already open")
+                events.append(row)
+                seen.add(sid)
+                continue
+            built = _decide_entry(signal, bars15, bars5, moment, points, cash)
+            if built.get("status") == "wait":
+                continue
+            seen.add(sid)
+            if built.get("status") == "skip":
+                events.append(built)
+                continue
+            cash -= float(built["model_debit"])
+            outcome = _exit_after(built, path, moment)
+            if outcome is not None:
+                _mark_exit(built, *outcome)
+                equity = cash + float(built["model_credit"])
+                busy = pd.Timestamp(built["exit_time"])
+            else:
+                equity = cash
+                position = built
+                busy = None
+            built["settled_after"] = cash
+            built["equity"] = equity
             events.append(built)
-            continue
-        cash -= float(built["model_debit"])
-        if built["status"] == "closed":
-            equity = cash + float(built["model_credit"])
-            busy = pd.Timestamp(built["exit_time"])
-        else:
-            equity = cash
-            busy = pd.Timestamp(now_ts.date().isoformat(), tz=NY) + pd.Timedelta(hours=23)
-        built["settled_after"] = cash
-        built["equity"] = equity
-        events.append(built)
-        if equity <= 1.0:
-            bust = True
+            if equity <= 1.0:
+                bust = True
     return events
 
 
@@ -240,6 +283,7 @@ def report_text(journal: Journal) -> str:
     lines = [
         f"{NAME} sandbox forward test. Live trading stays off.",
         "One ATM 0 DTE SPY contract. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
+        "The journal records the modeled next open and the actual entry. Exits start after the actual entry.",
         "A 5-minute bar can exit before the 15-minute bar that holds both the stop and the target.",
         "CPI, NFP, and FOMC days are not skipped.",
         f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
@@ -301,7 +345,8 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
         f"Forward test {NAME}. Sandbox paper only. Live trading stays off.",
         (
             "One ATM 0 DTE SPY contract. Session VWAP, a 15-minute close outside the 2 SD band, "
-            "fill on the next open, 1R target, stop one cent beyond the signal bar, flat at the 15:45 open."
+            "1R target and stop measured from the modeled next open, order on the first cycle after that bar "
+            "when the price is still between them, flat at the 15:45 open."
         ),
         (
             "Exits are bot-managed. Webull options have no OCO and no trailing stop. "
@@ -317,7 +362,7 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
     ]
     if dry_run:
         lines.append(
-            "Dry run replays the frozen rule from a fresh $1,000 and does not connect or write the journal."
+            "Dry run replays each 5-minute cycle from a fresh $1,000 and does not connect or write the journal."
         )
     return lines
 
@@ -358,7 +403,7 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
         if outcome is None:
             kept.append(position)
             lines.append(
-                f"Open {position.get('right')} from {position.get('fill_time')} "
+                f"Open {position.get('right')} from {position.get('entry_time') or position.get('fill_time')} "
                 f"stop {float(position.get('stop')):.2f} target {float(position.get('target')):.2f}. Still open."
             )
             continue
@@ -372,7 +417,6 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
 def _take_signals(state, bars15, bars5, now, points, broker, lines, journal) -> None:
     now_ts = pd.Timestamp(to_ny(now))
     view = _signal_view(bars15, now_ts)
-    path = _exit_path(bars5, now_ts)
     known = {str(row.get("id")) for row in state.get("signals") or []}
     open_ids = {str(row.get("id")) for row in state.get("positions") or []}
     for signal in _extensions(view, now_ts):
@@ -392,23 +436,11 @@ def _take_signals(state, bars15, bars5, now, points, broker, lines, journal) -> 
             lines.append("Skip " + _event_line(row))
             journal.forward_save(NAME, state)
             continue
-        built = _price_signal(signal, view, path, now_ts, points, float(state.get("settled") or 0.0))
-        if built.get("status") == "skip":
-            state["signals"].append(built)
-            lines.append("Skip " + _event_line(built))
-            journal.forward_save(NAME, state)
+        built = _decide_entry(signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0))
+        if built.get("status") == "wait":
+            lines.append(str(built.get("detail") or "Waiting on the next open. No order."))
             continue
-        fill_open = _fill_bar_open(built["fill_time"], now_ts)
-        if built["status"] == "closed" or not fill_open:
-            why = "already_closed" if built["status"] == "closed" else "missed"
-            text = (
-                "the stop or target already traded before this order"
-                if why == "already_closed"
-                else "the fill bar already closed"
-            )
-            built["status"] = "skip"
-            built["skip"] = why
-            built["detail"] = text
+        if built.get("status") == "skip":
             state["signals"].append(built)
             lines.append("Skip " + _event_line(built))
             journal.forward_save(NAME, state)
@@ -501,7 +533,9 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         "option_symbol": option_symbol,
         "signal_time": built["signal_time"],
         "fill_time": built["fill_time"],
+        "entry_time": built["entry_time"],
         "entry": built["entry"],
+        "modeled_entry": built["modeled_entry"],
         "stop": built["stop"],
         "target": built["target"],
         "model_ask": model_ask,
@@ -518,12 +552,14 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     state["positions"].append(position)
     state["fills"].append(
         {
-            "time": built["fill_time"],
+            "time": built["entry_time"],
             "side": "BUY",
             "qty": "1",
             "right": built["right"],
             "price": f"{limit:.2f}",
             "underlying": built["entry"],
+            "modeled_entry": built["modeled_entry"],
+            "modeled_fill_time": built["fill_time"],
             "price_source": source,
             "id": built["id"],
         }
@@ -692,60 +728,64 @@ def _exit_model_bid(position, underlying: float, when) -> float:
 def _position_exit(position, bars5, now):
     now_ts = pd.Timestamp(to_ny(now))
     path = _exit_path(bars5, now_ts)
-    if path.empty:
-        if now_ts.time() >= FLAT:
-            return "flat", float(position.get("entry") or 0.0), now_ts
-        return None
-    loc = _locate(path, position["fill_time"])
-    if loc is None:
-        later = None
-        for i, ts in enumerate(path.index):
-            if pd.Timestamp(ts) >= pd.Timestamp(position["fill_time"]):
-                later = i
-                break
-        loc = later
-    if loc is None:
-        if now_ts.time() >= FLAT:
-            return "flat", float(path.iloc[-1]["close"]), path.index[-1]
-        return None
-    reason, price, when = walk_exit(
-        path, loc, str(position["direction"]), float(position["stop"]), float(position["target"])
-    )
-    if reason in {"stop", "target", "flat"}:
-        return reason, float(price), when
+    return _exit_after(position, path, now_ts)
+
+
+def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float) -> dict:
+    """Price the order at this cycle. A missing open waits. It is not a skip.
+
+    The stop and the 1R target stay on the modeled next open. The order uses
+    the current price, and only when that price is still strictly between them.
+    Bars between the modeled fill and this cycle are not an exit.
+    """
     if now_ts.time() >= FLAT:
-        return "flat", float(path.iloc[-1]["open"]), path.index[-1]
-    return None
-
-
-def _price_signal(signal, view, path, now_ts, points, settled: float) -> dict:
-    base = _base(signal)
-    fill_loc = _locate(view, signal.fill_time)
-    if fill_loc is None:
-        return _skip(signal, "no_bar", "the next 15-minute open is not in the file")
-    fill = float(view.iloc[fill_loc]["open"])
+        return _skip(signal, "flat", "the 15:45 flat has already passed")
+    modeled = _print_open(bars15, signal.fill_time, now_ts)
+    if modeled is None:
+        modeled = _print_open(bars5, signal.fill_time, now_ts)
+    if modeled is None:
+        return {
+            "status": "wait",
+            "detail": (
+                f"The {_clock(signal.signal_time)} extension is waiting on the next open. No order."
+            ),
+        }
     stop = float(signal.stop)
-    if not math.isfinite(fill) or fill <= 0 or not math.isfinite(stop):
+    if not math.isfinite(modeled) or modeled <= 0 or not math.isfinite(stop):
         return _skip(signal, "no_bar", "the fill is not a price")
-    distance = abs(fill - stop)
-    if distance <= 0:
+    if abs(modeled - stop) <= 0:
         return _skip(signal, "dust", "the stop is on the fill")
-    loc = _locate(path, signal.fill_time)
-    if path.empty or loc is None:
-        return _skip(signal, "no_bar", "the 5-minute bar at the fill is missing")
-    level = float(target_price(signal, fill, "r"))
-    walked = path.copy()
-    walked.iloc[loc, walked.columns.get_loc("open")] = fill
-    reason, exit_raw, exit_time = walk_exit(walked, loc, signal.direction, stop, level)
-    closed = reason in {"stop", "target", "flat"}
+    spot = _spot(bars5, now_ts)
+    if spot is None:
+        return {
+            "status": "wait",
+            "detail": (
+                f"The {_clock(signal.signal_time)} extension is waiting on a price. No order."
+            ),
+        }
+    level = float(target_price(signal, modeled, "r"))
+    if not _inside(signal.direction, spot, stop, level):
+        row = _skip(
+            signal,
+            "outside",
+            (
+                f"the price {spot:.2f} is no longer between the stop {stop:.2f} "
+                f"and the target {level:.2f}"
+            ),
+        )
+        row["modeled_entry"] = modeled
+        row["entry"] = spot
+        row["stop"] = stop
+        row["target"] = level
+        return row
     day = _as_date(signal.fill_time)
     iv = _iv_on(day, points)
     if iv is None:
         return _skip(signal, "iv", "no prior VIX1D or VIX close")
     right = "call" if signal.direction == "long" else "put"
     option_type = "CALL" if signal.direction == "long" else "PUT"
-    strike = listed_strike(fill, fill)
-    entry_mid = _option_mid(right, fill, strike, pd.Timestamp(signal.fill_time), iv, 0)
+    strike = listed_strike(spot, spot)
+    entry_mid = _option_mid(right, spot, strike, now_ts, iv, 0)
     model_ask = entry_mid + _half_spread(entry_mid)
     debit = model_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, model_ask, sell=False)
     if debit <= 0 or debit > settled + 1e-9:
@@ -753,23 +793,19 @@ def _price_signal(signal, view, path, now_ts, points, settled: float) -> dict:
         row["model_ask"] = model_ask
         row["model_debit"] = debit
         row["strike"] = strike
+        row["modeled_entry"] = modeled
+        row["entry"] = spot
         return row
-    model_bid = None
-    credit = None
-    pnl = None
-    if closed:
-        exit_mid = _option_mid(right, float(exit_raw), strike, pd.Timestamp(exit_time), iv, 0)
-        model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
-        credit = _credit(model_bid)
-        pnl = credit - debit
-    row = dict(base)
+    row = dict(_base(signal))
     row.update(
         {
-            "status": "closed" if closed else "open",
-            "reason": reason if closed else "open",
-            "entry": fill,
-            "exit": float(exit_raw) if closed else None,
-            "exit_time": pd.Timestamp(exit_time).isoformat() if closed else None,
+            "status": "open",
+            "reason": "open",
+            "entry": spot,
+            "entry_time": pd.Timestamp(now_ts).isoformat(),
+            "modeled_entry": modeled,
+            "exit": None,
+            "exit_time": None,
             "stop": stop,
             "target": level,
             "right": right,
@@ -778,10 +814,10 @@ def _price_signal(signal, view, path, now_ts, points, settled: float) -> dict:
             "expiry": day.isoformat(),
             "iv": iv,
             "model_ask": model_ask,
-            "model_bid": model_bid,
+            "model_bid": None,
             "model_debit": debit,
-            "model_credit": credit,
-            "pnl": pnl,
+            "model_credit": None,
+            "pnl": None,
             "price_source": "model",
             "sandbox_ask": None,
         }
@@ -789,12 +825,51 @@ def _price_signal(signal, view, path, now_ts, points, settled: float) -> dict:
     return row
 
 
+def _mark_exit(built: dict, reason: str, underlying: float, when) -> None:
+    iv = float(built["iv"])
+    strike = float(built["strike"])
+    right = str(built["right"])
+    exit_mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
+    model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
+    credit = _credit(model_bid)
+    debit = float(built["model_debit"])
+    built["status"] = "closed"
+    built["reason"] = reason
+    built["exit"] = float(underlying)
+    built["exit_time"] = pd.Timestamp(when).isoformat()
+    built["model_bid"] = model_bid
+    built["model_credit"] = credit
+    built["pnl"] = credit - debit
+
+
+def _exit_after(built, path, now_ts: pd.Timestamp):
+    """Stop, target, or flat on bars that start at or after the actual entry."""
+    if path is None or path.empty:
+        if now_ts.time() >= FLAT:
+            return "flat", float(built.get("entry") or 0.0), now_ts
+        return None
+    loc = _first_exit_index(path, built.get("entry_time") or built.get("fill_time"))
+    if loc is None:
+        if now_ts.time() >= FLAT:
+            return "flat", float(path.iloc[-1]["close"]), path.index[-1]
+        return None
+    reason, price, when = walk_exit(
+        path, loc, str(built.get("direction")), float(built.get("stop")), float(built.get("target"))
+    )
+    if reason in {"stop", "target", "flat"}:
+        return reason, float(price), when
+    if now_ts.time() >= FLAT:
+        return "flat", float(path.iloc[-1]["open"]), path.index[-1]
+    return None
+
+
 def _extensions(view: pd.DataFrame, now_ts: pd.Timestamp) -> list:
     if view is None or view.empty:
         return []
-    done = { _minute_key(ts) for ts in view.index if bar_end(ts, "15m") <= now_ts }
+    ready = _with_unclosed_next(view, now_ts)
+    done = {_minute_key(ts) for ts in view.index if bar_end(ts, "15m") <= now_ts}
     found = []
-    for signal in find_signals(view, SYMBOL, OUTER_DEFAULT):
+    for signal in find_signals(ready, SYMBOL, OUTER_DEFAULT):
         if signal.mode != "extension":
             continue
         if _as_date(signal.signal_time) != now_ts.date():
@@ -807,6 +882,33 @@ def _extensions(view: pd.DataFrame, now_ts: pd.Timestamp) -> list:
             continue
         found.append(signal)
     return found
+
+
+def _with_unclosed_next(view: pd.DataFrame, now_ts: pd.Timestamp) -> pd.DataFrame:
+    """Give the last closed bar a next timestamp when that bar has not finished.
+
+    ``find_signals`` will not emit a continuation unless the next bar exists.
+    The live file often has only closed bars, so the signal would otherwise
+    wait until the fill bar itself had closed. The placeholder is the prior
+    close with zero volume. It does not change earlier VWAP rows, and its own
+    bar has not closed, so it is not a signal.
+    """
+    done = [ts for ts in view.index if bar_end(ts, "15m") <= now_ts]
+    if not done:
+        return view
+    last = pd.Timestamp(done[-1])
+    nxt = last + pd.Timedelta(minutes=15)
+    if _minute_key(nxt) in {_minute_key(ts) for ts in view.index}:
+        return view
+    if bar_end(nxt, "15m") <= now_ts:
+        return view
+    close = float(view.loc[done[-1], "close"])
+    extra = pd.DataFrame(
+        [(close, close, close, close, 0.0)],
+        columns=["open", "high", "low", "close", "volume"],
+        index=pd.DatetimeIndex([nxt]),
+    )
+    return pd.concat([view, extra])
 
 
 def _signal_view(frame: pd.DataFrame, now_ts: pd.Timestamp) -> pd.DataFrame:
@@ -982,14 +1084,20 @@ def _event_line(event: dict) -> str:
         return (
             f"{when} {direction} extension skipped: {event.get('detail') or event.get('skip')}."
         )
-    fill = event.get("entry")
-    fill_txt = f"{float(fill):.2f}" if isinstance(fill, (int, float)) else "?"
+    modeled = event.get("modeled_entry")
+    if not isinstance(modeled, (int, float)):
+        modeled = event.get("entry")
+    actual = event.get("entry")
+    modeled_txt = f"{float(modeled):.2f}" if isinstance(modeled, (int, float)) else "?"
+    actual_txt = f"{float(actual):.2f}" if isinstance(actual, (int, float)) else "?"
     stop = event.get("stop")
     target = event.get("target")
     ask = event.get("model_ask")
     ask_txt = f"{float(ask):.4f}" if isinstance(ask, (int, float)) else "?"
+    entry_time = event.get("entry_time") or event.get("fill_time")
     body = (
-        f"{when} {direction} extension fill {_clock(event.get('fill_time'))} open {fill_txt} "
+        f"{when} {direction} extension modeled fill {_clock(event.get('fill_time'))} open {modeled_txt} "
+        f"actual {_clock(entry_time)} {actual_txt} "
         f"stop {float(stop):.2f} target {float(target):.2f} model ask {ask_txt}"
     )
     if event.get("status") == "closed":
@@ -1011,9 +1119,99 @@ def _quote_clause(model: float, sandbox: Optional[float], bid: bool = False) -> 
     return f"Model {label} {model:.4f}. Sandbox {label} {sandbox:.4f}."
 
 
-def _fill_bar_open(fill_time, now_ts: pd.Timestamp) -> bool:
-    stamp = pd.Timestamp(fill_time)
-    return stamp <= now_ts < bar_end(stamp, "15m")
+def _replay_moments(now_ts: pd.Timestamp) -> list[pd.Timestamp]:
+    """5-minute boundaries from 09:50 through ``now``, plus ``now`` if it falls between them."""
+    if now_ts.tzinfo is None:
+        now_ts = now_ts.tz_localize(NY)
+    else:
+        now_ts = now_ts.tz_convert(NY)
+    start = pd.Timestamp(datetime.combine(now_ts.date(), WINDOW_START, tzinfo=NY))
+    if now_ts < start:
+        return []
+    moments: list[pd.Timestamp] = []
+    cursor = start
+    while cursor <= now_ts:
+        moments.append(cursor)
+        cursor += pd.Timedelta(minutes=5)
+    if not moments or moments[-1] != now_ts:
+        moments.append(now_ts)
+    return moments
+
+
+def _print_open(frame, stamp, now_ts: pd.Timestamp) -> Optional[float]:
+    """Open of the bar at ``stamp``, once that bar has started. The close is not read."""
+    bars = _today(frame, now_ts)
+    loc = _locate(bars, stamp)
+    if loc is None:
+        return None
+    start = pd.Timestamp(bars.index[loc])
+    if start.tzinfo is None:
+        start = start.tz_localize(NY)
+    else:
+        start = start.tz_convert(NY)
+    if start > now_ts:
+        return None
+    price = float(bars.iloc[loc]["open"])
+    if not math.isfinite(price) or price <= 0:
+        return None
+    return price
+
+
+def _spot(frame, now_ts: pd.Timestamp) -> Optional[float]:
+    """Price knowable at ``now``: the open of the 5-minute bar in progress, else the last close."""
+    bars = _today(frame, now_ts)
+    if bars.empty:
+        return None
+    for ts in bars.index:
+        start = pd.Timestamp(ts)
+        if start.tzinfo is None:
+            start = start.tz_localize(NY)
+        else:
+            start = start.tz_convert(NY)
+        if start <= now_ts < bar_end(start, "5m"):
+            price = float(bars.loc[ts, "open"])
+            if math.isfinite(price) and price > 0:
+                return price
+    done = [ts for ts in bars.index if bar_end(ts, "5m") <= now_ts]
+    if not done:
+        return None
+    price = float(bars.loc[done[-1], "close"])
+    if math.isfinite(price) and price > 0:
+        return price
+    return None
+
+
+def _inside(direction: str, price: float, stop: float, target: float) -> bool:
+    if direction == "long":
+        return stop < price < target
+    return target < price < stop
+
+
+def _first_exit_index(path: pd.DataFrame, entry_time) -> Optional[int]:
+    """First completed bar that starts at the entry, or the next bar when entry is mid-bar.
+
+    A bar that was already printing when the order went in contains prices from
+    before the fill. Those prices are not the trade.
+    """
+    if entry_time is None or path is None or len(path) == 0:
+        return None
+    entry = pd.Timestamp(entry_time)
+    if entry.tzinfo is None:
+        entry = entry.tz_localize(NY)
+    else:
+        entry = entry.tz_convert(NY)
+    floored = entry.replace(second=0, microsecond=0)
+    floored = floored.replace(minute=(floored.minute // 5) * 5)
+    anchor = floored if entry == floored else floored + pd.Timedelta(minutes=5)
+    for i, ts in enumerate(path.index):
+        stamp = pd.Timestamp(ts)
+        if stamp.tzinfo is None:
+            stamp = stamp.tz_localize(NY)
+        else:
+            stamp = stamp.tz_convert(NY)
+        if stamp >= anchor:
+            return i
+    return None
 
 
 def _credit(bid: float) -> float:
@@ -1042,6 +1240,8 @@ def _clock(stamp) -> str:
     clock = pd.Timestamp(stamp)
     if clock.tzinfo is not None:
         clock = clock.tz_convert(NY)
+    if clock.second or clock.microsecond:
+        return clock.strftime("%Y-%m-%d %H:%M:%S ET")
     return clock.strftime("%Y-%m-%d %H:%M ET")
 
 
