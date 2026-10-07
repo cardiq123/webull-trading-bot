@@ -1240,6 +1240,8 @@ def _clock(stamp) -> str:
     clock = pd.Timestamp(stamp)
     if clock.tzinfo is not None:
         clock = clock.tz_convert(NY)
+    if clock.second or clock.microsecond:
+        return clock.strftime("%Y-%m-%d %H:%M:%S ET")
     return clock.strftime("%Y-%m-%d %H:%M ET")
 
 
