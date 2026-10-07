@@ -4995,3 +4995,34 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_exhaustion
 ```
 <!-- EXHAUST_END -->
+
+<!-- TRENDLINE_BOUNCE_START -->
+### Trendline and support bounce
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. The sandbox forward test was not changed. The bounce was frozen before this score. In an uptrend, the 9 EMA above the 20, a rising line joins the latest confirmed 2-bar pivot low to the latest earlier pivot low that is strictly lower. Two higher-low touches draw the line. A close below the segment invalidates that pair. Horizontal support is the latest confirmed swing low, not the deepest wick and not a round number. Confluence is a green bar whose low tags both levels within 0.10 ATR and whose close finishes back above both. Support alone and the trendline alone drop the other level. The fill is the next open. The stop is a close back through the level. Confluence uses the lower of the extended line and the swing for a long. The upper 2 SD band and the 200 EMA are separate targets. The short is the mirror: a falling line through lower highs, a red close back under the line and the last swing high.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| confluence_band_shares | 311 | 20.3% | 60.7% | 0.16 | -5.02 | -35.0% | $651 | n/a | $686 | no |
+| confluence_band_0dte | 684 | 39.6% | 38.3% | 1.05 | 0.48 | -43.4% | $1,758 | $5,758 | $23 | no |
+| confluence_ema200_shares | 68 | 25.0% | 54.9% | 0.27 | -1.69 | -10.4% | $904 | n/a | $925 | no |
+| confluence_ema200_0dte | 175 | 34.9% | 35.5% | 0.97 | 0.21 | -68.4% | $888 | n/a | $503 | no |
+| trendline_band_shares | 796 | 9.7% | 58.5% | 0.08 | -12.01 | -64.7% | $353 | n/a | $339 | no |
+| trendline_band_0dte | 379 | 30.3% | 34.4% | 0.83 | 0.19 | -100.0% | $1 | n/a | $1 | no |
+| trendline_ema200_shares | 220 | 10.9% | 62.7% | 0.07 | -5.16 | -27.6% | $724 | n/a | $753 | no |
+| trendline_ema200_0dte | 108 | 25.0% | 41.4% | 0.47 | -1.42 | -99.7% | $3 | n/a | $5 | no |
+| support_band_shares | 711 | 21.2% | 50.9% | 0.26 | -6.83 | -57.6% | $429 | n/a | $401 | no |
+| support_band_0dte | 2054 | 34.4% | 32.0% | 1.12 | 1.27 | -27.7% | $5,425 | n/a | $1 | yes, not promoted |
+| support_ema200_shares | 188 | 18.1% | 46.6% | 0.25 | -3.07 | -24.2% | $773 | n/a | $783 | no |
+| support_ema200_0dte | 524 | 34.0% | 34.6% | 0.97 | 0.42 | -95.3% | $749 | n/a | $7 | no |
+
+Confluence signals about 13.8 times a month on the holdout, both directions. Target the upper band, shares finished at $651 (311 trades, win 20.3% against break-even 60.7%, profit factor 0.16, Sharpe -5.02, drawdown -35.0%, train $686). The same entries as one 0 DTE contract finished at $1,758 (684 trades, win 39.6% against break-even 38.3%, profit factor 1.05, Sharpe 0.48, drawdown -43.4%, train $23). From $5,000 that 0 DTE book finished at $5,758 (684 trades, profit factor 1.05, drawdown -13.0%). One contract, so the extra cash is idle and that smaller drawdown is the same dollar path. The confluence 200 EMA target finished at $888 (175 trades, win 34.9% against break-even 35.5%, profit factor 0.97, Sharpe 0.21, drawdown -68.4%, train $503). The trendline alone, upper band, 0 DTE finished at $1 (379 trades, win 30.3% against break-even 34.4%, profit factor 0.83, Sharpe 0.19, drawdown -100.0%, train $1). Support alone, upper band, 0 DTE finished at $5,425 (2054 trades, win 34.4% against break-even 32.0%, profit factor 1.12, Sharpe 1.27, drawdown -27.7%, train $1). That row clears the holdout gate. Its training account finished at $1, so it stays off the live list. The trendline alone with the 200 EMA finished at $3 (108 trades, win 25.0% against break-even 41.4%, profit factor 0.47, Sharpe -1.42, drawdown -99.7%, train $5). Support alone with the 200 EMA finished at $749 (524 trades, win 34.0% against break-even 34.6%, profit factor 0.97, Sharpe 0.42, drawdown -95.3%, train $7). confluence_band_shares random holdout, seed 17, 311 entries, 119 trades, ending $884, profit factor 0.31, Sharpe -2.08, drawdown -12.6%. confluence_band_0dte random holdout, seed 17, 684 entries, 484 trades, ending $2,994, profit factor 1.22, Sharpe 0.91, drawdown -33.1%. Share books are long only. A target that is not beyond the fill is skipped. A row that clears the holdout arithmetic is not promoted.
+
+Yahoo 5-minute cache. Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through 13:50 ET in this file. 10:50 O 773.85 H 774.04 L 773.61 C 773.98 ema9 774.36 ema20 775.35 band 775.67. 12:00 O 776.34 H 776.54 L 775.80 C 776.24 ema9 775.80 ema20 775.52 band 777.15. 12:05 O 776.20 H 776.65 L 776.19 C 776.48 ema9 775.94 ema20 775.61 band 777.15. 12:40 O 776.33 H 776.48 L 776.27 C 776.48 ema9 776.43 ema20 776.10 band 777.18. 13:00 O 776.34 H 777.20 L 776.12 C 776.63 ema9 776.45 ema20 776.22 band 777.39. 13:05 O 776.62 H 777.40 L 776.56 C 777.25 ema9 776.61 ema20 776.31 band 777.40. The 12:00 close and the 12:05 low sit near 776.2. The 12:00 low is the wick under that print. The rule does not move the shelf onto 776.2. The first long confluence is 13:00. The line runs from the 12:00 low at 775.80 to the 12:40 low at 776.27, and it is 776.51 on the signal bar. Horizontal support is that last swing, 776.27. The low is 776.12 and the close is 776.63. The fill is the 13:05 open at 776.62. The 10:50 low is earlier in the higher-low sequence. The active segment is the latest rising pair, not a line forced through 10:50. The upper band book exits band at 777.40 at 13:05. The 200 EMA book skips it because that level is not beyond the fill. Support alone first fires at 12:55. The trendline alone first fires at 13:00.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_trendline_bounce
+```
+<!-- TRENDLINE_BOUNCE_END -->
