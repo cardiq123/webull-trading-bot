@@ -540,6 +540,27 @@ def render(payload: dict) -> str:
             "",
             _plain("SPY 0 DTE options", payload["spy_0"]),
             "",
+            _plain("SPY 7 DTE, a sensitivity", payload["spy_7"]),
+            "That row was frozen before the score as a sensitivity. It was not promoted. "
+            f"{int((payload['spy_7'].get('metrics') or {}).get('trades') or 0)} trades "
+            f"in a {payload['sessions']}-session file is not a durable edge.",
+            "",
+            _plain("The sized 0 DTE book", payload["spy_0_sized"]),
+            "Its starting equity is the training median, not $1,000.",
+            "",
+            (
+                f"The five-contract ladder skipped {int(payload['spy_ladder'].get('skipped') or 0)} "
+                "holdout signals because five contracts did not fit in $1,000. "
+                + _plain("The ladder", payload["spy_ladder"])
+            ),
+            "",
+            (
+                f"SPY had a primary signal on {payload['counts']['spy']} of {payload['sessions']} sessions. "
+                "The first candle is narrow, so a later close leaves it on most days in this file. "
+                f"The confirming-candle variant marked {payload['counts']['confirm']} SPY signals, "
+                f"against {payload['counts']['spy']} plain closes."
+            ),
+            "",
             f"Training, {train[0]} through {train[1]}, same primary rules: shares {_bits(payload['train_shares'])}. "
             f"0 DTE {_bits(payload['train_option'])}.",
             "",
@@ -549,7 +570,8 @@ def render(payload: dict) -> str:
             f"Sized 0 DTE equity, frozen from the training median that puts the -30% loss near 2% of the account: "
             f"{_money(payload['sized_equity'])}.",
             "",
-            f"SPY buy and hold over the holdout, $1,000 whole shares: {payload['spy_hold'].get('shares', 0)} shares, "
+            f"SPY buy and hold over the holdout, $1,000 whole shares: {int(payload['spy_hold'].get('shares') or 0)} "
+            f"{'share' if int(payload['spy_hold'].get('shares') or 0) == 1 else 'shares'}, "
             f"ending {_money(payload['spy_hold'].get('ending_equity'))}, "
             f"Sharpe {_num(payload['spy_hold'].get('sharpe'))}, "
             f"max drawdown {_pct(payload['spy_hold'].get('max_drawdown'))}.",

@@ -3526,3 +3526,104 @@ Charts, most recent long and short the detector marked, not chosen for P&L: `rep
 
 SPY buy and hold over 2019-01-01 through 2026-10-06, $1,000 whole shares: 4 shares, ending $3,242.23, Sharpe 0.95, max drawdown -30.7%.
 <!-- CHART_READS_PULLBACK_END -->
+
+<!-- CHART_READS_ORB5_START -->
+## First-candle opening range, 09:30-09:35
+
+Backtests only. The rule was frozen before the score. Nothing was sent to a broker. The sandbox forward test was not changed, and live trading stays off.
+
+The opening range is only the first regular-session candle. On the 5-minute chart that is the 09:30 bar, covering 09:30-09:35 ET. The rest of the open does not move the high or the low. A long is the first later 5-minute close above that high. A short is the first close below that low. The fill is the next bar's open. One signal per symbol per session. The confirming-candle variant and the retest-and-hold variant are reported below and were not used to pick an entry.
+
+The primary share stop is the other side of that candle. The midpoint is a sensitivity. The primary share target is 1R, then the session close if neither side has traded. 2R and a session-close exit with no R target are sensitivities. The primary option is the listed strike nearest the spot, 0 DTE, at +15% and -30% of premium. Before costs that needs a 66.7% win rate. 1 DTE, 7 DTE, and the five-contract ladder (2 at +15%, 1 at +20%, 1 at +30%, runner at +100%, initial stop -30%) are sensitivities. The $1,000 book is capped at the legacy pattern-day-trader count, 3 day trades in 5 sessions, because the account is under $25,000 and these dates sit in the 2026-2027 phase-in. Blocked entries are counted and not filled.
+
+Yahoo's 5-minute file runs 2026-08-13 through 2026-10-06, 38 sessions. The loader's cap is 55 calendar days, so this is a short sample. It is not a durable edge and it is under 300 trades. The holdout is the second half of those sessions. The rule was not refit on it.
+
+Chart Fanatics spec 7 was a different opening-range breakout. Its default used a 5-minute range on NQ and ES, a volume filter, an ATR band on the range, a midpoint stop, a 2R target, and a flat by 11:30. The gated proxy row was 7 trades, win rate 0.0%, average R -10.403, and the verdict was inconclusive. This study does not use those filters and it does not replace that row. The hourly opening-range breakout already in the strategy library uses the first hour, not this candle.
+
+### Oct 6, 2026, and the recent sessions
+
+2026-10-01 (5m): first-candle high $765.26, low $763.39. after that candle the session traded $765.65 to $758.79 and closed $764.02. Primary signal: short. Chart: `reports/setups/orb5_spy_2026-10-01.png`.
+2026-10-02 (5m): first-candle high $770.84, low $769.49. after that candle the session traded $772.65 to $767.15 and closed $769.67. Primary signal: long. Chart: `reports/setups/orb5_spy_2026-10-02.png`.
+2026-10-05 (5m): first-candle high $770.93, low $769.63. after that candle the session traded $776.60 to $769.98 and closed $774.94. Primary signal: long. Chart: `reports/setups/orb5_spy_2026-10-05.png`.
+2026-10-06 (5m): first-candle high $778.73, low $777.97. after that candle the session traded $781.62 to $777.96 and closed $779.14. Primary signal: long. Chart: `reports/setups/orb5_spy_2026-10-06.png`.
+2026-10-06 (1m): first-candle high $778.73, low $777.97. after that candle the session traded $781.62 to $777.96 and closed $779.14. Primary signal: long. Chart: `reports/setups/orb5_spy_2026-10-06_1m.png`.
+
+### 1-minute check
+
+The 1-minute high and low from 09:30 through 09:34 match the 5-minute 09:30 bar on 4 of 4 overlapping sessions, within two cents. The 1-minute window is about a week. A score on it is anecdotal and is not the verdict.
+
+| Date | 5m high | 5m low | 1m high | 1m low | Match |
+|---|---:|---:|---:|---:|---|
+| 2026-10-01 | $765.26 | $763.39 | $765.26 | $763.39 | yes |
+| 2026-10-02 | $770.84 | $769.49 | $770.84 | $769.49 | yes |
+| 2026-10-05 | $770.93 | $769.63 | $770.93 | $769.63 | yes |
+| 2026-10-06 | $778.73 | $777.97 | $778.73 | $777.97 | yes |
+
+1-minute SPY, same primary share rule, the whole short window: 3 trades, win 33.3%, after-cost break-even 88.5%, expectancy $-2.14, profit factor 0.07, Sharpe -18.42, max drawdown -0.7%, ending $993.58, PDT blocked 1.
+1-minute SPY, 0 DTE +15%/-30%, the whole short window: 3 trades, win 0.0%, after-cost break-even 100.0%, expectancy $-66.96, profit factor 0.00, Sharpe -488.77, max drawdown -20.1%, ending $799.11, PDT blocked 1.
+
+### SPY holdout, 2026-09-10 through 2026-10-06
+
+The verdict is the first row of each table. The other rows were frozen before the score and were not promoted.
+
+| Book | Trades | Win rate | After-cost BE | Expectancy | PF | Sharpe | Max DD | Ending | PDT blocked |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| shares, opposite stop, 1R | 12 | 33.3% | 69.3% | $-1.35 | 0.22 | -9.57 | -1.8% | $983.78 | 7 |
+| shares, midpoint stop, 1R | 12 | 16.7% | 68.5% | $-1.42 | 0.09 | -16.37 | -1.8% | $983.00 | 7 |
+| shares, opposite stop, 2R | 12 | 33.3% | 65.0% | $-1.70 | 0.27 | -9.68 | -2.5% | $979.59 | 7 |
+| shares, opposite stop, session close | 12 | 16.7% | 38.9% | $-1.88 | 0.31 | -8.71 | -2.5% | $977.42 | 7 |
+| shares, confirming candle, 1R | 12 | 33.3% | 69.3% | $-1.35 | 0.22 | -9.57 | -1.8% | $983.78 | 7 |
+| shares, retest, 1R | 12 | 41.7% | 78.1% | $-1.38 | 0.20 | -9.95 | -1.7% | $983.38 | 4 |
+| shares, random entries, 1R | 11 | 9.1% | 81.9% | $-2.34 | 0.02 | -29.77 | -2.6% | $974.21 | 6 |
+
+| Option book | Trades | Win rate | After-cost BE | Expectancy | PF | Sharpe | Max DD | Ending | PDT blocked |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 DTE, +15%/-30%, $1,000 | 12 | 16.7% | 72.2% | $-48.67 | 0.08 | -22.60 | -58.4% | $415.92 | 7 |
+| 1 DTE, +15%/-30%, $1,000 | 12 | 33.3% | 66.9% | $-56.14 | 0.25 | -9.23 | -70.7% | $326.36 | 7 |
+| 7 DTE, +15%/-30%, $1,000 | 13 | 69.2% | 68.9% | $0.79 | 1.01 | 1.04 | -28.0% | $1,010.33 | 5 |
+| 0 DTE, five-contract ladder, $1,000 | 5 | 40.0% | 86.4% | $-125.18 | 0.11 | -12.51 | -62.6% | $374.12 | 1 |
+| 0 DTE, +15%/-30%, sized | 12 | 16.7% | 72.2% | $-24.34 | 0.08 | -23.51 | -16.5% | $1,483.55 | 7 |
+| 0 DTE, random entries, +15%/-30% | 11 | 0.0% | 100.0% | $-42.71 | 0.00 | -34.07 | -47.0% | $530.23 | 8 |
+
+SPY shares: realized win rate 33.3% against an after-cost break-even of 69.3%. The win rate does not clear that rate. The before-cost break-even is 50.0%. It is not profitable out of sample ($-1.35 expectancy, ending $983.78 from $1,000.00, 12 trades). PDT blocked 7.
+
+SPY 0 DTE options: realized win rate 16.7% against an after-cost break-even of 72.2%. The win rate does not clear that rate. The before-cost break-even is 66.7%. It is not profitable out of sample ($-48.67 expectancy, ending $415.92 from $1,000.00, 12 trades). PDT blocked 7.
+
+SPY 7 DTE, a sensitivity: realized win rate 69.2% against an after-cost break-even of 68.9%. The win rate clears that rate. The before-cost break-even is 66.7%. It is profitable out of sample ($0.79 expectancy, ending $1,010.33 from $1,000.00, 13 trades). PDT blocked 5.
+That row was frozen before the score as a sensitivity. It was not promoted. 13 trades in a 38-session file is not a durable edge.
+
+The sized 0 DTE book: realized win rate 16.7% against an after-cost break-even of 72.2%. The win rate does not clear that rate. The before-cost break-even is 66.7%. It is not profitable out of sample ($-24.34 expectancy, ending $1,483.55 from $1,775.65, 12 trades). PDT blocked 7.
+Its starting equity is the training median, not $1,000.
+
+The five-contract ladder skipped 13 holdout signals because five contracts did not fit in $1,000. The ladder: realized win rate 40.0% against an after-cost break-even of 86.4%. The win rate does not clear that rate. It is not profitable out of sample ($-125.18 expectancy, ending $374.12 from $1,000.00, 5 trades). PDT blocked 1.
+
+SPY had a primary signal on 38 of 38 sessions. The first candle is narrow, so a later close leaves it on most days in this file. The confirming-candle variant marked 38 SPY signals, against 38 plain closes.
+
+Training, 2026-08-13 through 2026-09-09, same primary rules: shares 12 trades, win 50.0%, after-cost break-even 75.8%, expectancy $-0.98, profit factor 0.32, Sharpe -7.18, max drawdown -1.5%, ending $988.20, PDT blocked 7. 0 DTE 12 trades, win 33.3%, after-cost break-even 68.1%, expectancy $-36.95, profit factor 0.23, Sharpe -9.92, max drawdown -50.2%, ending $556.61, PDT blocked 7.
+
+Walk-forward inside training, frozen rule, no re-selection: 9 share trades, pooled expectancy $-1.51.
+
+Sized 0 DTE equity, frozen from the training median that puts the -30% loss near 2% of the account: $1,775.65.
+
+SPY buy and hold over the holdout, $1,000 whole shares: 1 share, ending $1,023.59, Sharpe 4.13, max drawdown -1.1%.
+
+### QQQ and the liquid list
+
+These rows are secondary. They were not used to change the SPY rule.
+
+QQQ shares: 12 trades, win 58.3%, after-cost break-even 68.4%, expectancy $-0.63, profit factor 0.65, Sharpe -3.06, max drawdown -1.1%, ending $992.49, PDT blocked 7.
+
+QQQ 0 DTE, +15%/-30%: 12 trades, win 50.0%, after-cost break-even 66.7%, expectancy $-21.35, profit factor 0.50, Sharpe -4.40, max drawdown -30.2%, ending $743.83, PDT blocked 7.
+
+Liquid list, one account, primary entry, shares: 12 trades, win 33.3%, after-cost break-even 44.4%, expectancy $-1.63, profit factor 0.63, Sharpe -3.49, max drawdown -2.3%, ending $980.45, PDT blocked 140.
+
+Liquid list, one account, 0 DTE, +15%/-30%: 12 trades, win 41.7%, after-cost break-even 52.3%, expectancy $-13.96, profit factor 0.65, Sharpe -3.95, max drawdown -18.5%, ending $832.50, PDT blocked 290.
+
+Signals on the full 5-minute file, primary entry: SPY 38, QQQ 38, liquid list 674. Confirming candle 38. Retest 30.
+
+No sensitivity was promoted after the score. The strategy was not added to `config/optional_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_orb5
+```
+<!-- CHART_READS_ORB5_END -->

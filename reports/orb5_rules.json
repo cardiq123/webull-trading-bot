@@ -1,0 +1,33 @@
+{
+  "range": "09:30-09:35 ET only. 5-minute: the 09:30 bar. 1-minute: 09:30 through 09:34.",
+  "entry": "close",
+  "variants": [
+    "close",
+    "retest",
+    "confirm"
+  ],
+  "stop": "opposite",
+  "stops": [
+    "opposite",
+    "mid"
+  ],
+  "share_r": 1.0,
+  "share_targets": [
+    "1R",
+    "2R",
+    "session close"
+  ],
+  "dte": 0,
+  "dte_list": [
+    0,
+    1,
+    7
+  ],
+  "premium_target": 0.15,
+  "premium_stop": -0.3,
+  "breakeven_before_costs": 0.6666666666666667,
+  "ladder": "5 contracts, 2 at +15%, 1 at +20%, 1 at +30%, runner at +100%, initial stop -30%",
+  "cash_account": 1000.0,
+  "seed": 17,
+  "pdt": "legacy 3 day trades in 5 sessions on a margin account under $25,000"
+}
