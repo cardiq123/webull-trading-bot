@@ -1,0 +1,24 @@
+{
+  "range": "09:30-09:35 ET only. 5-minute: the 09:30 bar. 1-minute: 09:30 through 09:34.",
+  "days": "Monday, Wednesday, Friday only.",
+  "skip": "CPI release, Employment Situation, FOMC decision day. 2026 BLS and Fed calendars.",
+  "break": "First later bar that trades strictly through the high or the low. Equal is not a break.",
+  "both_sides": "A bar through both sides is skipped.",
+  "one_trade": "First break only, one option per session.",
+  "fill": "Default: underlying at the broken level plus stock slippage, option at the ask. Gap open fills at the open. Next-bar open is a sensitivity.",
+  "right": "Break of the high buys the ATM call. Break of the low buys the ATM put. ATM is the nearest listed strike.",
+  "dte": 0,
+  "expiry": "Only sessions with a real SPY expiration on that weekday.",
+  "risk": 100.0,
+  "risk_sensitivities": [
+    200.0,
+    500.0
+  ],
+  "sizing": "contracts = floor(min(risk, equity) / one-contract debit). Skip when one contract costs more than that budget.",
+  "exit": "+100% of the entry ask, -50% of the entry ask, or 15:30 ET, first one.",
+  "stop_gap": "A bid through the stop fills at that bid. A target fills at the target. Stop is checked first.",
+  "iv": "Prior session VIX1D close, else prior VIX close, divided by 100. 1.3x is a sensitivity.",
+  "spread": "Half-spread is the greater of $0.01 and 1.5% of the model mid.",
+  "account": "Default is a $1,000 cash account. Sale proceeds settle the next session (T+1). A margin account under $25,000 is reported for the pattern-day-trader count and is not the default, because $1,000 is under the $2,000 margin minimum.",
+  "model": "Intraday Black-Scholes. No listed chain. The model is the main uncertainty."
+}
