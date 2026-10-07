@@ -1,0 +1,465 @@
+{
+  "frozen_before_holdout": true,
+  "universe_registered_before_scoring": true,
+  "liquid_blue_chips": [
+    "NVDA",
+    "AAPL",
+    "UNH",
+    "MSFT",
+    "AMZN",
+    "META",
+    "GOOGL",
+    "JPM",
+    "AMD",
+    "TSLA",
+    "AVGO",
+    "COST",
+    "V",
+    "MA",
+    "LLY",
+    "XOM",
+    "SPY",
+    "QQQ"
+  ],
+  "gate": "dow_point_in_time",
+  "cells": 1293,
+  "rule": "highest training Sharpe among cells with at least 30 training trades",
+  "books": [
+    {
+      "name": "Chop-v2 60-minute, Dow point-in-time",
+      "label": "A stop -30% rungs +20%/+25%/+30% runner +150%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "A stop -30% rungs +20%/+25%/+30% runner +150%",
+        "family": "A",
+        "stop": -0.3,
+        "sharpe": -2.5081533088231485,
+        "expectancy": -367.65087525974633,
+        "max_drawdown": -0.9210290842956332,
+        "trades": 96,
+        "ending_equity": 4323.933367037235,
+        "starting_equity": 39618.41739197286,
+        "win_rate": 0.3125,
+        "profit_factor": 0.3598580441002315,
+        "skipped": 2,
+        "pdt_blocked": 4,
+        "overlapped": 212,
+        "targets": {
+          "0": 63,
+          "1": 4,
+          "2": 3,
+          "3": 22,
+          "4": 4
+        },
+        "runner": {
+          "breakeven": 19,
+          "initial_stop": 66,
+          "time_stop": 6,
+          "target": 4,
+          "window_end": 1
+        },
+        "armed": 33
+      }
+    },
+    {
+      "name": "Partial bounce, Dow point-in-time",
+      "label": "B stop -40% rungs +20%/+30% runner +150%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1078,
+      "train": {
+        "label": "B stop -40% rungs +20%/+30% runner +150%",
+        "family": "B",
+        "stop": -0.4,
+        "sharpe": -1.9592495899873723,
+        "expectancy": -84.28621063856745,
+        "max_drawdown": -0.997149794280908,
+        "trades": 110,
+        "ending_equity": 26.783550497338055,
+        "starting_equity": 9298.26672073976,
+        "win_rate": 0.36363636363636365,
+        "profit_factor": 0.25768815721117827,
+        "skipped": 919,
+        "pdt_blocked": 0,
+        "overlapped": 256,
+        "targets": {
+          "0": 67,
+          "1": 3,
+          "2": 31,
+          "3": 9
+        },
+        "runner": {
+          "target": 9,
+          "initial_stop": 72,
+          "breakeven": 28,
+          "expiry": 1
+        },
+        "armed": 43
+      }
+    },
+    {
+      "name": "A, 60-minute, Dow point-in-time",
+      "label": "A stop -40% rungs +15%/+30%/+40% runner +75%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "A stop -40% rungs +15%/+30%/+40% runner +75%",
+        "family": "A",
+        "stop": -0.4,
+        "sharpe": -1.7677953530807842,
+        "expectancy": -392.41566517090354,
+        "max_drawdown": -0.9536140269889753,
+        "trades": 116,
+        "ending_equity": 2569.772324285457,
+        "starting_equity": 48089.989484110265,
+        "win_rate": 0.3879310344827586,
+        "profit_factor": 0.3537687409043849,
+        "skipped": 8,
+        "pdt_blocked": 0,
+        "overlapped": 518,
+        "targets": {
+          "0": 54,
+          "1": 12,
+          "2": 10,
+          "3": 24,
+          "4": 16
+        },
+        "runner": {
+          "breakeven": 41,
+          "initial_stop": 55,
+          "target": 16,
+          "time_stop": 3,
+          "window_end": 1
+        },
+        "armed": 62
+      }
+    },
+    {
+      "name": "B, 60-minute, Dow point-in-time",
+      "label": "C all-out +75% stop -40%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "C all-out +75% stop -40%",
+        "family": "C",
+        "stop": -0.4,
+        "sharpe": -0.8663063343961696,
+        "expectancy": -465.3309793791703,
+        "max_drawdown": -0.9513320313326464,
+        "trades": 95,
+        "ending_equity": 3044.3458516140063,
+        "starting_equity": 47250.78889263518,
+        "win_rate": 0.25263157894736843,
+        "profit_factor": 0.47208927906669906,
+        "skipped": 9,
+        "pdt_blocked": 0,
+        "overlapped": 229,
+        "targets": {
+          "0": 76,
+          "1": 19
+        },
+        "runner": {
+          "initial_stop": 62,
+          "all_out": 19,
+          "time_stop": 13,
+          "window_end": 1
+        },
+        "armed": 0
+      }
+    },
+    {
+      "name": "C, daily, Dow point-in-time",
+      "label": "B stop -40% rungs +15%/+30% runner +100%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1078,
+      "train": {
+        "label": "B stop -40% rungs +15%/+30% runner +100%",
+        "family": "B",
+        "stop": -0.4,
+        "sharpe": -3.546187126549,
+        "expectancy": -79.91084915453874,
+        "max_drawdown": -0.9967331851471757,
+        "trades": 102,
+        "ending_equity": 26.87704893884048,
+        "starting_equity": 8177.783662701795,
+        "win_rate": 0.2647058823529412,
+        "profit_factor": 0.14712060927870665,
+        "skipped": 697,
+        "pdt_blocked": 3,
+        "overlapped": 183,
+        "targets": {
+          "0": 61,
+          "1": 14,
+          "2": 21,
+          "3": 6
+        },
+        "runner": {
+          "initial_stop": 71,
+          "breakeven": 25,
+          "target": 6
+        },
+        "armed": 41
+      }
+    },
+    {
+      "name": "D, daily, Dow point-in-time",
+      "label": "C all-out +100% stop -40%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 863,
+      "train": {
+        "label": "C all-out +100% stop -40%",
+        "family": "C",
+        "stop": -0.4,
+        "sharpe": -2.38755139937265,
+        "expectancy": -112.4424344759924,
+        "max_drawdown": -0.9855716508688686,
+        "trades": 69,
+        "ending_equity": 116.90296602465918,
+        "starting_equity": 7875.430944868131,
+        "win_rate": 0.14492753623188406,
+        "profit_factor": 0.23680798964744734,
+        "skipped": 78,
+        "pdt_blocked": 0,
+        "overlapped": 29,
+        "targets": {
+          "0": 60,
+          "1": 9
+        },
+        "runner": {
+          "initial_stop": 59,
+          "all_out": 9,
+          "expiry": 1
+        },
+        "armed": 0
+      }
+    }
+  ],
+  "liquid_diagnostic": [
+    {
+      "name": "Chop-v2 60-minute, liquid list",
+      "label": "B stop -30% rungs +40%/+50% runner +150%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1290,
+      "train": {
+        "label": "B stop -30% rungs +40%/+50% runner +150%",
+        "family": "B",
+        "stop": -0.3,
+        "sharpe": -2.191122294416136,
+        "expectancy": -744.058584801635,
+        "max_drawdown": -0.8978129572278833,
+        "trades": 71,
+        "ending_equity": 8161.664061068549,
+        "starting_equity": 60989.823581984616,
+        "win_rate": 0.29577464788732394,
+        "profit_factor": 0.3926065924429918,
+        "skipped": 1,
+        "pdt_blocked": 5,
+        "overlapped": 159,
+        "targets": {
+          "0": 52,
+          "1": 2,
+          "2": 14,
+          "3": 3
+        },
+        "runner": {
+          "initial_stop": 48,
+          "time_stop": 9,
+          "breakeven": 10,
+          "target": 3,
+          "window_end": 1
+        },
+        "armed": 19
+      }
+    },
+    {
+      "name": "Partial bounce, liquid list",
+      "label": "C all-out +100% stop -40%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1078,
+      "train": {
+        "label": "C all-out +100% stop -40%",
+        "family": "C",
+        "stop": -0.4,
+        "sharpe": -2.1717667083803245,
+        "expectancy": -79.6754490690679,
+        "max_drawdown": -0.999886202679266,
+        "trades": 100,
+        "ending_equity": 0.9067884533303149,
+        "starting_equity": 7968.451695360121,
+        "win_rate": 0.14,
+        "profit_factor": 0.2499202069656123,
+        "skipped": 566,
+        "pdt_blocked": 0,
+        "overlapped": 121,
+        "targets": {
+          "0": 88,
+          "1": 12
+        },
+        "runner": {
+          "initial_stop": 86,
+          "all_out": 12,
+          "expiry": 2
+        },
+        "armed": 0
+      }
+    },
+    {
+      "name": "A, 60-minute, liquid list",
+      "label": "C all-out +100% stop -20%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "C all-out +100% stop -20%",
+        "family": "C",
+        "stop": -0.2,
+        "sharpe": -2.2018639770625263,
+        "expectancy": -527.1053810816276,
+        "max_drawdown": -0.9785726583199347,
+        "trades": 73,
+        "ending_equity": 842.549698710819,
+        "starting_equity": 39321.24251766964,
+        "win_rate": 0.1506849315068493,
+        "profit_factor": 0.42289534584834904,
+        "skipped": 164,
+        "pdt_blocked": 14,
+        "overlapped": 151,
+        "targets": {
+          "0": 67,
+          "1": 6
+        },
+        "runner": {
+          "initial_stop": 62,
+          "all_out": 6,
+          "time_stop": 5
+        },
+        "armed": 0
+      }
+    },
+    {
+      "name": "B, 60-minute, liquid list",
+      "label": "C all-out +100% stop -30%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "C all-out +100% stop -30%",
+        "family": "C",
+        "stop": -0.3,
+        "sharpe": -0.35206095610406823,
+        "expectancy": -194.25553616582656,
+        "max_drawdown": -0.5240722392124075,
+        "trades": 80,
+        "ending_equity": 43232.94956716435,
+        "starting_equity": 58773.392460430536,
+        "win_rate": 0.2625,
+        "profit_factor": 0.8644009226656876,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 128,
+        "targets": {
+          "0": 68,
+          "1": 12
+        },
+        "runner": {
+          "initial_stop": 58,
+          "time_stop": 9,
+          "all_out": 12,
+          "window_end": 1
+        },
+        "armed": 0
+      }
+    },
+    {
+      "name": "C, daily, liquid list",
+      "label": "B stop -40% rungs +25%/+30% runner +100%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1293,
+      "train": {
+        "label": "B stop -40% rungs +25%/+30% runner +100%",
+        "family": "B",
+        "stop": -0.4,
+        "sharpe": -2.8175041006549426,
+        "expectancy": -58.54077085988304,
+        "max_drawdown": -0.9987233551046814,
+        "trades": 128,
+        "ending_equity": 9.678238318560178,
+        "starting_equity": 7502.896908383585,
+        "win_rate": 0.296875,
+        "profit_factor": 0.2881729727077183,
+        "skipped": 369,
+        "pdt_blocked": 0,
+        "overlapped": 141,
+        "targets": {
+          "0": 87,
+          "1": 3,
+          "2": 25,
+          "3": 13
+        },
+        "runner": {
+          "initial_stop": 92,
+          "breakeven": 22,
+          "target": 13,
+          "expiry": 1
+        },
+        "armed": 41
+      }
+    },
+    {
+      "name": "D, daily, liquid list",
+      "label": "C all-out +75% stop -40%",
+      "rule": "highest training Sharpe among cells with at least 30 training trades",
+      "fallback": false,
+      "eligible": 1078,
+      "train": {
+        "label": "C all-out +75% stop -40%",
+        "family": "C",
+        "stop": -0.4,
+        "sharpe": 0.1086480133052099,
+        "expectancy": -18.861869780522596,
+        "max_drawdown": -0.6017907255798431,
+        "trades": 65,
+        "ending_equity": 7382.913018811905,
+        "starting_equity": 8608.934554545871,
+        "win_rate": 0.2923076923076923,
+        "profit_factor": 0.888449862580119,
+        "skipped": 1,
+        "pdt_blocked": 0,
+        "overlapped": 14,
+        "targets": {
+          "0": 49,
+          "1": 16
+        },
+        "runner": {
+          "initial_stop": 46,
+          "expiry": 3,
+          "all_out": 16
+        },
+        "armed": 0
+      }
+    }
+  ],
+  "pooled": {
+    "label": "C all-out +100% stop -40%",
+    "rule": "highest training Sharpe among cells with at least 30 training trades",
+    "fallback": false,
+    "row": {
+      "label": "C all-out +100% stop -40%",
+      "family": "C",
+      "sharpe": -3.0060058633269864,
+      "expectancy": -336.71707655139653,
+      "max_drawdown": -0.9583092915732742,
+      "trades": 69,
+      "books": 6
+    }
+  }
+}

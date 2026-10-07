@@ -1,0 +1,1726 @@
+{
+  "rules": {
+    "trend": "EMA 9 > 20 > 50, each rising over 3 bars, close above the 200 EMA and VWAP, and ADX(14) > 25 or higher highs and higher lows",
+    "touch_atr": 0.25,
+    "swing_bars": 5,
+    "adx_min": 25.0,
+    "primary_target": 0.15,
+    "primary_stop": -0.3,
+    "breakeven_before_costs": 0.6666666666666667,
+    "dte": 14,
+    "dte_sensitivities": [
+      7,
+      30
+    ],
+    "exit_sensitivities": [
+      "+20%/-20%",
+      "+15%/-15%"
+    ],
+    "time_bars": {
+      "15m": 16,
+      "60m": 8,
+      "1d": 5
+    },
+    "share_r": 1.5,
+    "cash_account": 1000.0,
+    "max_contracts": 2,
+    "risk_fraction": 0.02,
+    "iv_premium": 1.15,
+    "seed": 17
+  },
+  "books": [
+    {
+      "name": "Daily",
+      "clock": "1d",
+      "train_window": [
+        "2010-01-01",
+        "2018-12-31"
+      ],
+      "holdout_window": [
+        "2019-01-01",
+        "2026-10-06"
+      ],
+      "signals": 3967,
+      "dow_signals": 1169,
+      "priced": 3967,
+      "train_cash": {
+        "trades": 43,
+        "win_rate": 0.13953488372093023,
+        "expectancy": -22.914954352169882,
+        "profit_factor": 0.12366663044392347,
+        "sharpe": -13.7386208910353,
+        "max_drawdown": -0.985343037143305,
+        "ending_equity": 14.65696285669502,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.5673401923005204,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 553,
+        "pdt_blocked": 1,
+        "overlapped": 7,
+        "reasons": {
+          "stop": 37,
+          "target": 6
+        },
+        "median_delta": 0.495175163541298,
+        "avg_win": 23.17498063866984,
+        "avg_loss": -30.38899786419795
+      },
+      "sized_equity": 1280.8046165146086,
+      "train_sized": {
+        "trades": 95,
+        "win_rate": 0.17894736842105263,
+        "expectancy": -13.317686653414793,
+        "profit_factor": 0.14839316204058894,
+        "sharpe": -9.139027548742316,
+        "max_drawdown": -0.987801117954493,
+        "ending_equity": 15.624384440202546,
+        "starting_equity": 1280.8046165146086,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.594932574880818,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 494,
+        "pdt_blocked": 3,
+        "overlapped": 12,
+        "reasons": {
+          "stop": 78,
+          "target": 17
+        },
+        "median_delta": 0.4943651162295321,
+        "avg_win": 12.968155976394307,
+        "avg_loss": -19.04665235478344
+      },
+      "hold_cash": {
+        "trades": 28,
+        "win_rate": 0.35714285714285715,
+        "expectancy": -32.155822798766515,
+        "profit_factor": 0.2824599726045163,
+        "sharpe": -6.707442114498704,
+        "max_drawdown": -0.9093941831080494,
+        "ending_equity": 99.6369616345377,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6629418392464886,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 519,
+        "pdt_blocked": 2,
+        "overlapped": 8,
+        "reasons": {
+          "target": 10,
+          "stop": 18
+        },
+        "median_delta": 0.487114038952857,
+        "avg_win": 35.442833771091756,
+        "avg_loss": -69.71063200424334
+      },
+      "hold_sized": {
+        "trades": 47,
+        "win_rate": 0.3617021276595745,
+        "expectancy": -25.512953716457428,
+        "profit_factor": 0.26654799143852564,
+        "sharpe": -6.043162512245431,
+        "max_drawdown": -0.9408207231972633,
+        "ending_equity": 81.69579184110994,
+        "starting_equity": 1280.8046165146086,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6800968527789938,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 494,
+        "pdt_blocked": 2,
+        "overlapped": 14,
+        "reasons": {
+          "target": 17,
+          "stop": 30
+        },
+        "median_delta": 0.48985316427410125,
+        "avg_win": 25.633823505516375,
+        "avg_loss": -54.49612747557592
+      },
+      "liquid_hold": {
+        "trades": 39,
+        "win_rate": 0.28205128205128205,
+        "expectancy": -25.385289020058092,
+        "profit_factor": 0.32791725147964257,
+        "sharpe": -11.138710359054315,
+        "max_drawdown": -0.9908895262739784,
+        "ending_equity": 9.973728217734477,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.5450486947703339,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 1666,
+        "pdt_blocked": 13,
+        "overlapped": 32,
+        "reasons": {
+          "stop": 28,
+          "target": 11
+        },
+        "median_delta": 0.5120841737830161,
+        "avg_win": 43.91324710728271,
+        "avg_loss": -52.609713927227695
+      },
+      "symbols": [
+        {
+          "symbol": "NVDA",
+          "trades": 0
+        },
+        {
+          "symbol": "AAPL",
+          "trades": 5,
+          "win_rate": 0.2,
+          "expectancy": -40.85677952179965,
+          "ending_pnl": -204.28389760899827
+        },
+        {
+          "symbol": "UNH",
+          "trades": 2,
+          "win_rate": 0.5,
+          "expectancy": -48.39853502820412,
+          "ending_pnl": -96.79707005640824
+        },
+        {
+          "symbol": "MSFT",
+          "trades": 4,
+          "win_rate": 0.5,
+          "expectancy": -29.832209571213852,
+          "ending_pnl": -119.32883828485541
+        },
+        {
+          "symbol": "AMZN",
+          "trades": 0
+        },
+        {
+          "symbol": "META",
+          "trades": 0
+        },
+        {
+          "symbol": "GOOGL",
+          "trades": 0
+        },
+        {
+          "symbol": "JPM",
+          "trades": 3,
+          "win_rate": 0.6666666666666666,
+          "expectancy": 3.624383761645452,
+          "ending_pnl": 10.873151284936355
+        },
+        {
+          "symbol": "AMD",
+          "trades": 0
+        },
+        {
+          "symbol": "TSLA",
+          "trades": 0
+        },
+        {
+          "symbol": "AVGO",
+          "trades": 0
+        },
+        {
+          "symbol": "COST",
+          "trades": 0
+        },
+        {
+          "symbol": "V",
+          "trades": 4,
+          "win_rate": 0.25,
+          "expectancy": -55.65230659614028,
+          "ending_pnl": -222.6092263845611
+        },
+        {
+          "symbol": "MA",
+          "trades": 0
+        },
+        {
+          "symbol": "LLY",
+          "trades": 0
+        },
+        {
+          "symbol": "XOM",
+          "trades": 10,
+          "win_rate": 0.3,
+          "expectancy": -26.82171573155757,
+          "ending_pnl": -268.2171573155757
+        },
+        {
+          "symbol": "SPY",
+          "trades": 0
+        },
+        {
+          "symbol": "QQQ",
+          "trades": 0
+        }
+      ],
+      "walk": {
+        "folds": [
+          {
+            "test": [
+              "2013-01-01",
+              "2014-12-31"
+            ],
+            "book": {
+              "trades": 37,
+              "win_rate": 0.16216216216216217,
+              "expectancy": -26.4647106599483,
+              "profit_factor": 0.09209646770091896,
+              "sharpe": -12.30749565870077,
+              "max_drawdown": -0.9791942944180869,
+              "ending_equity": 20.805705581913053,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.6775840133156051,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 80,
+              "pdt_blocked": 1,
+              "overlapped": 8,
+              "reasons": {
+                "stop": 31,
+                "target": 6
+              },
+              "median_delta": 0.4624201990556697,
+              "avg_win": 16.554683858764182,
+              "avg_loss": -34.79104508292491
+            }
+          },
+          {
+            "test": [
+              "2015-01-01",
+              "2016-12-31"
+            ],
+            "book": {
+              "trades": 25,
+              "win_rate": 0.12,
+              "expectancy": -39.1099947147161,
+              "profit_factor": 0.16587310917119621,
+              "sharpe": -14.612761830405978,
+              "max_drawdown": -0.9777498678679022,
+              "ending_equity": 22.250132132097765,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.4511815269924568,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 120,
+              "pdt_blocked": 0,
+              "overlapped": 7,
+              "reasons": {
+                "stop": 22,
+                "target": 3
+              },
+              "median_delta": 0.49858356999699976,
+              "avg_win": 64.81124648945911,
+              "avg_loss": -53.281073060739985
+            }
+          },
+          {
+            "test": [
+              "2017-01-01",
+              "2018-12-31"
+            ],
+            "book": {
+              "trades": 39,
+              "win_rate": 0.23076923076923078,
+              "expectancy": -24.842140213881514,
+              "profit_factor": 0.1814142812227174,
+              "sharpe": -10.413782930626299,
+              "max_drawdown": -0.9691757505648675,
+              "ending_equity": 31.15653165862123,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.6231638979177074,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 139,
+              "pdt_blocked": 4,
+              "overlapped": 13,
+              "reasons": {
+                "target": 9,
+                "stop": 30
+              },
+              "median_delta": 0.5046597060246774,
+              "avg_win": 23.85714197802451,
+              "avg_loss": -39.45192487145333
+            }
+          }
+        ],
+        "expectancy": -28.968194362647218,
+        "trades": 101
+      },
+      "sensitivities": [
+        {
+          "label": "+20%/-20%",
+          "book": {
+            "trades": 25,
+            "win_rate": 0.12,
+            "expectancy": -36.7410867911577,
+            "profit_factor": 0.2010894786718284,
+            "sharpe": -14.615762215374561,
+            "max_drawdown": -0.9280869278484789,
+            "ending_equity": 81.47283022105788,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 0.40409654049068466,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 525,
+            "pdt_blocked": 2,
+            "overlapped": 5,
+            "reasons": {
+              "target": 3,
+              "stop": 22
+            },
+            "median_delta": 0.48716802405194803,
+            "avg_win": 77.06584771207648,
+            "avg_loss": -52.260214223416895
+          }
+        },
+        {
+          "label": "+15%/-15%",
+          "book": {
+            "trades": 24,
+            "win_rate": 0.041666666666666664,
+            "expectancy": -38.690775457382834,
+            "profit_factor": 0.02740808781920076,
+            "sharpe": -25.00031923420445,
+            "max_drawdown": -0.9285786109771881,
+            "ending_equity": 71.42138902281195,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 0.6133516773513209,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 525,
+            "pdt_blocked": 3,
+            "overlapped": 5,
+            "reasons": {
+              "stop": 23,
+              "target": 1
+            },
+            "median_delta": 0.49028609099999326,
+            "avg_win": 26.16777272970282,
+            "avg_loss": -41.510712335082225
+          }
+        },
+        {
+          "label": "time stop 5 bars, stop -30%",
+          "book": {
+            "trades": 21,
+            "win_rate": 0.09523809523809523,
+            "expectancy": -44.07333405448146,
+            "profit_factor": 0.2326070995963396,
+            "sharpe": -2.5395065216761488,
+            "max_drawdown": -0.9396566802339962,
+            "ending_equity": 74.45998485588963,
+            "starting_equity": 1000.0,
+            "breakeven_before": null,
+            "breakeven_after": 0.31154905044436165,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 523,
+            "pdt_blocked": 0,
+            "overlapped": 13,
+            "reasons": {
+              "stop": 19,
+              "time": 2
+            },
+            "median_delta": 0.487180436918783,
+            "avg_win": 140.27180755111198,
+            "avg_loss": -63.478085802438656
+          }
+        }
+      ],
+      "dte": [
+        {
+          "dte": 7,
+          "book": {
+            "trades": 28,
+            "win_rate": 0.2857142857142857,
+            "expectancy": -33.771276642835325,
+            "profit_factor": 0.27511897790982026,
+            "sharpe": -7.801318443705603,
+            "max_drawdown": -0.9523936374988449,
+            "ending_equity": 54.40425400061115,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 0.5924881585145284,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 520,
+            "pdt_blocked": 3,
+            "overlapped": 6,
+            "reasons": {
+              "target": 8,
+              "stop": 20
+            },
+            "median_delta": 0.49227066153450233,
+            "avg_win": 44.861040506531126,
+            "avg_loss": -65.2242035025819
+          }
+        },
+        {
+          "dte": 30,
+          "book": {
+            "trades": 19,
+            "win_rate": 0.3157894736842105,
+            "expectancy": -47.281910834588025,
+            "profit_factor": 0.23901978161435586,
+            "sharpe": -7.047255777165658,
+            "max_drawdown": -0.9111995790335063,
+            "ending_equity": 101.64369414282743,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 0.6588152606146455,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 526,
+            "pdt_blocked": 1,
+            "overlapped": 11,
+            "reasons": {
+              "target": 6,
+              "stop": 13
+            },
+            "median_delta": 0.48708973950771184,
+            "avg_win": 47.028144939470714,
+            "avg_loss": -90.80962888415362
+          }
+        }
+      ],
+      "random": {
+        "trades": 24,
+        "win_rate": 0.375,
+        "expectancy": -39.77432078189871,
+        "profit_factor": 0.19724729357118087,
+        "sharpe": -6.927856100478905,
+        "max_drawdown": -0.9548924961522531,
+        "ending_equity": 45.41630123443097,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7525895726937705,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 528,
+        "pdt_blocked": 1,
+        "overlapped": 4,
+        "reasons": {
+          "stop": 15,
+          "target": 9
+        },
+        "median_delta": 0.5166984438859794,
+        "avg_win": 26.06158223666158,
+        "avg_loss": -79.27586259303489
+      },
+      "share_train": {
+        "trades": 238,
+        "win_rate": 0.5210084033613446,
+        "expectancy": -0.3053918674111094,
+        "profit_factor": 0.8980341777682191,
+        "sharpe": -0.4751298254880304,
+        "max_drawdown": -0.17737634991693474,
+        "ending_equity": 927.3167355561557,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.5477614977812264,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 366,
+        "reasons": {
+          "time": 216,
+          "stop": 16,
+          "target": 6
+        },
+        "median_delta": null,
+        "avg_win": 5.162392003713625,
+        "avg_loss": -6.252805902669591
+      },
+      "share_hold": {
+        "trades": 204,
+        "win_rate": 0.4950980392156863,
+        "expectancy": -0.11622692694073329,
+        "profit_factor": 0.9687712694515762,
+        "sharpe": -0.11440343899312634,
+        "max_drawdown": -0.14620099927567864,
+        "ending_equity": 976.2897069040895,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.503029530826651,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 353,
+        "reasons": {
+          "time": 184,
+          "stop": 14,
+          "target": 5,
+          "window": 1
+        },
+        "median_delta": null,
+        "avg_win": 7.282533128127116,
+        "avg_loss": -7.371321738220859
+      },
+      "share_random": {
+        "trades": 255,
+        "win_rate": 0.5137254901960784,
+        "expectancy": 0.059117821895020316,
+        "profit_factor": 1.011534093077814,
+        "sharpe": 0.17390029578429397,
+        "max_drawdown": -0.27738305323875545,
+        "ending_equity": 1015.075044583231,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.5108602104200964,
+        "clears_breakeven": true,
+        "profitable": true,
+        "skipped": 3,
+        "pdt_blocked": 0,
+        "overlapped": 299,
+        "reasons": {
+          "time": 210,
+          "stop": 32,
+          "target": 13
+        },
+        "median_delta": null,
+        "avg_win": 10.092165939447082,
+        "avg_loss": -10.540312044228532
+      }
+    },
+    {
+      "name": "60-minute",
+      "clock": "60m",
+      "train_window": [
+        "2024-10-17",
+        "2025-10-10"
+      ],
+      "holdout_window": [
+        "2025-10-13",
+        "2026-10-06"
+      ],
+      "signals": 3671,
+      "dow_signals": 1429,
+      "priced": 3671,
+      "train_cash": {
+        "trades": 12,
+        "win_rate": 0.3333333333333333,
+        "expectancy": -66.50984319875151,
+        "profit_factor": 0.27467210347412885,
+        "sharpe": -16.913617658905483,
+        "max_drawdown": -0.7981181183850181,
+        "ending_equity": 201.88188161498186,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6454343686285822,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 688,
+        "pdt_blocked": 24,
+        "overlapped": 31,
+        "reasons": {
+          "stop": 8,
+          "target": 4
+        },
+        "median_delta": 0.5063927208544666,
+        "avg_win": 75.55920000031583,
+        "avg_loss": -137.5443647982852
+      },
+      "sized_equity": 9365.350669529107,
+      "train_sized": {
+        "trades": 73,
+        "win_rate": 0.3835616438356164,
+        "expectancy": -125.24494767471737,
+        "profit_factor": 0.22975164541642448,
+        "sharpe": -6.630866253066959,
+        "max_drawdown": -0.9762454715125022,
+        "ending_equity": 222.4694892747363,
+        "starting_equity": 9365.350669529107,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7303301730917988,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 358,
+        "pdt_blocked": 77,
+        "overlapped": 247,
+        "reasons": {
+          "stop": 45,
+          "target": 28
+        },
+        "median_delta": 0.504862315098952,
+        "avg_win": 97.39864062351492,
+        "avg_loss": -263.77873594917304
+      },
+      "hold_cash": {
+        "trades": 10,
+        "win_rate": 0.3,
+        "expectancy": -77.8852324252552,
+        "profit_factor": 0.17158679598286458,
+        "sharpe": -18.73410050424,
+        "max_drawdown": -0.7788523242525521,
+        "ending_equity": 221.14767574744783,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.714097401380622,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 644,
+        "pdt_blocked": 4,
+        "overlapped": 16,
+        "reasons": {
+          "target": 3,
+          "stop": 7
+        },
+        "median_delta": 0.4931780746770623,
+        "avg_win": 53.77379879760994,
+        "avg_loss": -134.31053152076882
+      },
+      "hold_sized": {
+        "trades": 69,
+        "win_rate": 0.3188405797101449,
+        "expectancy": -130.45123186673953,
+        "profit_factor": 0.21387186706587114,
+        "sharpe": -7.010172405325449,
+        "max_drawdown": -0.9611103007697213,
+        "ending_equity": 364.2156707240768,
+        "starting_equity": 9365.350669529107,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6863851014173805,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 426,
+        "pdt_blocked": 41,
+        "overlapped": 138,
+        "reasons": {
+          "target": 22,
+          "stop": 47
+        },
+        "median_delta": 0.4977988981230201,
+        "avg_win": 111.3101881149869,
+        "avg_loss": -243.61615185818593
+      },
+      "liquid_hold": {
+        "trades": 10,
+        "win_rate": 0.2,
+        "expectancy": -85.81878958602428,
+        "profit_factor": 0.14249448169686482,
+        "sharpe": -13.506286350896875,
+        "max_drawdown": -0.8581878958602429,
+        "ending_equity": 141.81210413975705,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6369516302985437,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 1763,
+        "pdt_blocked": 3,
+        "overlapped": 23,
+        "reasons": {
+          "stop": 8,
+          "target": 2
+        },
+        "median_delta": 0.4982988590808095,
+        "avg_win": 71.30393729775327,
+        "avg_loss": -125.09947130696868
+      },
+      "symbols": [
+        {
+          "symbol": "NVDA",
+          "trades": 0
+        },
+        {
+          "symbol": "AAPL",
+          "trades": 6,
+          "win_rate": 0.3333333333333333,
+          "expectancy": -52.68230706564597,
+          "ending_pnl": -316.09384239387583
+        },
+        {
+          "symbol": "UNH",
+          "trades": 0
+        },
+        {
+          "symbol": "MSFT",
+          "trades": 0
+        },
+        {
+          "symbol": "AMZN",
+          "trades": 3,
+          "win_rate": 0.3333333333333333,
+          "expectancy": -87.46556623760172,
+          "ending_pnl": -262.3966987128052
+        },
+        {
+          "symbol": "META",
+          "trades": 0
+        },
+        {
+          "symbol": "GOOGL",
+          "trades": 0
+        },
+        {
+          "symbol": "JPM",
+          "trades": 0
+        },
+        {
+          "symbol": "AMD",
+          "trades": 0
+        },
+        {
+          "symbol": "TSLA",
+          "trades": 0
+        },
+        {
+          "symbol": "AVGO",
+          "trades": 0
+        },
+        {
+          "symbol": "COST",
+          "trades": 0
+        },
+        {
+          "symbol": "V",
+          "trades": 1,
+          "win_rate": 0.0,
+          "expectancy": -200.3617831458709,
+          "ending_pnl": -200.3617831458709
+        },
+        {
+          "symbol": "MA",
+          "trades": 0
+        },
+        {
+          "symbol": "LLY",
+          "trades": 0
+        },
+        {
+          "symbol": "XOM",
+          "trades": 0
+        },
+        {
+          "symbol": "SPY",
+          "trades": 0
+        },
+        {
+          "symbol": "QQQ",
+          "trades": 0
+        }
+      ],
+      "walk": {
+        "folds": [
+          {
+            "test": [
+              "2025-01-16",
+              "2025-04-15"
+            ],
+            "book": {
+              "trades": 21,
+              "win_rate": 0.6190476190476191,
+              "expectancy": -25.807525901827212,
+              "profit_factor": 0.6670145749602672,
+              "sharpe": -2.113046247731787,
+              "max_drawdown": -0.6796237741129774,
+              "ending_equity": 458.04195606162847,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.7089832751295527,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 132,
+              "pdt_blocked": 0,
+              "overlapped": 75,
+              "reasons": {
+                "target": 13,
+                "stop": 8
+              },
+              "median_delta": 0.5100669383754372,
+              "avg_win": 83.50883278281535,
+              "avg_loss": -203.44660876437138
+            }
+          },
+          {
+            "test": [
+              "2025-04-16",
+              "2025-07-15"
+            ],
+            "book": {
+              "trades": 5,
+              "win_rate": 0.4,
+              "expectancy": -144.33200208330263,
+              "profit_factor": 0.18236938649633347,
+              "sharpe": -8.73468154088296,
+              "max_drawdown": -0.7216600104165132,
+              "ending_equity": 278.3399895834869,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.7852041903086043,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 157,
+              "pdt_blocked": 0,
+              "overlapped": 39,
+              "reasons": {
+                "stop": 3,
+                "target": 2
+              },
+              "median_delta": 0.5087641321784757,
+              "avg_win": 80.48175495449874,
+              "avg_loss": -294.2078401085035
+            }
+          },
+          {
+            "test": [
+              "2025-07-16",
+              "2025-10-10"
+            ],
+            "book": {
+              "trades": 15,
+              "win_rate": 0.5333333333333333,
+              "expectancy": -40.25033536898153,
+              "profit_factor": 0.5167899817549951,
+              "sharpe": -6.559748630989699,
+              "max_drawdown": -0.6722245169227331,
+              "ending_equity": 396.24496946527694,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.6886145409520293,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 140,
+              "pdt_blocked": 9,
+              "overlapped": 45,
+              "reasons": {
+                "target": 8,
+                "stop": 7
+              },
+              "median_delta": 0.5091294581739411,
+              "avg_win": 80.71401135983987,
+              "avg_loss": -178.49530305906316
+            }
+          }
+        ],
+        "expectancy": -45.545684997307504,
+        "trades": 41
+      },
+      "sensitivities": [
+        {
+          "label": "+20%/-20%",
+          "book": {
+            "trades": 14,
+            "win_rate": 0.2857142857142857,
+            "expectancy": -48.881255762370365,
+            "profit_factor": 0.3226947946352984,
+            "sharpe": -10.609524826237719,
+            "max_drawdown": -0.7332122761076062,
+            "ending_equity": 315.66241932681487,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 0.553483992093587,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 609,
+            "pdt_blocked": 37,
+            "overlapped": 14,
+            "reasons": {
+              "target": 4,
+              "stop": 10
+            },
+            "median_delta": 0.4992944709666942,
+            "avg_win": 81.51132359068507,
+            "avg_loss": -101.03828750359253
+          }
+        },
+        {
+          "label": "+15%/-15%",
+          "book": {
+            "trades": 14,
+            "win_rate": 0.07142857142857142,
+            "expectancy": -56.75087049469027,
+            "profit_factor": 0.09717223632499604,
+            "sharpe": -38.71612259759756,
+            "max_drawdown": -0.7945121869256639,
+            "ending_equity": 205.4878130743361,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 0.4418446165375355,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 631,
+            "pdt_blocked": 23,
+            "overlapped": 6,
+            "reasons": {
+              "stop": 13,
+              "target": 1
+            },
+            "median_delta": 0.49534998855338863,
+            "avg_win": 85.51412472824859,
+            "avg_loss": -67.69433166568557
+          }
+        },
+        {
+          "label": "time stop 8 bars, stop -30%",
+          "book": {
+            "trades": 22,
+            "win_rate": 0.2727272727272727,
+            "expectancy": -29.4023242997248,
+            "profit_factor": 0.7394794452522442,
+            "sharpe": 0.8157709862236121,
+            "max_drawdown": -0.7450514169760201,
+            "ending_equity": 353.1488654060539,
+            "starting_equity": 1000.0,
+            "breakeven_before": null,
+            "breakeven_after": 0.3364799607543456,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 594,
+            "pdt_blocked": 0,
+            "overlapped": 58,
+            "reasons": {
+              "stop": 13,
+              "time": 9
+            },
+            "median_delta": 0.498310784902321,
+            "avg_win": 306.01111854267623,
+            "avg_loss": -155.1823653656252
+          }
+        }
+      ],
+      "dte": [
+        {
+          "dte": 7,
+          "book": {
+            "trades": 16,
+            "win_rate": 0.375,
+            "expectancy": -53.75897424203842,
+            "profit_factor": 0.3616253225775679,
+            "sharpe": -9.38296738428488,
+            "max_drawdown": -0.8601435878726151,
+            "ending_equity": 139.85641212738486,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 0.6239436357517529,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 604,
+            "pdt_blocked": 31,
+            "overlapped": 23,
+            "reasons": {
+              "target": 6,
+              "stop": 10
+            },
+            "median_delta": 0.49662429817157155,
+            "avg_win": 81.20876172683506,
+            "avg_loss": -134.7396158233625
+          }
+        },
+        {
+          "dte": 30,
+          "book": {
+            "trades": 6,
+            "win_rate": 0.3333333333333333,
+            "expectancy": -109.73976935258378,
+            "profit_factor": 0.21076771061191085,
+            "sharpe": -9.911636568622763,
+            "max_drawdown": -0.6951242875478465,
+            "ending_equity": 341.5613838844974,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 0.7034647079979791,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 653,
+            "pdt_blocked": 0,
+            "overlapped": 15,
+            "reasons": {
+              "target": 2,
+              "stop": 4
+            },
+            "median_delta": 0.4902834828175808,
+            "avg_win": 87.91936262816677,
+            "avg_loss": -208.56933534295905
+          }
+        }
+      ],
+      "random": {
+        "trades": 13,
+        "win_rate": 0.46153846153846156,
+        "expectancy": -56.186237570479456,
+        "profit_factor": 0.4396982074895143,
+        "sharpe": -7.403081344958109,
+        "max_drawdown": -0.7983795787864567,
+        "ending_equity": 269.5789115837671,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6609467270269083,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 621,
+        "pdt_blocked": 10,
+        "overlapped": 30,
+        "reasons": {
+          "stop": 7,
+          "target": 6
+        },
+        "median_delta": 0.5015783127939807,
+        "avg_win": 95.53329044637054,
+        "avg_loss": -186.23154729920802
+      },
+      "share_train": {
+        "trades": 154,
+        "win_rate": 0.4935064935064935,
+        "expectancy": -0.030454105067507228,
+        "profit_factor": 0.9899631347052321,
+        "sharpe": 0.010361568461611438,
+        "max_drawdown": -0.08087733894660987,
+        "ending_equity": 995.3100678196046,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.4960281055041193,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 601,
+        "reasons": {
+          "time": 134,
+          "target": 6,
+          "stop": 14
+        },
+        "median_delta": null,
+        "avg_win": 6.086587881283476,
+        "avg_loss": -5.990648860999235
+      },
+      "share_hold": {
+        "trades": 165,
+        "win_rate": 0.43636363636363634,
+        "expectancy": -1.2048229886510589,
+        "profit_factor": 0.6727680445893772,
+        "sharpe": -2.145079666522615,
+        "max_drawdown": -0.22726374007869543,
+        "ending_equity": 801.2042068725752,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.5350477525768608,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 509,
+        "reasons": {
+          "time": 144,
+          "target": 6,
+          "stop": 13,
+          "window": 2
+        },
+        "median_delta": null,
+        "avg_win": 5.676548342491053,
+        "avg_loss": -6.532336277277211
+      },
+      "share_random": {
+        "trades": 181,
+        "win_rate": 0.43646408839779005,
+        "expectancy": -1.2343380657656657,
+        "profit_factor": 0.7187384088209037,
+        "sharpe": -1.8054014527728017,
+        "max_drawdown": -0.2925014104565603,
+        "ending_equity": 776.5848100964137,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.5186745226362053,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 0,
+        "overlapped": 493,
+        "reasons": {
+          "time": 149,
+          "stop": 24,
+          "target": 6,
+          "window": 2
+        },
+        "median_delta": null,
+        "avg_win": 7.226799909729008,
+        "avg_loss": -7.787572380119384
+      }
+    },
+    {
+      "name": "15-minute",
+      "clock": "15m",
+      "train_window": [
+        "2026-08-13",
+        "2026-09-09"
+      ],
+      "holdout_window": [
+        "2026-09-10",
+        "2026-10-06"
+      ],
+      "signals": 992,
+      "dow_signals": 425,
+      "priced": 992,
+      "train_cash": {
+        "trades": 3,
+        "win_rate": 0.3333333333333333,
+        "expectancy": -195.9359633613777,
+        "profit_factor": 0.1354550703565524,
+        "sharpe": -9.536767800955252,
+        "max_drawdown": -0.6225680503252811,
+        "ending_equity": 412.19210991586687,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7868376905379811,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 152,
+        "pdt_blocked": 0,
+        "overlapped": 28,
+        "reasons": {
+          "target": 1,
+          "stop": 2
+        },
+        "median_delta": 0.49966624952220506,
+        "avg_win": 92.09649652369148,
+        "avg_loss": -339.9521933039123
+      },
+      "sized_equity": 11901.909925131798,
+      "train_sized": {
+        "trades": 10,
+        "win_rate": 0.4,
+        "expectancy": -95.33585884479486,
+        "profit_factor": 0.4212976555890739,
+        "sharpe": -6.887301455521719,
+        "max_drawdown": -0.10410278067938594,
+        "ending_equity": 10948.551336683853,
+        "starting_equity": 11901.909925131798,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6127651918625671,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 70,
+        "overlapped": 103,
+        "reasons": {
+          "target": 4,
+          "stop": 6
+        },
+        "median_delta": 0.512717612752267,
+        "avg_win": 173.5122304790711,
+        "avg_loss": -274.5679183940388
+      },
+      "hold_cash": {
+        "trades": 4,
+        "win_rate": 0.25,
+        "expectancy": -140.81516501483492,
+        "profit_factor": 0.11712913759122946,
+        "sharpe": -34.327557024354824,
+        "max_drawdown": -0.5632606600593397,
+        "ending_equity": 436.73933994066033,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7399802532920781,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 157,
+        "pdt_blocked": 49,
+        "overlapped": 32,
+        "reasons": {
+          "stop": 3,
+          "target": 1
+        },
+        "median_delta": 0.48922561889096633,
+        "avg_win": 74.72693704243119,
+        "avg_loss": -212.66253236725697
+      },
+      "hold_sized": {
+        "trades": 17,
+        "win_rate": 0.4117647058823529,
+        "expectancy": -125.11436968430019,
+        "profit_factor": 0.24199783385128748,
+        "sharpe": -9.131607271047539,
+        "max_drawdown": -0.17870613187400297,
+        "ending_equity": 9774.96564049869,
+        "starting_equity": 11901.909925131798,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7431014964632163,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 89,
+        "overlapped": 136,
+        "reasons": {
+          "stop": 10,
+          "target": 7
+        },
+        "median_delta": 0.49814592297305454,
+        "avg_win": 97.00611358761982,
+        "avg_loss": -280.5987079746442
+      },
+      "liquid_hold": {
+        "trades": 9,
+        "win_rate": 0.4444444444444444,
+        "expectancy": -80.3510340053849,
+        "profit_factor": 0.2753730941931121,
+        "sharpe": -11.008050050870423,
+        "max_drawdown": -0.723159306048464,
+        "ending_equity": 276.84069395153597,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.7439278556622866,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 263,
+        "pdt_blocked": 117,
+        "overlapped": 199,
+        "reasons": {
+          "stop": 5,
+          "target": 4
+        },
+        "median_delta": 0.48828402267558146,
+        "avg_win": 68.70384404211576,
+        "avg_loss": -199.59493644338545
+      },
+      "symbols": [
+        {
+          "symbol": "NVDA",
+          "trades": 1,
+          "win_rate": 0.0,
+          "expectancy": -318.7163833880435,
+          "ending_pnl": -318.7163833880435
+        },
+        {
+          "symbol": "AAPL",
+          "trades": 0
+        },
+        {
+          "symbol": "UNH",
+          "trades": 0
+        },
+        {
+          "symbol": "MSFT",
+          "trades": 0
+        },
+        {
+          "symbol": "AMZN",
+          "trades": 0
+        },
+        {
+          "symbol": "META",
+          "trades": 0
+        },
+        {
+          "symbol": "GOOGL",
+          "trades": 1,
+          "win_rate": 0.0,
+          "expectancy": -177.96422719980825,
+          "ending_pnl": -177.96422719980825
+        },
+        {
+          "symbol": "JPM",
+          "trades": 2,
+          "win_rate": 0.5,
+          "expectancy": -33.29002473574397,
+          "ending_pnl": -66.58004947148794
+        },
+        {
+          "symbol": "AMD",
+          "trades": 0
+        },
+        {
+          "symbol": "TSLA",
+          "trades": 0
+        },
+        {
+          "symbol": "AVGO",
+          "trades": 0
+        },
+        {
+          "symbol": "COST",
+          "trades": 0
+        },
+        {
+          "symbol": "V",
+          "trades": 0
+        },
+        {
+          "symbol": "MA",
+          "trades": 0
+        },
+        {
+          "symbol": "LLY",
+          "trades": 0
+        },
+        {
+          "symbol": "XOM",
+          "trades": 0
+        },
+        {
+          "symbol": "SPY",
+          "trades": 0
+        },
+        {
+          "symbol": "QQQ",
+          "trades": 0
+        }
+      ],
+      "walk": {
+        "folds": [
+          {
+            "test": [
+              "2026-08-19",
+              "2026-08-25"
+            ],
+            "book": {
+              "trades": 1,
+              "win_rate": 1.0,
+              "expectancy": 92.09649652369148,
+              "profit_factor": null,
+              "sharpe": 25.53395168562613,
+              "max_drawdown": 0.0,
+              "ending_equity": 1092.0964965236915,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.0,
+              "clears_breakeven": true,
+              "profitable": true,
+              "skipped": 0,
+              "pdt_blocked": 0,
+              "overlapped": 16,
+              "reasons": {
+                "target": 1
+              },
+              "median_delta": 0.5121859712946363,
+              "avg_win": 92.09649652369148,
+              "avg_loss": 0.0
+            }
+          },
+          {
+            "test": [
+              "2026-08-26",
+              "2026-09-01"
+            ],
+            "book": {
+              "trades": 2,
+              "win_rate": 0.0,
+              "expectancy": -339.9521933039123,
+              "profit_factor": 0.0,
+              "sharpe": -19.59897868118457,
+              "max_drawdown": -0.6799043866078246,
+              "ending_equity": 320.0956133921754,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 1.0,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 66,
+              "pdt_blocked": 0,
+              "overlapped": 12,
+              "reasons": {
+                "stop": 2
+              },
+              "median_delta": 0.49038510179338685,
+              "avg_win": 0.0,
+              "avg_loss": -339.9521933039123
+            }
+          },
+          {
+            "test": [
+              "2026-09-02",
+              "2026-09-09"
+            ],
+            "book": {
+              "trades": 7,
+              "win_rate": 0.42857142857142855,
+              "expectancy": -72.11486426301659,
+              "profit_factor": 0.38637140100132633,
+              "sharpe": -7.755413426255686,
+              "max_drawdown": -0.5048040498411162,
+              "ending_equity": 495.1959501588839,
+              "starting_equity": 1000.0,
+              "breakeven_before": 0.6666666666666667,
+              "breakeven_after": 0.6599954903292438,
+              "clears_breakeven": false,
+              "profitable": false,
+              "skipped": 1,
+              "pdt_blocked": 0,
+              "overlapped": 78,
+              "reasons": {
+                "stop": 4,
+                "target": 3
+              },
+              "median_delta": 0.49744499340982856,
+              "avg_win": 105.94999879217221,
+              "avg_loss": -205.6635115544082
+            }
+          }
+        ],
+        "expectancy": -109.26119399252494,
+        "trades": 10
+      },
+      "sensitivities": [
+        {
+          "label": "+20%/-20%",
+          "book": {
+            "trades": 8,
+            "win_rate": 0.25,
+            "expectancy": -71.69218062861981,
+            "profit_factor": 0.27276321621537497,
+            "sharpe": -8.378383677265417,
+            "max_drawdown": -0.6055104666118746,
+            "ending_equity": 426.46255497104147,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 0.5499673832189427,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 155,
+            "pdt_blocked": 63,
+            "overlapped": 16,
+            "reasons": {
+              "stop": 6,
+              "target": 2
+            },
+            "median_delta": 0.5115969935625095,
+            "avg_win": 107.55775946309811,
+            "avg_loss": -131.44216065919247
+          }
+        },
+        {
+          "label": "+15%/-15%",
+          "book": {
+            "trades": 6,
+            "win_rate": 0.0,
+            "expectancy": -96.4245845954872,
+            "profit_factor": 0.0,
+            "sharpe": -48.51757158065093,
+            "max_drawdown": -0.5785475075729232,
+            "ending_equity": 421.45249242707683,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.5,
+            "breakeven_after": 1.0,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 116,
+            "pdt_blocked": 119,
+            "overlapped": 1,
+            "reasons": {
+              "stop": 6
+            },
+            "median_delta": 0.5023497566184192,
+            "avg_win": 0.0,
+            "avg_loss": -96.4245845954872
+          }
+        },
+        {
+          "label": "time stop 16 bars, stop -30%",
+          "book": {
+            "trades": 14,
+            "win_rate": 0.35714285714285715,
+            "expectancy": -26.591243005813133,
+            "profit_factor": 0.6571711954653149,
+            "sharpe": -3.694978701326722,
+            "max_drawdown": -0.5261675104554515,
+            "ending_equity": 627.7225979186164,
+            "starting_equity": 1000.0,
+            "breakeven_before": null,
+            "breakeven_after": 0.4581044782659327,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 6,
+            "pdt_blocked": 89,
+            "overlapped": 133,
+            "reasons": {
+              "time": 12,
+              "stop": 2
+            },
+            "median_delta": 0.5021313221546615,
+            "avg_win": 142.72428811960737,
+            "avg_loss": -120.65542696438007
+          }
+        }
+      ],
+      "dte": [
+        {
+          "dte": 7,
+          "book": {
+            "trades": 4,
+            "win_rate": 0.0,
+            "expectancy": -179.2424241019507,
+            "profit_factor": 0.0,
+            "sharpe": -32.50077712588739,
+            "max_drawdown": -0.7169696964078027,
+            "ending_equity": 283.03030359219724,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 1.0,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 203,
+            "pdt_blocked": 0,
+            "overlapped": 35,
+            "reasons": {
+              "stop": 4
+            },
+            "median_delta": 0.5122272941763398,
+            "avg_win": 0.0,
+            "avg_loss": -179.2424241019507
+          }
+        },
+        {
+          "dte": 30,
+          "book": {
+            "trades": 3,
+            "win_rate": 0.3333333333333333,
+            "expectancy": -129.68985062459672,
+            "profit_factor": 0.21627402785176958,
+            "sharpe": -24.356490206691777,
+            "max_drawdown": -0.3890695518737901,
+            "ending_equity": 610.9304481262099,
+            "starting_equity": 1000.0,
+            "breakeven_before": 0.6666666666666667,
+            "breakeven_after": 0.6980568617008033,
+            "clears_breakeven": false,
+            "profitable": false,
+            "skipped": 216,
+            "pdt_blocked": 0,
+            "overlapped": 23,
+            "reasons": {
+              "stop": 2,
+              "target": 1
+            },
+            "median_delta": 0.48644412881805765,
+            "avg_win": 107.36614848628835,
+            "avg_loss": -248.21785018003925
+          }
+        }
+      ],
+      "random": {
+        "trades": 6,
+        "win_rate": 0.3333333333333333,
+        "expectancy": -107.32160004230711,
+        "profit_factor": 0.22807198597040518,
+        "sharpe": -18.823504092050342,
+        "max_drawdown": -0.6439296002538428,
+        "ending_equity": 356.07039974615725,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.6666666666666667,
+        "breakeven_after": 0.6867452801848691,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 193,
+        "pdt_blocked": 6,
+        "overlapped": 37,
+        "reasons": {
+          "target": 2,
+          "stop": 4
+        },
+        "median_delta": 0.5171705470158078,
+        "avg_win": 95.12694194655336,
+        "avg_loss": -208.5458710367373
+      },
+      "share_train": {
+        "trades": 9,
+        "win_rate": 0.3333333333333333,
+        "expectancy": -1.6798887431444756,
+        "profit_factor": 0.3713997283555476,
+        "sharpe": -6.475356025920617,
+        "max_drawdown": -0.019510625191606956,
+        "ending_equity": 984.8810013116997,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.5737894834366882,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 98,
+        "overlapped": 76,
+        "reasons": {
+          "target": 1,
+          "time": 7,
+          "stop": 1
+        },
+        "median_delta": null,
+        "avg_win": 2.9776167034062078,
+        "avg_loss": -4.008641466419817
+      },
+      "share_hold": {
+        "trades": 14,
+        "win_rate": 0.21428571428571427,
+        "expectancy": -2.9866850014830715,
+        "profit_factor": 0.1253098834760324,
+        "sharpe": -12.740657746470907,
+        "max_drawdown": -0.041813590020763014,
+        "ending_equity": 958.1864099792369,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.6851804372453411,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 137,
+        "overlapped": 91,
+        "reasons": {
+          "time": 13,
+          "stop": 1
+        },
+        "median_delta": null,
+        "avg_win": 1.996766624062199,
+        "avg_loss": -4.345808172086327
+      },
+      "share_random": {
+        "trades": 15,
+        "win_rate": 0.2,
+        "expectancy": -5.553782858207375,
+        "profit_factor": 0.10874115341716525,
+        "sharpe": -13.372416107496152,
+        "max_drawdown": -0.08517151918752008,
+        "ending_equity": 916.6932571268894,
+        "starting_equity": 1000.0,
+        "breakeven_before": 0.4,
+        "breakeven_after": 0.6968812962177365,
+        "clears_breakeven": false,
+        "profitable": false,
+        "skipped": 0,
+        "pdt_blocked": 147,
+        "overlapped": 80,
+        "reasons": {
+          "time": 10,
+          "stop": 4,
+          "window": 1
+        },
+        "median_delta": null,
+        "avg_win": 3.388043530481923,
+        "avg_loss": -7.7892394553797
+      }
+    }
+  ],
+  "charts": [
+    "reports/setups/pullback_long_60m.png",
+    "reports/setups/pullback_short_60m.png"
+  ],
+  "spy": {
+    "starting_equity": 1000.0,
+    "ending_equity": 3242.2251545849062,
+    "total_return": 2.242225154584906,
+    "cagr": 0.16363018894896575,
+    "sharpe": 0.9503893465677766,
+    "sortino": 1.3480789394179618,
+    "max_drawdown": -0.3068825533917541,
+    "exposure": 1.0,
+    "trades": 1,
+    "win_rate": 1.0,
+    "avg_win": 2242.2251545849062,
+    "avg_loss": 0.0,
+    "profit_factor": null,
+    "expectancy": 2242.2251545849062,
+    "years": 7.761806981519507,
+    "shares": 4
+  },
+  "spy_window": [
+    "2019-01-01",
+    "2026-10-06"
+  ],
+  "missing_daily": []
+}

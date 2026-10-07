@@ -1,0 +1,55 @@
+{
+  "clock": "5-minute regular-hours bars, 09:30 through 15:55 ET, left-labeled. The 09:30 bar is 09:30-09:34. The last signal bar is 15:35, so the last fill is 15:40. 15:45 is an exit only.",
+  "emas": "EMA 9 and EMA 20 on the concatenated regular-hours bars. They do not reset each session.",
+  "vwap": "Session VWAP of typical price, volume-weighted, reset at 09:30. Dukascopy volume is a bid-tick count.",
+  "atr": "Wilder ATR(14) on the same 5-minute bars.",
+  "slope_bars": 3,
+  "trend": "Short: EMA 9 is below EMA 20, both are lower than they were 3 bars ago, and the close is below both. Long is the mirror.",
+  "entry": "Short: the bar's high is within 0.10 ATR of the 9 EMA and the close is back below the 9 EMA. Long: the low is within 0.10 ATR of the 9 EMA and the close is back above it. The fill is the next bar's open.",
+  "touch_atr": 0.1,
+  "vwap_atr": 0.1,
+  "gate_variant": "vwap",
+  "variants": {
+    "ema": "9 EMA tag only. This cannot take the gate.",
+    "vwap": "The gate. Session VWAP is within 0.10 ATR of the 9 EMA on the signal bar.",
+    "ema20": "The bar does not trade through the 20 EMA. A short high stays at or below it. This cannot take the gate. With a 0.10 ATR tag and a 0.10 ATR spread floor, a bar that tags the 9 EMA is already short of the 20 EMA, so this variant matches the 9 EMA rule. It is still scored."
+  },
+  "chop": "Part of every variant, not a switch. Skip when this bar's volume is under 0.85 times the prior 20-bar average (chop v2 REL_VOLUME_MAX and VOLUME_WINDOW). Skip when the 9 and 20 EMAs are under 0.10 ATR apart. Skip when the 9 EMA's 3-bar move is under 0.05 ATR in the trend direction. Chop v2's 0.75 ATR stack width is not the spread floor.",
+  "rel_volume_max": 0.85,
+  "volume_window": 20,
+  "spread_floor_atr": 0.1,
+  "slope_floor_atr": 0.05,
+  "swing": "A 5-bar fractal: two bars on each side, unique extreme, confirmed two bars later. Bar t does not use a pivot that is still open. The gate target is the most recent confirmed swing low below the fill for a short, and the most recent confirmed swing high above the fill for a long. No such swing skips the trade.",
+  "swing_width": 2,
+  "gate_stop": "reject",
+  "stops": {
+    "reject": "The gate. One cent beyond the rejection bar: the high plus one cent for a short, the low minus one cent for a long.",
+    "ema20": "The 20 EMA on the signal bar. It does not chase. This cannot take the gate."
+  },
+  "gate_target": "swing",
+  "targets": {
+    "swing": "The gate. Prior swing, frozen from swings confirmed by the signal bar.",
+    "r1": "1R from the fill to the stop. This cannot take the gate.",
+    "r2": "2R from the fill to the stop. This cannot take the gate.",
+    "ema": "Exit at the close of the first later bar that closes back across the 9 EMA. A stop on that bar fills first. This cannot take the gate."
+  },
+  "flat": "Still open at 15:45 ET is sold at that bar's open. That bar's high and low are ignored. No overnight hold.",
+  "same_bar": "If one bar can hit the stop and the target, the stop fills. A gap through either fills at the open. If both, the stop.",
+  "one_position": "One open trade. A new signal while it is open is skipped.",
+  "shares": "The cash book is long only, because a $1,000 cash account cannot short. Size risks 1% of equity to the stop and never spends more settled cash than is on hand. Fractional shares. A sale settles the next session. A both-directions share book is a research baseline and is not the gate.",
+  "options": "One at-the-money contract, listed strike nearest the fill. Calls for longs, puts for shorts. 0 DTE expires 16:00 the same day and is still closed by 15:45. Skip the trade when the debit does not fit in settled cash. The option book takes both directions.",
+  "iv": "Prior session VIX1D close when that print exists, otherwise the prior VIX close, divided by 100. Clipped to 5%-150%.",
+  "spread": "Option half-spread is the greater of $0.01 and 1.5% of the model mid. Buy the ask, sell the bid, plus Webull option fees.",
+  "model": "Black-Scholes, rate 2%, dividend yield 0. No listed chain. The model is the uncertainty. QQQ uses the same VIX print. The spot is the raw print, with no extra stock slippage inside the model.",
+  "costs": "Shares use the repo CostModel: 5 bps slippage, 1 bp half-spread, and the 2026 SEC and FINRA sell fees on the whole sample.",
+  "account": "Fresh $1,000 and $5,000. Cash earns zero. Taxes are ignored.",
+  "split": "Train is every session through 2021-12-31. Holdout is a fresh account from 2022-01-01 through 2026-10-06.",
+  "chart_day": "2026-10-07 is the chart the user pointed at. Dukascopy's 1-minute file ends with the last complete session, so that day is not in the score. The chart uses Yahoo 5-minute bars when those exist, and it does not invent a bar. The frozen tolerances are not loosened to force a mark at 10:20 ET.",
+  "random": "Seed 17 only. The same number of holdout signals that have a prior swing, after the long-only filter. Random eligible bars, a coin-flip direction, a one-cent stop beyond that bar, and a 1R target.",
+  "gate": "Holdout profit factor at least 1.10, Sharpe at least 0.40, max drawdown no worse than -30%, and at least 300 trades.",
+  "gate_books": [
+    "vwap confluence, rejection-high stop, prior swing, shares cash long-only",
+    "vwap confluence, rejection-high stop, prior swing, 0 DTE both directions"
+  ],
+  "qqq": "A Dukascopy QQQ file is the gate only when it has at least 2000 sessions and at most 80 missing days. A short Yahoo sample cannot pass."
+}

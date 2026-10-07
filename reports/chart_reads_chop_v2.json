@@ -1,0 +1,262 @@
+{
+  "spy": {
+    "bars": 45,
+    "chop_bars": 17,
+    "zone_chop": 17,
+    "longest": 7,
+    "marks": true,
+    "atr": 6.762307778258966,
+    "hits": [
+      {
+        "drawn": 781,
+        "label": "781",
+        "nearest": 775.05305456809,
+        "touches": 17,
+        "distance": 5.946945431909967,
+        "hit": false
+      },
+      {
+        "drawn": 768,
+        "label": "768",
+        "nearest": 775.05305456809,
+        "touches": 17,
+        "distance": 7.053054568090033,
+        "hit": false
+      },
+      {
+        "drawn": 760,
+        "label": "760",
+        "nearest": 758.3506933685876,
+        "touches": 19,
+        "distance": 1.6493066314124007,
+        "hit": true
+      },
+      {
+        "drawn": 752,
+        "label": "752",
+        "nearest": 753.1468751444552,
+        "touches": 20,
+        "distance": 1.14687514445518,
+        "hit": true
+      },
+      {
+        "drawn": 737.5,
+        "label": "740/735",
+        "nearest": 737.6782249675691,
+        "touches": 35,
+        "distance": 0.17822496756912187,
+        "hit": true
+      },
+      {
+        "drawn": 700,
+        "label": "700",
+        "nearest": 698.7403270820959,
+        "touches": 4,
+        "distance": 1.2596729179041404,
+        "hit": true
+      },
+      {
+        "drawn": 690,
+        "label": "690",
+        "nearest": 691.4102413842049,
+        "touches": 20,
+        "distance": 1.4102413842049373,
+        "hit": true
+      },
+      {
+        "drawn": 683,
+        "label": "683",
+        "nearest": 682.1249634920929,
+        "touches": 52,
+        "distance": 0.8750365079071116,
+        "hit": true
+      },
+      {
+        "drawn": 675,
+        "label": "675",
+        "nearest": 676.560674805333,
+        "touches": 59,
+        "distance": 1.560674805332951,
+        "hit": true
+      },
+      {
+        "drawn": 655,
+        "label": "655",
+        "nearest": 654.1525740278607,
+        "touches": 29,
+        "distance": 0.8474259721392627,
+        "hit": true
+      },
+      {
+        "drawn": 632,
+        "label": "632",
+        "nearest": 626.108284608157,
+        "touches": 1,
+        "distance": 5.891715391843036,
+        "hit": false
+      }
+    ]
+  },
+  "nvda": {
+    "bars": 135,
+    "chop_bars": 68,
+    "before": 68,
+    "pullback_bars": 0,
+    "pullback_run": 0,
+    "high": 243.3699951171875,
+    "low": 208.92999267578125,
+    "last": 242.17340087890625,
+    "friday": {
+      "low": 233.6000061035156,
+      "high": 237.8699951171875,
+      "close": 233.9900054931641
+    },
+    "marks_zone": false,
+    "start": "2026-09-09",
+    "end": "2026-10-06"
+  },
+  "nvda_entries": 0,
+  "time_daily": [
+    {
+      "symbol": "AAPL",
+      "bars": 943,
+      "chop_bars": 188,
+      "share": 0.19936373276776245
+    },
+    {
+      "symbol": "AMD",
+      "bars": 943,
+      "chop_bars": 190,
+      "share": 0.2014846235418876
+    },
+    {
+      "symbol": "IWM",
+      "bars": 943,
+      "chop_bars": 248,
+      "share": 0.26299045599151644
+    },
+    {
+      "symbol": "META",
+      "bars": 943,
+      "chop_bars": 160,
+      "share": 0.16967126193001061
+    },
+    {
+      "symbol": "MSFT",
+      "bars": 943,
+      "chop_bars": 147,
+      "share": 0.15588547189819724
+    },
+    {
+      "symbol": "NVDA",
+      "bars": 943,
+      "chop_bars": 151,
+      "share": 0.16012725344644752
+    },
+    {
+      "symbol": "QQQ",
+      "bars": 943,
+      "chop_bars": 151,
+      "share": 0.16012725344644752
+    },
+    {
+      "symbol": "SPY",
+      "bars": 943,
+      "chop_bars": 187,
+      "share": 0.19830328738069988
+    },
+    {
+      "symbol": "TSLA",
+      "bars": 943,
+      "chop_bars": 231,
+      "share": 0.2449628844114528
+    },
+    {
+      "symbol": "UNH",
+      "bars": 943,
+      "chop_bars": 215,
+      "share": 0.22799575821845175
+    }
+  ],
+  "time_hourly": [
+    {
+      "symbol": "AAPL",
+      "bars": 3417,
+      "chop_bars": 852,
+      "share": 0.24934152765583845
+    },
+    {
+      "symbol": "AMD",
+      "bars": 3417,
+      "chop_bars": 847,
+      "share": 0.24787825577992392
+    },
+    {
+      "symbol": "IWM",
+      "bars": 3416,
+      "chop_bars": 786,
+      "share": 0.2300936768149883
+    },
+    {
+      "symbol": "META",
+      "bars": 3418,
+      "chop_bars": 917,
+      "share": 0.26828554710356933
+    },
+    {
+      "symbol": "MSFT",
+      "bars": 3418,
+      "chop_bars": 808,
+      "share": 0.2363955529549444
+    },
+    {
+      "symbol": "NVDA",
+      "bars": 3417,
+      "chop_bars": 928,
+      "share": 0.27158326016973955
+    },
+    {
+      "symbol": "QQQ",
+      "bars": 3417,
+      "chop_bars": 845,
+      "share": 0.2472929470295581
+    },
+    {
+      "symbol": "SPY",
+      "bars": 3416,
+      "chop_bars": 870,
+      "share": 0.2546838407494145
+    },
+    {
+      "symbol": "TSLA",
+      "bars": 3417,
+      "chop_bars": 921,
+      "share": 0.26953467954345917
+    },
+    {
+      "symbol": "UNH",
+      "bars": 3417,
+      "chop_bars": 807,
+      "share": 0.23617208077260754
+    }
+  ],
+  "time_dow_median": "median 19.0% of bars, 42 symbols",
+  "bounce_default": {
+    "starting_equity": 1000.0,
+    "ending_equity": 1129.5361239050033,
+    "total_return": 0.12953612390500324,
+    "cagr": 0.03293422173659066,
+    "sharpe": 0.2600786460393712,
+    "sortino": 0.36646674193019096,
+    "max_drawdown": -0.2620526899166705,
+    "exposure": 0.7189276536306005,
+    "trades": 49,
+    "win_rate": 0.5102040816326531,
+    "avg_win": 38.353324513593996,
+    "avg_loss": -34.55404120561862,
+    "profit_factor": 1.156199920695938,
+    "expectancy": 2.6435943654082275,
+    "years": 3.759069130732375
+  },
+  "bounce_match": true
+}

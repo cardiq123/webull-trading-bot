@@ -1,0 +1,35 @@
+{
+  "clock": "15-minute regular-hours bars, 09:30 through 15:45 ET. The 09:30 bar is 09:30-09:44.",
+  "vwap": "Session VWAP of typical price, volume-weighted, reset at 09:30. Dukascopy volume is a bid-tick count.",
+  "outer_default": 2.0,
+  "outer_variants": [
+    2.5,
+    3.0
+  ],
+  "outer_note": "The gate reads 2 standard deviations. 2.5 and 3 are pre-registered variants and cannot take the gate.",
+  "extension": "A 15-minute close strictly beyond the outer band, after a close inside it, trades that way. Close above the upper band is a long. Close below the lower band is a short. The fill is the next bar's open. The stop is one cent beyond that signal bar's adverse extreme. The target is 1R, the distance from the fill to the stop. VWAP is behind this entry, so it is not a target.",
+  "reversal": "A bar pierces an outer band, or closes beyond it. The confirmation is the first later close back inside both outer bands, and a wick that pierces and closes inside confirms on that same bar. A bar through both bands is skipped. The fill is the next bar's open, toward VWAP. A lower-band bounce is a long. An upper-band bounce is a short. The stop is one cent beyond the extreme of the excursion, from the pierce through the confirmation.",
+  "reversal_targets": "The gate reads VWAP at the confirmation close. The 1 SD band on that side, and 1R, are variants.",
+  "targets_fixed": "Band targets are the confirmation bar's VWAP and 1 SD value. They do not chase later bars.",
+  "flat": "Still open at 15:45 ET is sold at that bar's open. No overnight hold. The last signal bar is 15:15.",
+  "same_bar": "If one bar can hit the stop and the target, the stop fills. A gap through either fills at the open.",
+  "one_position": "One open trade. A new signal while it is open is skipped.",
+  "shares": "The cash book is long only, because a $1,000 cash account cannot short. Size risks 1% of equity to the stop and never spends more settled cash than is on hand. Fractional shares. A sale settles the next session. A both-directions share book is a research baseline and is not the gate.",
+  "options": "One at-the-money contract, listed strike nearest the fill. Calls for longs, puts for shorts. 0 DTE expires 16:00 the same day. 7 DTE is seven calendar days, not the listed Friday. Both are closed by 15:45 the entry day. Skip the trade when the debit does not fit in settled cash.",
+  "iv": "Prior session VIX1D close when that print exists, otherwise the prior VIX close, divided by 100. Clipped to 5%-150%.",
+  "spread": "Option half-spread is the greater of $0.01 and 1.5% of the model mid. Buy the ask, sell the bid, plus Webull option fees.",
+  "model": "Black-Scholes, rate 2%, dividend yield 0. No listed chain. The model is the uncertainty. QQQ uses the same VIX print.",
+  "costs": "Shares use the repo CostModel: 5 bps slippage, 1 bp half-spread, and the 2026 SEC and FINRA sell fees on the whole sample.",
+  "account": "Fresh $1,000 and $5,000. Cash earns zero. Taxes are ignored.",
+  "split": "Train is every session through 2021-12-31. Holdout is a fresh account from 2022-01-01 through 2026-10-06.",
+  "random": "Seed 17 only. The same number of entries, random eligible bars, the same stop style and a 1R target.",
+  "gate": "Holdout profit factor at least 1.10, Sharpe at least 0.40, max drawdown no worse than -30%, and at least 300 trades.",
+  "gate_books": [
+    "extension 2 SD shares cash long-only target 1R",
+    "reversal 2 SD shares cash long-only target VWAP",
+    "extension 2 SD 0 DTE target 1R",
+    "reversal 2 SD 0 DTE target VWAP",
+    "extension 2 SD 7 DTE target 1R",
+    "reversal 2 SD 7 DTE target VWAP"
+  ]
+}
