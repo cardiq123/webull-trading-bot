@@ -152,8 +152,10 @@ def test_scan_calls_the_frozen_breakout_without_a_cell(monkeypatch):
 def test_window_and_whole_shares():
     assert in_forward_window(_at("2026-10-06T10:35:00"))
     assert in_forward_window(_at("2026-10-06T15:35:30"))
+    assert in_forward_window(_at("2026-10-06T15:38:00"))
+    assert in_forward_window(_at("2026-10-06T15:45:30"))
     assert not in_forward_window(_at("2026-10-06T10:34:00"))
-    assert not in_forward_window(_at("2026-10-06T15:36:00"))
+    assert not in_forward_window(_at("2026-10-06T15:46:00"))
     assert not in_forward_window(_at("2026-10-06T09:40:00"))
     assert not in_forward_window(_at("2026-10-10T11:35:00"))
     assert whole_shares(200.0, SLOT) == 16
@@ -391,7 +393,7 @@ def test_idle_outside_the_window_and_the_report(tmp_path):
         dry_run=False,
         scan=lambda frames: [_setup("NVDA", "long", "2026-10-06 09:30")],
     )
-    assert "Outside the 10:35-15:35 ET window" in lines[0]
+    assert "Outside the 10:35-15:45 ET window" in lines[0]
     assert broker.orders == []
     assert "No forward-test journal" in render_report(empty_state())
 
@@ -933,7 +935,7 @@ def test_five_lot_above_10000_is_skipped(tmp_path, monkeypatch):
 
 
 def test_cli_idle_returns_before_any_broker_or_download(monkeypatch, capsys):
-    """Outside 10:35-15:35 ET the command does not connect, even if WEBULL_ENV is production."""
+    """Outside 10:35-15:45 ET the command does not connect, even if WEBULL_ENV is production."""
     from webull_bot.cli import _forward_test
 
     def _boom(*args, **kwargs):
@@ -948,5 +950,5 @@ def test_cli_idle_returns_before_any_broker_or_download(monkeypatch, capsys):
     )
     assert code == 0
     captured = capsys.readouterr().out
-    assert "Outside the 10:35-15:35 ET window" in captured
+    assert "Outside the 10:35-15:45 ET window" in captured
     assert "No orders" in captured
