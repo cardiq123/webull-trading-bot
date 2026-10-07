@@ -24,8 +24,9 @@ from webull_bot.chart_reads.ema_reclaim import (
     find_setups,
     prepare,
 )
-from webull_bot.chart_reads.ema_reject import SAMPLE_END, find_signals as reject_signals
+from webull_bot.chart_reads.ema_reject import SAMPLE_END, find_signals as reject_signals, to_five_minute
 from webull_bot.chart_reads.reentry import (
+    Reentry,
     addons,
     base_band_keys,
     campaign_paths,
@@ -41,7 +42,7 @@ from webull_bot.chart_reads.reentry import (
 )
 from webull_bot.chart_reads.research_ema_reclaim import _chart_frame
 from webull_bot.chart_reads.vwap_band import passes_gate
-from webull_bot.chart_reads.vwap_band_data import load_minutes, to_five_minute
+from webull_bot.chart_reads.vwap_band_data import load_minutes
 from webull_bot.data.yfinance_provider import YFinanceProvider
 from webull_bot.chart_reads.orb_mwf import prior_iv
 
@@ -198,7 +199,7 @@ def _day_note(prep, items: list) -> str:
     bits = []
     for i in range(start, stop):
         clock = _clock(prep, i)
-        if clock < "11:35" or clock > "13:05":
+        if clock < "11:35" or clock > "13:30":
             continue
         upper = float(prep.vwap[i] + 2.0 * prep.std[i])
         color = "G" if prep.close[i] > prep.open[i] else "R" if prep.close[i] < prep.open[i] else "D"
@@ -271,6 +272,17 @@ def _day_note(prep, items: list) -> str:
         held += " Other fills, same session: " + ", ".join(
             f"{item.variant} {item.direction} {_clock(prep, item.fill_i)}" for item in others
         ) + "."
+    if chosen is not None:
+        sample = Reentry("SPY", "green", "long", chosen["tag"], chosen["reject"], chosen["hold"], chosen["fill"])
+        band_path = walk_reentry(prep, sample, "band", "ema20")
+        ema_path = walk_reentry(prep, sample, "ema200", "ema20")
+        if band_path is not None:
+            held += (
+                f" With the 20 EMA stop and the upper band as the target, this file exits {band_path['reason']} "
+                f"at {band_path['exit_spot']:.2f} at {_clock(prep, int(prep.index.get_loc(band_path['exit_time'])))}."
+            )
+        if ema_path is not None and ema_path["reason"] != "ema200":
+            held += " The 200 EMA is not beyond the fill, so that target does not replace the band."
     _plot(prep, start, stop, tag_i, reject_i, hold_i)
     return (
         f"Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through {last} ET in this file. "
