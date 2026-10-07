@@ -3681,3 +3681,190 @@ Not added to `config/optional_strategies.json`. The default book is still dual m
 python3 -m webull_bot.chart_reads.research_orb_mwf
 ```
 <!-- CHART_READS_ORB_MWF_END -->
+
+<!-- ACCOUNT_WINNERS_START -->
+## Three account-sized books
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox forward test was not changed. The three rules were frozen before this score. A neighbor that looks better was not promoted.
+
+The account is $1,000 or $5,000. Shares are fractional, which these ETFs need at recent prices. The default is a cash account: the signal is the month-end close, the sale is the next session's open, and the buy is the session after that, because the sale has not settled. Cash earns zero, which is harsh in years when Treasury bills paid interest. Costs are the Webull stock schedule already in this repo: no commission, the SEC fee and FINRA TAF on sells, and 5 bps of slippage plus 1 bp of half-spread on each fill. Taxes are ignored. A monthly book realizes short-term gains. A buy-and-hold of SPY defers them, so a taxable account would look worse for the active books than these tables do. The pattern-day-trader rule does not come up. These are monthly swings, and the cash book does not buy and sell the same name on the same day.
+
+The list is SPY, EFA, IEF, GLD, QQQ, IWM, EEM, TLT, BIL, and TQQQ. They are the funds that still exist. A fund is not held before Yahoo has a price for it. This is not a stock scan and it is not a point-in-time membership file. Prices are Yahoo's adjusted daily bars, so dividends are in the result and splits are taken out.
+
+A book beats SPY, on the holdout that starts 2017-01-01, only when training also made money and either its Sharpe and Calmar are both higher than SPY, or its CAGR is within three points of SPY and its max drawdown is at least ten points milder. The high-risk book is also compared with buying and holding TQQQ. Beating that fund on Sharpe and drawdown does not, by itself, make it the book to fund ahead of SPY.
+
+### Rules
+
+Conservative. Equal slice of SPY, EFA, IEF, and GLD once each has a 10-month average. Hold that slice when the month-end close is strictly above the average, else cash. A fund that is not listed yet is not in that month's count. It rebalances monthly. On the full sample it changed a sleeve about 3.6 times per year and turned over 1.9 times equity per year.
+
+Moderate. SPY, QQQ, IWM, EFA, EEM, TLT, GLD. Hold the one with the best 12-1 month return if its full 12-month return is strictly above BIL's 12-month return. Otherwise cash. Before BIL has 12 months the hurdle is zero. No trailing stop. It changed holdings about 3.2 times per year and turned over 6.3 times equity per year. This is the published monthly process. The bot's dual momentum is the same idea with a 21-session lookback, a 20 percent trail, and a position that risks 0.75 percent of equity.
+
+High risk. Hold TQQQ when its month-end close is strictly above its 10-month average, else cash. The same filter on QQQ is a labeled unlevered check, not the pick. It changed state about 0.8 times per year and turned over 1.3 times equity per year. TQQQ resets its leverage every day, so a choppy tape can grind the fund down while the filter still says to hold it.
+
+### Full sample, $1,000
+
+Each book starts the day of its first fill on or after 2005-01-01. SPY and QQQ on that row are bought on the book's own first day, so the rows do not share one start. The common window is the overlap.
+
+| Book | CAGR | Max DD | Sharpe | Calmar | Positive months | Ending | Entries |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| conservative | 6.2% | -11.2% | 0.83 | 0.55 | 61.6% | $3,670 | 79 |
+| SPY, same dates as conservative | 10.9% | -55.2% | 0.64 | 0.20 | 66.2% | $9,516 | — |
+| QQQ, same dates as conservative | 15.3% | -53.4% | 0.77 | 0.29 | 60.8% | $22,275 | — |
+| moderate | 9.0% | -39.8% | 0.51 | 0.23 | 54.0% | $6,492 | 70 |
+| SPY, same dates as moderate | 10.9% | -55.2% | 0.64 | 0.20 | 66.2% | $9,516 | — |
+| QQQ, same dates as moderate | 15.3% | -53.4% | 0.77 | 0.29 | 60.8% | $22,275 | — |
+| high_risk | 22.8% | -69.9% | 0.67 | 0.33 | 51.0% | $26,022 | 13 |
+| SPY, same dates as high_risk | 14.5% | -33.7% | 0.89 | 0.43 | 68.8% | $8,579 | — |
+| QQQ, same dates as high_risk | 19.3% | -35.1% | 0.96 | 0.55 | 63.0% | $16,463 | — |
+| SPY, EFA, IEF, GLD, always on | 8.3% | -30.1% | 0.79 | 0.27 | 62.0% | $5,646 | 4 |
+| TQQQ buy and hold, high-risk dates | 41.8% | -81.7% | 0.88 | 0.51 | 60.4% | $252,990 | 1 |
+| QQQ with the same 10-month filter | 11.0% | -28.6% | 0.71 | 0.38 | 52.9% | $9,651 | 21 |
+
+### Common window, growth of $1,000
+
+All three books and SPY, rebased to $1,000 on 2010-12-01. This is the chart. It does not include 2008, because TQQQ was not listed yet.
+
+| Book | CAGR | Max DD | Sharpe | Calmar | Positive months | Ending |
+|---|---:|---:|---:|---:|---:|---:|
+| Conservative | 5.1% | -10.5% | 0.74 | 0.48 | 62.0% | $2,193 |
+| Moderate | 7.8% | -37.6% | 0.48 | 0.21 | 50.0% | $3,268 |
+| High risk | 22.7% | -69.9% | 0.67 | 0.32 | 51.0% | $25,604 |
+| SPY | 14.5% | -33.7% | 0.88 | 0.43 | 68.8% | $8,526 |
+
+### Holdout from 2017-01-01, fresh $1,000
+
+This is the verdict window. Training, through 2016-12-31, is the check that the same rule had already made money. Neither window was used to change a lookback.
+
+| Book | CAGR | Max DD | Sharpe | Calmar | Positive months | Ending | Entries |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| conservative holdout | 6.9% | -10.5% | 0.96 | 0.66 | 65.3% | $1,925 | 40 |
+| SPY, holdout, conservative window | 15.3% | -33.7% | 0.88 | 0.46 | 69.5% | $4,028 | — |
+| moderate holdout | 8.4% | -37.6% | 0.49 | 0.22 | 50.0% | $2,192 | 30 |
+| SPY, holdout, moderate window | 15.3% | -33.7% | 0.88 | 0.46 | 69.5% | $4,028 | — |
+| high_risk holdout | 25.6% | -69.9% | 0.70 | 0.37 | 51.7% | $9,255 | 8 |
+| SPY, holdout, high_risk window | 15.3% | -33.7% | 0.88 | 0.46 | 69.5% | $4,028 | — |
+| TQQQ buy and hold, holdout | 43.0% | -81.7% | 0.87 | 0.53 | 61.0% | $32,854 | 1 |
+| static four-fund mix, holdout | 10.1% | -19.8% | 1.00 | 0.51 | 65.3% | $2,568 | 4 |
+
+Training, fresh $1,000, first fill through 2016-12-31.
+
+| Book | CAGR | Max DD | Sharpe | Calmar | Positive months | Ending | Years |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| conservative | 5.5% | -11.2% | 0.72 | 0.49 | 58.6% | $1,903 | 12.0 |
+| SPY, conservative train | 7.4% | -55.2% | 0.46 | 0.13 | 63.4% | $2,345 | 12.0 |
+| moderate | 9.5% | -39.8% | 0.52 | 0.24 | 57.2% | $2,953 | 12.0 |
+| SPY, moderate train | 7.4% | -55.2% | 0.46 | 0.13 | 63.4% | $2,345 | 12.0 |
+| high_risk | 18.1% | -59.4% | 0.61 | 0.31 | 50.0% | $2,758 | 6.1 |
+| SPY, high_risk train | 13.1% | -18.6% | 0.90 | 0.70 | 67.6% | $2,114 | 6.1 |
+
+### Rolling windows
+
+Each window starts at a month-end with the stake and ends 6 or 12 months later. The dollar figure is what that stake is worth, not a profit subtracted from it. SPY on the same dates pays the entry and exit friction. The $5,000 figure is the same return on a $5,000 stake. A paired $5,000 run of the conservative book matched the $1,000 CAGR. The fee gap was under one basis point.
+
+**conservative.** 2005-01-03 through 2026-10-06.
+
+6-month windows: 257. Median ending $1,031 (SPY $1,064), bad case $973 (SPY $934), good case $1,097 (SPY $1,165). 28.4% of the book's windows lost money, against 20.6% for SPY.
+
+On $5,000: 6-month windows: 257. Median ending $5,156 (SPY $5,320), bad case $4,863 (SPY $4,671), good case $5,487 (SPY $5,827). 28.4% of the book's windows lost money, against 20.6% for SPY.
+
+
+12-month windows: 251. Median ending $1,065 (SPY $1,147), bad case $971 (SPY $930), good case $1,165 (SPY $1,295). 21.5% of the book's windows lost money, against 16.3% for SPY.
+
+On $5,000: 12-month windows: 251. Median ending $5,326 (SPY $5,733), bad case $4,855 (SPY $4,650), good case $5,824 (SPY $6,473). 21.5% of the book's windows lost money, against 16.3% for SPY.
+
+**moderate.** 2005-01-03 through 2026-10-06.
+
+6-month windows: 257. Median ending $1,057 (SPY $1,064), bad case $865 (SPY $934), good case $1,230 (SPY $1,165). 37.0% of the book's windows lost money, against 20.6% for SPY.
+
+On $5,000: 6-month windows: 257. Median ending $5,287 (SPY $5,320), bad case $4,324 (SPY $4,671), good case $6,152 (SPY $5,827). 37.0% of the book's windows lost money, against 20.6% for SPY.
+
+
+12-month windows: 251. Median ending $1,083 (SPY $1,147), bad case $867 (SPY $930), good case $1,405 (SPY $1,295). 37.8% of the book's windows lost money, against 16.3% for SPY.
+
+On $5,000: 12-month windows: 251. Median ending $5,414 (SPY $5,733), bad case $4,335 (SPY $4,650), good case $7,026 (SPY $6,473). 37.8% of the book's windows lost money, against 16.3% for SPY.
+
+**high_risk.** 2010-12-01 through 2026-10-06.
+
+6-month windows: 186. Median ending $1,144 (SPY $1,078), bad case $757 (SPY $968), good case $1,489 (SPY $1,162). 31.2% of the book's windows lost money, against 17.2% for SPY.
+
+On $5,000: 6-month windows: 186. Median ending $5,720 (SPY $5,391), bad case $3,787 (SPY $4,838), good case $7,445 (SPY $5,810). 31.2% of the book's windows lost money, against 17.2% for SPY.
+
+
+12-month windows: 180. Median ending $1,195 (SPY $1,158), bad case $749 (SPY $994), good case $1,992 (SPY $1,298). 31.1% of the book's windows lost money, against 10.6% for SPY.
+
+On $5,000: 12-month windows: 180. Median ending $5,975 (SPY $5,792), bad case $3,745 (SPY $4,969), good case $9,960 (SPY $6,490). 31.1% of the book's windows lost money, against 10.6% for SPY.
+
+### Stress years
+
+Calendar-year total return. A blank means the book was not running.
+
+| Book | 2008 | 2020 | 2022 |
+|---|---:|---:|---:|
+| conservative | 3.6% | 12.9% | -8.7% |
+| moderate | -11.9% | 5.0% | -13.9% |
+| high_risk | n/a | 11.5% | -25.0% |
+| spy_long | -36.8% | 18.3% | -18.2% |
+| static | -15.7% | 16.4% | -11.9% |
+| qqq_filter | -20.4% | 27.7% | -8.5% |
+
+### Folds of the frozen rule
+
+Each fold starts over at $1,000. A fold is too short to pick a rule. It shows whether one stretch carried the holdout.
+
+| Book | Fold | CAGR | Max DD | Sharpe | Ending |
+|---|---|---:|---:|---:|---:|
+| conservative | 2017-2018 | 3.8% | -8.2% | 0.76 | $1,078 |
+| conservative | 2019-2020 | 11.1% | -7.1% | 1.53 | $1,233 |
+| conservative | 2021-2022 | -2.7% | -10.3% | -0.44 | $948 |
+| conservative | 2023-2026 | 11.7% | -9.0% | 1.29 | $1,517 |
+| moderate | 2017-2018 | 1.7% | -28.4% | 0.18 | $1,034 |
+| moderate | 2019-2020 | 5.1% | -28.6% | 0.32 | $1,105 |
+| moderate | 2021-2022 | -5.2% | -20.5% | -0.21 | $900 |
+| moderate | 2023-2026 | 22.9% | -27.9% | 1.10 | $2,168 |
+| high_risk | 2017-2018 | 56.3% | -35.0% | 1.23 | $2,435 |
+| high_risk | 2019-2020 | 12.3% | -69.9% | 0.54 | $1,261 |
+| high_risk | 2021-2022 | 16.5% | -41.8% | 0.57 | $1,355 |
+| high_risk | 2023-2026 | 23.3% | -43.4% | 0.68 | $2,197 |
+
+### Checks that were not allowed to change the rule
+
+Random timing keeps each month's weights and shuffles the dates, seed 17. The static mix holds the four conservative funds in equal slices whenever they have a 10-month average, with no trend test. The 8-month and 12-month averages, and the other dual-momentum lookbacks, are neighbors.
+
+| Check | CAGR | Max DD | Sharpe | Ending |
+|---|---:|---:|---:|---:|
+| conservative 8-month holdout | 8.6% | -9.0% | 1.20 | $2,239 |
+| high risk 8-month holdout | 24.7% | -69.9% | 0.69 | $8,588 |
+| conservative 12-month holdout | 6.8% | -9.7% | 0.94 | $1,897 |
+| high risk 12-month holdout | 32.3% | -69.9% | 0.80 | $15,342 |
+| moderate 9-1 holdout | 11.3% | -31.3% | 0.63 | $2,833 |
+| moderate 6-1 holdout | 8.8% | -28.6% | 0.52 | $2,283 |
+| moderate 12-0 holdout | 10.1% | -34.9% | 0.58 | $2,548 |
+| conservative shuffled dates, full sample | 5.5% | -22.2% | 0.63 | $3,231 |
+| conservative shuffled dates, holdout | 4.6% | -22.2% | 0.57 | $1,552 |
+| moderate shuffled dates, full sample | 9.5% | -44.8% | 0.55 | $7,178 |
+| moderate shuffled dates, holdout | 9.8% | -38.5% | 0.60 | $2,486 |
+| high_risk shuffled dates, full sample | 47.5% | -69.9% | 1.00 | $475,453 |
+| high_risk shuffled dates, holdout | 50.3% | -69.9% | 0.99 | $53,181 |
+| conservative cash in BIL, full sample | 6.4% | -11.2% | 0.86 | $3,892 |
+| conservative margin same-day buy, holdout | 6.9% | -10.5% | 0.96 | $1,925 |
+| moderate cash in BIL, full sample | 9.1% | -39.8% | 0.51 | $6,658 |
+| moderate margin same-day buy, holdout | 9.4% | -33.7% | 0.54 | $2,399 |
+| high_risk cash in BIL, full sample | 23.2% | -69.9% | 0.68 | $27,383 |
+| high_risk margin same-day buy, holdout | 25.6% | -69.9% | 0.70 | $9,255 |
+
+### Wired bot
+
+The default book in this repo is dual momentum. On a $100,000 test from 2017 it finished at $104,429.23 because the sizer risks 0.75 percent of equity against a 20 percent stop, so about 3.75 percent of the account is invested, and a 20 percent trail can knock the position out between month-ends. That is not the fully invested moderate book above. This study did not change the sizer, the trail, or the strategy list. $1,000 whole shares, 2017-2026: 1 trades, CAGR 0.0%, max drawdown -0.5%, Sharpe 0.14, ending $1,002. Rejections: {'position size rounded to zero': 104}. $5,000 whole shares, 2017-2026: 19 trades, CAGR 0.0%, max drawdown -0.9%, Sharpe 0.11, ending $5,018. Rejections: {'position size rounded to zero': 60}. $1,000 fractional, same 0.75% risk, 2017-2026: 30 trades, CAGR 0.5%, max drawdown -2.0%, Sharpe 0.55, ending $1,046. Rejections: none. $5,000 fractional, same 0.75% risk, 2017-2026: 30 trades, CAGR 0.5%, max drawdown -2.0%, Sharpe 0.55, ending $5,231. Rejections: none.
+
+### Verdict
+
+QQQ buy and hold finished the holdout at $6,791. SPY finished at $4,028. The conservative and moderate books finished behind both. The high-risk filter finished at $9,255, ahead of SPY and QQQ on raw dollars and behind raw TQQQ at $32,854. Raw TQQQ's max drawdown was -81.7% and its Sharpe was 0.87. The filter's drawdown was -69.9% and its Sharpe was 0.70. It did not clear a higher Sharpe and a milder drawdown than raw TQQQ. One shuffle of its invested months, seed 17, finished the holdout far ahead of the filter. That is one draw, and it does not show that the filter's timing was special. A book that has already fallen about 70 percent is not the one I would fund with $1,000. The moderate book finished at $2,192. Its holdout drawdown was -37.6% against SPY's -33.7%, and its Sharpe was 0.49 against 0.88. Training had beaten SPY. The holdout did not. Shuffling its monthly choices, seed 17, finished the holdout ahead of the real timing. The other lookbacks also finished below SPY and were not promoted. The bot already runs dual momentum, but not this fully invested version. At the bot's 0.75 percent risk, the $1,000 fractional account and the $5,000 fractional account are the wired-bot rows above. Whole shares on $1,000 were usually too small to send. The conservative book is the only pick that cleared the frozen test against SPY: Sharpe 0.96 against 0.88, Calmar 0.66 against 0.46, after a training window that also made money. It did not beat SPY on dollars. The holdout ended at $1,925 against SPY's $4,028 and QQQ's $6,791. Positive months were 65.3%, below SPY's 69.5%. Of its 12-month windows, 21.5% lost money, against 16.3% for SPY. The bad 12-month case turned $1,000 into $971, against $930 for SPY. The median case was $1,065 against SPY's $1,147. In 2008 the sleeve made money while SPY did not. In 2022 it lost less than SPY. The same four funds, held all the time, finished the holdout at $2,568, Sharpe 1.00, max drawdown -19.8%. The filter's Sharpe was lower than that mix, and so was its ending stake. What the filter added was the smaller drawdown. The 8-month neighbor made more on the holdout and was not used. Shuffling the filter's own months, seed 17, had a deeper drawdown and a lower Sharpe than the real timing. If the goal is more dollars and a 30 percent decline is acceptable, own SPY or QQQ. QQQ made more than SPY. If the goal is a smaller crash and slow growth is acceptable, the conservative 10-month sleeve is the one of these three I would fund. It is not in the bot. I would not fund the moderate book or the TQQQ filter for this account. A $5,000 stake is five times the $1,000 result. This is a simulation, not a forecast.
+
+Chart: `reports/account_winners_equity.png`.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum, at the bot's existing size. Live trading stays off.
+
+```
+python3 -m webull_bot.research_account_winners
+```
+<!-- ACCOUNT_WINNERS_END -->

@@ -1,0 +1,14 @@
+{
+  "sample_start": "2005-01-01",
+  "holdout_start": "2017-01-01",
+  "sample_end": "2026-10-06",
+  "costs": "Webull commission 0. SEC fee on sells. FINRA TAF on sells. 5 bps slippage and 1 bp half-spread per side.",
+  "cash": "Earns zero. Cash account: sell the next session, buy the session after that.",
+  "fractional": "Fractional shares. These ETFs do not fit a $1,000 account in whole shares at recent prices.",
+  "taxes": "Ignored. Monthly turnover realizes short-term gains. A buy-and-hold of SPY defers them.",
+  "conservative": "Equal slice of SPY, EFA, IEF, and GLD once each has a 10-month average. Hold that slice when the month-end close is strictly above the average, else cash. A fund that is not listed yet is not in that month's count.",
+  "moderate": "SPY, QQQ, IWM, EFA, EEM, TLT, GLD. Hold the one with the best 12-1 month return if its full 12-month return is strictly above BIL's 12-month return. Otherwise cash. Before BIL has 12 months the hurdle is zero. No trailing stop.",
+  "high_risk": "Hold TQQQ when its month-end close is strictly above its 10-month average, else cash. The same filter on QQQ is a labeled unlevered check, not the pick.",
+  "winner": "Holdout from 2017-01-01, fresh $1,000, after costs. Training CAGR must be positive over at least five years. Holdout CAGR must be positive over at least eight years. A SPY win is a higher Sharpe and a higher Calmar than SPY, or a CAGR within three points of SPY with a max drawdown at least ten points milder. A benchmark win, used for the high-risk book against TQQQ buy-and-hold, is a higher Sharpe and a milder max drawdown than that benchmark. Neighbors do not replace the frozen lookback.",
+  "recommend": "Among books that beat SPY on that test, recommend the highest holdout Calmar. A book that only beats its own benchmark is not the one to fund ahead of SPY."
+}
