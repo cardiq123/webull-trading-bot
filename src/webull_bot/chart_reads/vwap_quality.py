@@ -174,6 +174,18 @@ def frozen_rules() -> dict:
             "A candidate would be a new sandbox book beside vwap_band_15m, not a replacement. "
             "Nothing is promoted unless it clears both windows and the correction."
         ),
+        "expiry": (
+            "A separate pre-declared contract table on the original uncapped 2 SD extension, 1R, one position. "
+            "Contracts are 0 DTE flat, and 1, 3, and 7 DTE each flat-by-close and overnight. "
+            "0 DTE has no overnight cell. 1, 3, and 7 DTE expire that many trading sessions later. "
+            "0 DTE and 1 DTE use prior VIX1D, or prior VIX when that print is missing. 3 DTE and 7 DTE use prior VIX. "
+            "Half-spread is the greater of $0.01 and 1.5% of the mid. "
+            "Flat sells at 15:45 the entry day. Overnight keeps the stop and the 1R target and flats at 15:45 on the expiration session. "
+            "The filter family above is not crossed with expiry and is not retuned. "
+            "A contract is robust when the fresh $1,000 account clears the published gate in training and in the holdout "
+            "and its false-discovery q on this seven-contract set is at most 0.10. "
+            "It does not replace vwap_band_15m."
+        ),
     }
 
 
