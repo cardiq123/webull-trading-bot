@@ -102,6 +102,34 @@ def _pages(method, **kwargs) -> list:
     return rows
 
 
+def zero_dte_from_client(data_client, symbol: str, option_type: str, spot: float, day: date) -> Optional[dict]:
+    """Same-day expiry, strike nearest the spot. Ask is required. Bid is kept when the snapshot has one.
+
+    This is the 0 DTE quote. ``atm_from_client`` stays the 14 DTE helper.
+    """
+    if data_client is None or spot <= 0:
+        return None
+    rows = _contracts(data_client, symbol, option_type, spot, day)
+    chosen = pick_atm(rows, spot=spot, target=day, option_type=option_type)
+    if chosen is None:
+        return None
+    ask, bid, delta = _snapshot_sides(data_client, chosen["option_symbol"])
+    if ask is None or ask <= 0:
+        return None
+    chosen["ask"] = ask
+    if bid is not None and bid > 0:
+        chosen["bid"] = bid
+    if delta is not None:
+        chosen["delta"] = delta
+    return chosen
+
+
+def snapshot_sides(data_client, option_symbol: str) -> tuple[Optional[float], Optional[float]]:
+    """Ask and bid of a contract already chosen. Either side may be missing."""
+    ask, bid, _delta = _snapshot_sides(data_client, option_symbol)
+    return ask, bid
+
+
 def _snapshot_ask(data_client, option_symbol: str) -> tuple[Optional[float], Optional[float]]:
     market = getattr(data_client, "option_market_data", None)
     if market is None or not hasattr(market, "get_option_snapshot"):
@@ -121,6 +149,32 @@ def _snapshot_ask(data_client, option_symbol: str) -> tuple[Optional[float], Opt
         if ask is not None:
             return ask, delta
     return None, None
+
+
+def _snapshot_sides(data_client, option_symbol: str) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """Ask, bid, and delta. A missing side stays None."""
+    market = getattr(data_client, "option_market_data", None)
+    if market is None or not hasattr(market, "get_option_snapshot"):
+        return None, None, None
+    try:
+        payload = _json(market.get_option_snapshot(option_symbol, "US_OPTION"))
+    except Exception:
+        return None, None, None
+    for row in _rows(payload) or ([payload] if isinstance(payload, dict) else []):
+        if not isinstance(row, dict):
+            continue
+        ask = _number(row, "ask", "ask_price", "askPrice", "best_ask")
+        bid = _number(row, "bid", "bid_price", "bidPrice", "best_bid")
+        delta = _number(row, "delta", "option_delta")
+        quote = row.get("quote") if isinstance(row.get("quote"), dict) else None
+        if quote is not None:
+            if ask is None:
+                ask = _number(quote, "ask", "ask_price", "ap")
+            if bid is None:
+                bid = _number(quote, "bid", "bid_price", "bp")
+        if ask is not None or bid is not None:
+            return ask, bid, delta
+    return None, None, None
 
 
 def _json(response: Any) -> Any:

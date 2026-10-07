@@ -89,6 +89,70 @@ def test_a_forming_hour_saved_early_is_not_the_1135_bar(tmp_path: Path, monkeypa
     assert YFinanceProvider(tmp_path)._read_cache("SPY", "60m", "2026-10-07", "2026-10-08") is None
 
 
+def test_fifteen_minute_cache_needs_the_completed_bar(tmp_path: Path, monkeypatch):
+    path = tmp_path / "SPY_15m.csv"
+    _hourly_cache(
+        path,
+        [("2026-10-07 09:30:00-04:00", 101.0)],
+        datetime(2026, 10, 7, 9, 50, tzinfo=NY),
+    )
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 20, tzinfo=NY))
+    assert YFinanceProvider(tmp_path)._read_cache("SPY", "15m", "2026-10-07", "2026-10-08") is None
+
+
+def test_fifteen_minute_bar_written_after_it_closes_is_fresh(tmp_path: Path, monkeypatch):
+    path = tmp_path / "SPY_15m.csv"
+    _hourly_cache(
+        path,
+        [
+            ("2026-10-07 09:30:00-04:00", 101.0),
+            ("2026-10-07 09:45:00-04:00", 101.2),
+            ("2026-10-07 10:00:00-04:00", 101.4),
+        ],
+        datetime(2026, 10, 7, 10, 20, tzinfo=NY),
+    )
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 20, tzinfo=NY))
+    fresh = YFinanceProvider(tmp_path)._read_cache("SPY", "15m", "2026-10-07", "2026-10-08")
+    assert fresh is not None
+    assert fresh.index[-1].strftime("%Y-%m-%d %H:%M") == "2026-10-07 10:00"
+
+
+def test_fifteen_minute_history_before_today_keeps_the_slack(tmp_path: Path, monkeypatch):
+    path = tmp_path / "SPY_15m.csv"
+    _hourly_cache(
+        path,
+        [("2026-09-28 15:30:00-04:00", 100.0)],
+        datetime(2026, 9, 28, 16, 5, tzinfo=NY),
+    )
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 20, tzinfo=NY))
+    frame = YFinanceProvider(tmp_path)._read_cache("SPY", "15m", "2026-09-28", "2026-10-01")
+    assert frame is not None
+
+
+def test_download_does_not_store_the_open_fifteen_or_five_minutes(tmp_path: Path, monkeypatch):
+    index = pd.DatetimeIndex(
+        [
+            pd.Timestamp("2026-10-07 09:45", tz=NY),
+            pd.Timestamp("2026-10-07 10:00", tz=NY),
+        ]
+    )
+    frame = pd.DataFrame(
+        {"open": [1, 2], "high": [2, 3], "low": [1, 2], "close": [1.5, 2.5], "volume": [10, 10]},
+        index=index,
+    )
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 7, tzinfo=NY))
+    closed = _closed_hourly(frame, "15m", yfinance_provider._clock())
+    assert list(closed.index.strftime("%H:%M")) == ["09:45"]
+    five = pd.DataFrame(
+        {"open": [1, 2], "high": [2, 3], "low": [1, 2], "close": [1.5, 2.5], "volume": [10, 10]},
+        index=pd.DatetimeIndex(
+            [pd.Timestamp("2026-10-07 10:00", tz=NY), pd.Timestamp("2026-10-07 10:05", tz=NY)]
+        ),
+    )
+    five_closed = _closed_hourly(five, "5m", yfinance_provider._clock())
+    assert list(five_closed.index.strftime("%H:%M")) == ["10:00"]
+
+
 def test_download_does_not_store_the_open_hour(tmp_path: Path, monkeypatch):
     index = pd.DatetimeIndex(
         [

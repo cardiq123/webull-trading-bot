@@ -79,10 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     forward = sub.add_parser(
         "forward-test",
-        help="One sandbox cycle of chop_breakout_60m. Live trading stays off. --dry-run does not connect.",
+        help="One sandbox cycle of chop_breakout_60m or vwap_band_15m. Live trading stays off. --dry-run does not connect.",
     )
     _add_config(forward)
-    forward.add_argument("strategy", choices=["chop_breakout_60m"])
+    forward.add_argument("strategy", choices=["chop_breakout_60m", "vwap_band_15m"])
     forward.add_argument(
         "--dry-run",
         action="store_true",
@@ -96,10 +96,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     forward_report = sub.add_parser(
         "forward-report",
-        help="Print the chop_breakout_60m forward-test journal, SPY buy-and-hold, and the random shadow.",
+        help="Print a sandbox forward-test journal. chop_breakout_60m also prints SPY and the random shadow.",
     )
     _add_config(forward_report)
-    forward_report.add_argument("strategy", choices=["chop_breakout_60m"])
+    forward_report.add_argument("strategy", choices=["chop_breakout_60m", "vwap_band_15m"])
 
     return parser
 
@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-FORWARD_ONLY = {"chop_breakout_60m"}
+FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m"}
 
 
 def refuse_if_forward_only(names: list[str]) -> None:
@@ -149,11 +149,19 @@ def refuse_if_forward_only(names: list[str]) -> None:
     hit = [name for name in names if name in FORWARD_ONLY]
     if not hit:
         return
+    if hit == ["chop_breakout_60m"]:
+        raise SystemExit(
+            "Refusing to run chop_breakout_60m on the paper or live book. "
+            "It is a sandbox forward test only. allow_unproven_strategies does not enable it. "
+            "Live trading stays off. "
+            "Use: python -m webull_bot forward-test chop_breakout_60m"
+        )
+    shown = ", ".join(hit)
     raise SystemExit(
-        "Refusing to run chop_breakout_60m on the paper or live book. "
+        f"Refusing to run {shown} on the paper or live book. "
         "It is a sandbox forward test only. allow_unproven_strategies does not enable it. "
         "Live trading stays off. "
-        "Use: python -m webull_bot forward-test chop_breakout_60m"
+        f"Use: python -m webull_bot forward-test {hit[0]}"
     )
 
 
@@ -549,7 +557,9 @@ def _forward_now(args) -> datetime:
 
 
 def _forward_test(config, args) -> int:
-    """One hourly cycle. Dry-run does not connect. A real cycle is sandbox-only."""
+    """One sandbox cycle. Dry-run does not connect. A real cycle is sandbox-only."""
+    if args.strategy == "vwap_band_15m":
+        return _forward_vwap(config, args)
     from zoneinfo import ZoneInfo
 
     from webull_bot.data.yfinance_provider import YFinanceProvider
@@ -601,7 +611,73 @@ def _forward_test(config, args) -> int:
     return 0
 
 
+def _forward_vwap(config, args) -> int:
+    """One 5-minute cycle of the frozen 2 SD continuation. Sandbox only."""
+    from webull_bot.chart_reads.orb_mwf import prior_iv
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_vwap import in_forward_window, run_cycle
+    from webull_bot.journal.store import Journal
+
+    now = _forward_now(args)
+    if not in_forward_window(now):
+        from zoneinfo import ZoneInfo
+
+        local = now.astimezone(ZoneInfo("America/New_York"))
+        print(
+            f"forward-test idle at {local.isoformat()}. "
+            "Outside the 09:50-15:50 ET window. No orders."
+        )
+        return 0
+    broker = None
+    if not args.dry_run:
+        raw = os.environ.get("WEBULL_ENV", "").strip().lower()
+        if raw not in {"sandbox", "uat", "test"}:
+            raise SystemExit(
+                "Refusing to forward-test without WEBULL_ENV=sandbox. "
+                "Orders go only to *.sandbox.webull.com. "
+                "Live trading stays off. Pass --dry-run to print the orders without connecting."
+            )
+        from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+    end = now.date()
+    start = end - timedelta(days=50)
+    provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
+    end_s = (end + timedelta(days=1)).isoformat()
+    bars15 = provider.history(["SPY"], start.isoformat(), end_s, "15m").get("SPY")
+    bars5 = provider.history(["SPY"], start.isoformat(), end_s, "5m").get("SPY")
+    daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", end_s, "1d")
+    closes = {}
+    for symbol, frame in daily.items():
+        if frame is None or frame.empty or "close" not in frame:
+            continue
+        closes[symbol] = frame["close"]
+    points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    lines = run_cycle(
+        journal=journal,
+        bars15=bars15 if bars15 is not None else pd.DataFrame(),
+        bars5=bars5 if bars5 is not None else pd.DataFrame(),
+        now=now,
+        iv_points=points,
+        broker=broker,
+        dry_run=bool(args.dry_run),
+    )
+    print("\n".join(lines))
+    return 0
+
+
 def _forward_report(config, args) -> int:
+    if args.strategy == "vwap_band_15m":
+        from webull_bot.execution.forward_vwap import report_text as vwap_report
+        from webull_bot.journal.store import Journal
+
+        journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        print(vwap_report(journal), end="")
+        return 0
     from webull_bot.execution.forward_chop import NAME, report_text
     from webull_bot.journal.store import Journal
 
