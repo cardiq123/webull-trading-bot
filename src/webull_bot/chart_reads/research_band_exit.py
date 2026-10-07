@@ -324,14 +324,32 @@ def _english(books: list[dict], prior: dict[str, dict]) -> str:
         train = row.get("train") or {}
         return f"{_money(hold.get('ending_equity'))} (train {_money(train.get('ending_equity'))})"
 
+    def five(name: str) -> str:
+        row = next((item for item in books if item["name"] == name), None)
+        if row is None or not row.get("five"):
+            return "n/a"
+        metrics = row["five"]
+        return f"{_money(metrics.get('ending_equity'))}, profit factor {_pf(metrics.get('profit_factor'))}"
+
     return (
+        "Share books lost on every variant. "
         "On the five-step reclaim, dropping the crack is the 2026-10-07 tape. "
         f"Its opposite-band 0 DTE book finished at {ending('reclaim_no_crack_band_0dte')}. "
-        f"Half at the first of the band and the 200 EMA finished at {ending('reclaim_no_crack_band200_0dte')}. "
+        f"The $1,000 account died, so that row stops early. The same book from $5,000 finished at {five('reclaim_no_crack_band_0dte')}. "
+        f"Half at the band or the 200 EMA finished at {ending('reclaim_no_crack_band200_0dte')}. "
         f"The same entries at +50% of premium finished at {old('no_crack_prem50_0dte')} and at +100% finished at {old('no_crack_prem100_0dte')}. "
-        f"The strict band 0 DTE book finished at {ending('reclaim_strict_band_0dte')}. "
+        "The percent targets did not repair that tape, and the band did not beat them. "
+        f"The strict band 0 DTE book finished at {ending('reclaim_strict_band_0dte')}. From $5,000 it finished at {five('reclaim_strict_band_0dte')}. "
         f"The strict +50% book finished at {old('strict_prem50_0dte')} and the +100% book at {old('strict_prem100_0dte')}. "
-        "Share books are in the table. A row that clears the holdout arithmetic is not promoted."
+        "The strict band made more than those percent targets and less than the structure exit already scored, and the $1,000 drawdown misses the gate. "
+        f"The simpler reversal, band alone, finished at {ending('reject_reversal_band_0dte')}. "
+        f"Its +50% book finished at {ending('reject_reversal_prem50_0dte')} and its +100% book at {ending('reject_reversal_prem100_0dte')}. "
+        "The band won that dollar comparison and the drawdown still misses the gate. "
+        f"The 9/20 rejection gate with the band finished at {ending('reject_vwap_band_0dte')}. "
+        f"On the 15-minute VWAP extension, the band finished at {ending('vwap_extension_band_0dte')} and +100% of premium finished at {ending('vwap_extension_prem100_0dte')}. "
+        "The +100% book is the one whose training account finished above the stake. Its training drawdown is still past 60%, so it is not a new gate. "
+        f"The 15-minute VWAP reversal with the band finished at {ending('vwap_reversal_band_0dte')} and training went to about $1. "
+        "A row that clears the holdout arithmetic is not promoted."
     )
 
 
