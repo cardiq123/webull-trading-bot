@@ -948,8 +948,8 @@ def _hourly_flags(hourly: pd.DataFrame | None):
     bars = rth(hourly)
     if bars.empty:
         return np.array([], dtype=np.int64), np.array([], dtype=bool), np.array([], dtype=bool)
-    fast = ema(bars["close"].astype(float), 9)
-    slow = ema(bars["close"].astype(float), 20)
+    fast_v = ema(bars["close"].astype(float), 9).to_numpy(dtype=float)
+    slow_v = ema(bars["close"].astype(float), 20).to_numpy(dtype=float)
     ends = []
     for stamp in bars.index:
         if stamp.time() >= time(15, 30):
@@ -957,9 +957,8 @@ def _hourly_flags(hourly: pd.DataFrame | None):
         else:
             ends.append(stamp + pd.Timedelta(hours=1))
     end_index = pd.DatetimeIndex(ends)
-    long_ok = (fast.to_numpy(dtype=float) > slow.to_numpy(dtype=float)) & np.isfinite(fast) & np.isfinite(slow)
-    short_ok = (fast.to_numpy(dtype=float) < slow.to_numpy(dtype=float)) & np.isfinite(fast) & np.isfinite(slow)
-    return end_index.asi8.to_numpy(), long_ok, short_ok
+    ready = np.isfinite(fast_v) & np.isfinite(slow_v)
+    return np.asarray(end_index.asi8, dtype=np.int64), ready & (fast_v > slow_v), ready & (fast_v < slow_v)
 
 
 def _hourly_agrees(signal: Signal, ends: np.ndarray, long_ok: np.ndarray, short_ok: np.ndarray) -> bool:

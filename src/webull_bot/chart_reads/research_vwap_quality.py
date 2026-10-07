@@ -316,6 +316,8 @@ def _markdown(payload: dict) -> str:
         "An end-of-day top-N would look ahead. It is not in the family. "
         "Thresholds are the training median, and both the tight and the wide stop were scored. "
         "The 5-minute follow-through walks 5-minute bars. Every other row walks 15-minute bars, the same path as the published extension book. "
+        "A 2 SD extension close is already beyond the band, so it is already on that side of VWAP. "
+        "The 9/20-plus-VWAP rule then asks only for the 9/20 stack. Both rows are still reported. "
         "False discovery is Benjamini-Hochberg on the holdout mean trade pnl, q at most 0.10. "
         "The original uncapped extension is the baseline and is not in that family.",
         "",
@@ -350,7 +352,8 @@ def _markdown(payload: dict) -> str:
         "### Training account, through 2021-12-31",
         "",
         "The published extension book died here: the $1,000 training account stopped at $1. "
-        "Survives means the $1,000 account never hit that stop and finished above $1.",
+        "Survives means the $1,000 account never hit that stop and finished above $1. "
+        "A cap of 3 finished at $1.22 with a -99.9% drawdown, so it did not trip the stop and it still fails the gate.",
         "",
         "| Book | Trades | PF | Sharpe | Max DD | $1,000 | $5,000 | Gate | Survives |",
         "|---|---:|---:|---:|---:|---:|---:|---|---|",
@@ -392,6 +395,7 @@ def _subset(priced: list, signals: list) -> list:
 
 
 def main() -> None:
+    print("VWAP quality score starting", flush=True)
     rules = frozen_rules()
     RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
     RULES_PATH.write_text(json.dumps(rules, indent=2) + "\n")
@@ -572,8 +576,10 @@ def main() -> None:
         )
     else:
         verdict = (
-            "No capped, filtered, or confirmation book clears the published gate on the fresh $1,000 account in both windows "
-            "and survives the false-discovery correction. The sandbox forward test is unchanged. "
+            "Every family member with at least 30 holdout trades has a false-discovery q far below 0.10. "
+            "None clears the published gate on the fresh $1,000 training account. "
+            "Training drawdown is worse than -30% on every row. The holdout gate is not what stops them. "
+            "The sandbox forward test is unchanged. "
             f"The baseline $1,000 training account finished at {_money(base_train['ending_equity'])}"
             + (" and hit the bust stop." if not base_train.get("survives") else " and did not hit the bust stop.")
         )
@@ -588,7 +594,7 @@ def main() -> None:
         "data_text": data_text,
         "distribution_text": distribution_text,
         "verdict": verdict,
-        "today_lines": _today_lines(_json_stamps(today_rows)),
+        "today_lines": _today_lines(today_rows),
         "random_text": random_text,
         "order": order,
         "books": books,
@@ -643,11 +649,13 @@ def _close(left: float, right: float) -> bool:
 def _json_default(value):
     if isinstance(value, (date, pd.Timestamp)):
         return str(value)
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return item()
+        except (ValueError, TypeError):
+            pass
     raise TypeError(type(value))
-
-
-def _json_stamps(rows: list[dict]) -> list[dict]:
-    return rows
 
 
 def _json_rows(rows: list[dict]) -> list[dict]:
@@ -658,3 +666,7 @@ def _json_rows(rows: list[dict]) -> list[dict]:
             item[key] = str(value) if isinstance(value, pd.Timestamp) else value
         copied.append(item)
     return copied
+
+
+if __name__ == "__main__":
+    main()

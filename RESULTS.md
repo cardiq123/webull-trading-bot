@@ -4759,3 +4759,135 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_ema_reject reversal
 ```
 <!-- EMA_REVERSAL_END -->
+
+<!-- VWAP_QUALITY_START -->
+## VWAP continuation quality, caps, and confirmation
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox book `vwap_band_15m` was not changed. The caps, quality filters, and confirmation rules were frozen before this score. Train is a fresh account through 2021-12-31. The holdout is a fresh account from 2022-01-01 through 2026-10-06. 2026-10-07 is the illustration, not part of the Dukascopy score.
+
+SPY is Dukascopy 1-minute bids, 2017-02-16 through 2026-10-06, 2416 sessions, 0 days missing. QQQ Dukascopy starts 2017-02-16, and 96.7% of training signals have a QQQ bar. QQQ confirmation is in the family. Training medians, frozen before the account runs: stretch 0.1639 ATR, relative volume 0.7564, stop distance 0.9866 ATR (2703 training signals).
+
+An end-of-day top-N would look ahead. It is not in the family. Thresholds are the training median, and both the tight and the wide stop were scored. The 5-minute follow-through walks 5-minute bars. Every other row walks 15-minute bars, the same path as the published extension book. A 2 SD extension close is already beyond the band, so it is already on that side of VWAP. The 9/20-plus-VWAP rule then asks only for the 9/20 stack. Both rows are still reported. False discovery is Benjamini-Hochberg on the holdout mean trade pnl, q at most 0.10. The original uncapped extension is the baseline and is not in that family.
+
+Raw extension signals, train: mean 2.21 per session, 16.2% of sessions above 3, 1.1% above 5, max 7 (1222 sessions). Holdout signals: mean 2.33, 18.3% above 3, 1.3% above 5, max 8 (1194 sessions). The $1,000 0 DTE account, after overlap, IV, and premium skips, train: mean 0.21 trades per session, 0.3% of sessions above 3, 0.0% above 5. Holdout account: mean 1.97, 8.1% above 3, 0.1% above 5.
+
+### Holdout, fresh $1,000
+
+Trades per day use every session in the window, including sessions with no trade. Win rate is next to the break-even win rate. Gate is the published 300-trade, 1.10, 0.40, -30% test on this account.
+
+| Book | Trades | Trades/day | >3 | >5 | Win | Break-even | PF | Sharpe | Max DD | $1,000 | Gate | q |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| baseline | 2355 | 1.97 | 8.1% | 0.1% | 50.0% | 39.3% | 1.55 | 2.66 | -16.2% | $32,844 | yes | n/a |
+| cap3 | 2134 | 1.79 | 0.0% | 0.0% | 50.8% | 39.8% | 1.57 | 2.55 | -15.6% | $31,497 | yes | 0.000 |
+| cap4 | 2284 | 1.91 | 5.4% | 0.0% | 50.3% | 39.3% | 1.56 | 2.55 | -17.0% | $32,722 | yes | 0.000 |
+| cap5 | 2341 | 1.96 | 7.9% | 0.0% | 50.1% | 39.3% | 1.55 | 2.65 | -16.3% | $32,849 | yes | 0.000 |
+| stop_two_losses | 2173 | 1.82 | 3.4% | 0.0% | 50.4% | 39.9% | 1.53 | 2.56 | -17.1% | $30,081 | yes | 0.000 |
+| stop_first_win | 1674 | 1.40 | 1.6% | 0.0% | 50.1% | 40.1% | 1.50 | 2.31 | -19.9% | $23,078 | yes | 0.000 |
+| stretch | 1203 | 1.01 | 0.8% | 0.0% | 50.0% | 36.0% | 1.78 | 2.41 | -20.2% | $24,798 | yes | 0.000 |
+| relvol | 1917 | 1.61 | 3.4% | 0.0% | 49.6% | 38.7% | 1.56 | 2.64 | -18.1% | $30,034 | yes | 0.000 |
+| ema_stack | 1634 | 1.37 | 2.3% | 0.0% | 49.7% | 39.0% | 1.54 | 2.58 | -9.8% | $21,900 | yes | 0.000 |
+| htf60 | 1281 | 1.07 | 1.9% | 0.0% | 50.0% | 41.3% | 1.42 | 1.62 | -30.6% | $13,765 | no | 0.000 |
+| qqq | 1322 | 1.11 | 1.1% | 0.0% | 48.6% | 37.3% | 1.59 | 2.29 | -11.3% | $23,048 | yes | 0.000 |
+| skip_lunch | 1815 | 1.52 | 2.1% | 0.0% | 50.0% | 39.1% | 1.56 | 2.46 | -16.8% | $26,376 | yes | 0.000 |
+| risk_tight | 1276 | 1.07 | 2.8% | 0.1% | 52.2% | 45.5% | 1.31 | 1.82 | -14.0% | $7,966 | yes | 0.000 |
+| risk_wide | 1257 | 1.05 | 0.5% | 0.0% | 47.7% | 35.6% | 1.65 | 2.28 | -29.6% | $26,444 | yes | 0.000 |
+| confirm_15m | 960 | 0.80 | 0.0% | 0.0% | 47.4% | 33.6% | 1.78 | 1.99 | -14.5% | $20,901 | yes | 0.000 |
+| confirm_5m | 1724 | 1.44 | 1.3% | 0.0% | 49.5% | 36.9% | 1.68 | 2.52 | -10.7% | $31,747 | yes | 0.000 |
+| ema_vwap | 1634 | 1.37 | 2.3% | 0.0% | 49.7% | 39.0% | 1.54 | 2.58 | -9.8% | $21,900 | yes | 0.000 |
+| early_15m | 1706 | 1.43 | 2.7% | 0.1% | 49.8% | 38.1% | 1.62 | 2.49 | -10.4% | $25,681 | yes | 0.000 |
+| stack | 703 | 0.59 | 0.3% | 0.0% | 50.2% | 41.3% | 1.43 | 1.56 | -19.1% | $7,577 | yes | 0.000 |
+| stretch_relvol | 973 | 0.81 | 0.3% | 0.0% | 49.4% | 35.5% | 1.78 | 2.41 | -22.6% | $22,083 | yes | 0.000 |
+| stack_cap3 | 695 | 0.58 | 0.0% | 0.0% | 50.5% | 41.4% | 1.44 | 1.57 | -19.1% | $7,671 | yes | 0.000 |
+| stack_cap5 | 703 | 0.59 | 0.3% | 0.0% | 50.2% | 41.3% | 1.43 | 1.56 | -19.1% | $7,577 | yes | 0.000 |
+| confirm15_cap3 | 958 | 0.80 | 0.0% | 0.0% | 47.3% | 33.5% | 1.78 | 1.99 | -14.5% | $20,834 | yes | 0.000 |
+| ema_vwap_cap3 | 1556 | 1.30 | 0.0% | 0.0% | 49.9% | 39.1% | 1.55 | 2.51 | -15.8% | $21,579 | yes | 0.000 |
+
+### Holdout, fresh $5,000
+
+One contract either way. When the debit already fits in $1,000, the extra cash sits idle and the dollar profit matches.
+
+| Book | Trades | Trades/day | >3 | >5 | Win | Break-even | PF | Sharpe | Max DD | $5,000 | Gate | q |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| baseline | 2355 | 1.97 | 8.1% | 0.1% | 50.0% | 39.3% | 1.55 | 3.24 | -9.7% | $36,844 | yes | n/a |
+| cap3 | 2134 | 1.79 | 0.0% | 0.0% | 50.8% | 39.8% | 1.57 | 3.21 | -7.5% | $35,497 | yes | 0.000 |
+| cap4 | 2284 | 1.91 | 5.4% | 0.0% | 50.3% | 39.3% | 1.56 | 3.19 | -10.0% | $36,722 | yes | 0.000 |
+| cap5 | 2341 | 1.96 | 7.9% | 0.0% | 50.1% | 39.3% | 1.55 | 3.23 | -9.7% | $36,849 | yes | 0.000 |
+| stop_two_losses | 2173 | 1.82 | 3.4% | 0.0% | 50.4% | 39.9% | 1.53 | 3.08 | -10.0% | $34,081 | yes | 0.000 |
+| stop_first_win | 1674 | 1.40 | 1.6% | 0.0% | 50.1% | 40.1% | 1.50 | 2.83 | -10.1% | $27,078 | yes | 0.000 |
+| stretch | 1203 | 1.01 | 0.8% | 0.0% | 50.0% | 36.0% | 1.78 | 2.97 | -10.7% | $28,798 | yes | 0.000 |
+| relvol | 1917 | 1.61 | 3.4% | 0.0% | 49.6% | 38.7% | 1.56 | 3.10 | -10.6% | $34,034 | yes | 0.000 |
+| ema_stack | 1634 | 1.37 | 2.3% | 0.0% | 49.7% | 39.0% | 1.54 | 2.98 | -5.0% | $25,900 | yes | 0.000 |
+| htf60 | 1281 | 1.07 | 1.9% | 0.0% | 50.0% | 41.3% | 1.42 | 1.92 | -10.8% | $17,765 | yes | 0.000 |
+| qqq | 1322 | 1.11 | 1.1% | 0.0% | 48.6% | 37.3% | 1.59 | 2.74 | -4.9% | $27,048 | yes | 0.000 |
+| skip_lunch | 1815 | 1.52 | 2.1% | 0.0% | 50.0% | 39.1% | 1.56 | 2.93 | -9.2% | $30,376 | yes | 0.000 |
+| risk_tight | 1276 | 1.07 | 2.8% | 0.1% | 52.2% | 45.5% | 1.31 | 1.93 | -8.4% | $11,966 | yes | 0.000 |
+| risk_wide | 1257 | 1.05 | 0.5% | 0.0% | 47.7% | 35.6% | 1.65 | 2.78 | -15.0% | $30,444 | yes | 0.000 |
+| confirm_15m | 960 | 0.80 | 0.0% | 0.0% | 47.4% | 33.6% | 1.78 | 2.74 | -6.3% | $24,901 | yes | 0.000 |
+| confirm_5m | 1724 | 1.44 | 1.3% | 0.0% | 49.5% | 36.9% | 1.68 | 3.20 | -6.6% | $35,747 | yes | 0.000 |
+| ema_vwap | 1634 | 1.37 | 2.3% | 0.0% | 49.7% | 39.0% | 1.54 | 2.98 | -5.0% | $25,900 | yes | 0.000 |
+| early_15m | 1706 | 1.43 | 2.7% | 0.1% | 49.8% | 38.1% | 1.62 | 3.05 | -4.4% | $29,681 | yes | 0.000 |
+| stack | 703 | 0.59 | 0.3% | 0.0% | 50.2% | 41.3% | 1.43 | 1.70 | -7.5% | $11,577 | yes | 0.000 |
+| stretch_relvol | 973 | 0.81 | 0.3% | 0.0% | 49.4% | 35.5% | 1.78 | 2.86 | -11.8% | $26,083 | yes | 0.000 |
+| stack_cap3 | 695 | 0.58 | 0.0% | 0.0% | 50.5% | 41.4% | 1.44 | 1.72 | -7.5% | $11,671 | yes | 0.000 |
+| stack_cap5 | 703 | 0.59 | 0.3% | 0.0% | 50.2% | 41.3% | 1.43 | 1.70 | -7.5% | $11,577 | yes | 0.000 |
+| confirm15_cap3 | 958 | 0.80 | 0.0% | 0.0% | 47.3% | 33.5% | 1.78 | 2.73 | -6.5% | $24,834 | yes | 0.000 |
+| ema_vwap_cap3 | 1556 | 1.30 | 0.0% | 0.0% | 49.9% | 39.1% | 1.55 | 2.93 | -5.3% | $25,579 | yes | 0.000 |
+
+### Training account, through 2021-12-31
+
+The published extension book died here: the $1,000 training account stopped at $1. Survives means the $1,000 account never hit that stop and finished above $1. A cap of 3 finished at $1.22 with a -99.9% drawdown, so it did not trip the stop and it still fails the gate.
+
+| Book | Trades | PF | Sharpe | Max DD | $1,000 | $5,000 | Gate | Survives |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| baseline | 255 | 0.56 | -1.11 | -99.9% | $1 | $7,554 | no | no |
+| cap3 | 239 | 0.54 | -0.66 | -99.9% | $1 | $7,779 | no | yes |
+| cap4 | 255 | 0.56 | -1.11 | -99.9% | $1 | $7,499 | no | no |
+| cap5 | 255 | 0.56 | -1.11 | -99.9% | $1 | $7,265 | no | no |
+| stop_two_losses | 241 | 0.55 | -1.24 | -99.9% | $1 | $7,553 | no | no |
+| stop_first_win | 1710 | 1.03 | 0.49 | -76.8% | $1,779 | $5,779 | no | yes |
+| stretch | 1223 | 1.10 | 0.73 | -73.7% | $3,300 | $7,300 | no | yes |
+| relvol | 891 | 1.19 | 1.29 | -40.1% | $4,519 | $8,519 | no | yes |
+| ema_stack | 1522 | 1.07 | 0.66 | -65.6% | $2,742 | $6,742 | no | yes |
+| htf60 | 1243 | 0.99 | 0.42 | -86.8% | $875 | $4,836 | no | yes |
+| qqq | 1167 | 1.19 | 1.06 | -52.6% | $5,100 | $9,100 | no | yes |
+| skip_lunch | 1748 | 1.12 | 0.80 | -83.4% | $4,509 | $8,509 | no | yes |
+| risk_tight | 1230 | 1.03 | 0.41 | -56.6% | $1,516 | $5,516 | no | yes |
+| risk_wide | 1233 | 1.08 | 0.65 | -84.6% | $3,134 | $7,134 | no | yes |
+| confirm_15m | 920 | 1.10 | 0.66 | -55.5% | $2,941 | $6,941 | no | yes |
+| confirm_5m | 1632 | 1.07 | 0.83 | -40.8% | $3,307 | $7,307 | no | yes |
+| ema_vwap | 1522 | 1.07 | 0.66 | -65.6% | $2,742 | $6,742 | no | yes |
+| early_15m | 1731 | 1.08 | 0.69 | -73.3% | $3,216 | $7,216 | no | yes |
+| stack | 670 | 0.96 | 0.27 | -92.8% | $663 | $4,663 | no | yes |
+| stretch_relvol | 490 | 1.24 | 1.16 | -39.7% | $3,662 | $7,662 | no | yes |
+| stack_cap3 | 667 | 0.92 | 0.15 | -96.4% | $304 | $4,593 | no | yes |
+| stack_cap5 | 670 | 0.96 | 0.27 | -92.8% | $663 | $4,663 | no | yes |
+| confirm15_cap3 | 916 | 1.11 | 0.69 | -53.3% | $3,091 | $7,091 | no | yes |
+| ema_vwap_cap3 | 1473 | 1.08 | 0.67 | -67.9% | $2,813 | $6,813 | no | yes |
+
+Every family member with at least 30 holdout trades has a false-discovery q far below 0.10. None clears the published gate on the fresh $1,000 training account. Training drawdown is worse than -30% on every row. The holdout gate is not what stops them. The sandbox forward test is unchanged. The baseline $1,000 training account finished at $1 and hit the bust stop. The mildest training drawdown among rows that otherwise clear the profit-factor, Sharpe, and trade-count legs is stretch plus relative volume, at -39.7%.
+
+### 2026-10-07 confirmation
+
+Yahoo 15-minute and 5-minute cache, the same tape as the sandbox dry run. This day is after the holdout and is not in the score. A filter keeps a signal when it still accepts it. A delayed fill is a different trade. The 13:30 long can pass the 15-minute follow-through only when the next 15-minute bar has closed.
+
+| Signal | Side | 15m follow-through | 5m follow-through | 9/20 and VWAP | Before 10:30 needs 15m |
+|---|---|---|---|---|---|
+| 10:00 | short | no | no | yes | no |
+| 10:30 | short | no | yes | yes | yes |
+| 11:30 | long | no | yes | no | yes |
+| 13:30 awaiting fill | long | no | yes | no | yes |
+
+15-minute follow-through drops the 10:00 short, drops the 10:30 short, drops the 11:30 long, and drops the 13:30 long.
+5-minute follow-through drops the 10:00 short, keeps the 10:30 short, keeps the 11:30 long, and keeps the 13:30 long.
+9/20 plus VWAP keeps the 10:00 short, keeps the 10:30 short, drops the 11:30 long, and drops the 13:30 long.
+Before-10:30 confirmation drops the 10:00 short, keeps the 10:30 short, keeps the 11:30 long, and keeps the 13:30 long.
+No frozen confirmation rule removes both the 10:00 and 10:30 shorts and still accepts both the 11:30 and 13:30 longs. The definitions were not loosened after that count.
+
+Seed 17 random baseline, matched to 2782 holdout extension signals: 1401 trades, profit factor 0.94, Sharpe 0.18, max drawdown -99.6%, $1,000 ended $6, $5,000 ended $3,460.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum. `vwap_band_15m` is unchanged.
+
+```
+python3 -m webull_bot.chart_reads.research_vwap_quality
+```
+<!-- VWAP_QUALITY_END -->
