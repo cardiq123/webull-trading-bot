@@ -484,3 +484,9 @@ advice, not a solicitation, and not a claim that any rule will be profitable
 in the future. Markets change, costs change, and a backtest that survived
 one sample can fail the next. Trade only money you can afford to lose, and
 only after you have read `RESULTS.md` and re-run the research yourself.
+
+<!-- VWAP_EXPIRY_START -->
+Backtests only. Nothing was sent to a broker. Live trading stays off. The table is the original uncapped 2 SD continuation, 1R, one position. The quality filters are not crossed with it. No contract clears the published gate on both the train window and the holdout, after the seven-contract false-discovery check. 0dte-flat has the highest holdout Sharpe and is not a promotion. On that contract the $1,000 holdout finished at $32,844 (2355 trades, 1.97 a day, win 50.0% against break-even 39.3%, profit factor 1.55, Sharpe 2.66, drawdown -16.2%). Training finished at $1. From $5,000 the holdout finished at $36,844 and training at $7,554. Holdout same-day round trips 2355, overnight holds 0, worst same-day count in any five sessions 18, five-session windows over 3 day trades 1189 of 1190. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line. This test is a cash account: it does not refuse the fourth day trade, and a sale settles the next session. An overnight hold that closes on a later session is not a day trade. The debit stays invested until that exit. vwap_band_15m was not changed.
+
+Full table in [RESULTS.md](RESULTS.md).
+<!-- VWAP_EXPIRY_END -->

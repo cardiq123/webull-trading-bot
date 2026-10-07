@@ -4891,3 +4891,32 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_vwap_quality
 ```
 <!-- VWAP_QUALITY_END -->
+
+<!-- VWAP_EXPIRY_START -->
+### VWAP extension by option expiry
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The table is the original uncapped 2 SD continuation, 1R, one position. The quality filters are not crossed with it. No contract clears the published gate on both the train window and the holdout, after the seven-contract false-discovery check. 0dte-flat has the highest holdout Sharpe and is not a promotion. On that contract the $1,000 holdout finished at $32,844 (2355 trades, 1.97 a day, win 50.0% against break-even 39.3%, profit factor 1.55, Sharpe 2.66, drawdown -16.2%). Training finished at $1. From $5,000 the holdout finished at $36,844 and training at $7,554. Holdout same-day round trips 2355, overnight holds 0, worst same-day count in any five sessions 18, five-session windows over 3 day trades 1189 of 1190. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line. This test is a cash account: it does not refuse the fourth day trade, and a sale settles the next session. An overnight hold that closes on a later session is not a day trade. The debit stays invested until that exit. vwap_band_15m was not changed.
+
+| Contract | Window | Trades/day | Win | Break-even | PF | Sharpe | Max DD | $1k end | $5k end | Gate |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 0dte-flat | train | 0.21 | 36.5% | 50.4% | 0.56 | -1.11 | -99.9% | $1 | $7,554 | no |
+| 0dte-flat | holdout | 1.97 | 50.0% | 39.3% | 1.55 | 2.66 | -16.2% | $32,844 | $36,844 | yes |
+| 1dte-flat | train | 0.17 | 41.9% | 59.7% | 0.49 | -1.47 | -97.2% | $29 | $130 | no |
+| 1dte-flat | holdout | 1.97 | 50.8% | 49.7% | 1.04 | 0.76 | -77.2% | $3,985 | $8,081 | no |
+| 1dte-overnight | train | 0.09 | 45.3% | 69.3% | 0.37 | -1.08 | -98.3% | $18 | $119 | no |
+| 1dte-overnight | holdout | 0.18 | 50.5% | 53.1% | 0.90 | 0.07 | -97.7% | $57 | $80 | no |
+| 3dte-flat | train | 0.14 | 42.9% | 63.1% | 0.44 | -1.52 | -93.0% | $71 | $177 | no |
+| 3dte-flat | holdout | 0.09 | 49.1% | 54.2% | 0.81 | -0.30 | -87.3% | $192 | $190 | no |
+| 3dte-overnight | train | 0.09 | 44.3% | 68.9% | 0.36 | -1.42 | -94.3% | $59 | $113 | no |
+| 3dte-overnight | holdout | 0.11 | 54.8% | 58.5% | 0.86 | -0.17 | -93.6% | $97 | $187 | no |
+| 7dte-flat | train | 0.09 | 39.6% | 68.3% | 0.30 | -2.03 | -88.2% | $119 | $201 | no |
+| 7dte-flat | holdout | 0.02 | 42.3% | 67.1% | 0.36 | -0.78 | -72.1% | $279 | $332 | no |
+| 7dte-overnight | train | 0.08 | 44.8% | 72.1% | 0.31 | -1.65 | -88.7% | $118 | $192 | no |
+| 7dte-overnight | holdout | 0.02 | 35.0% | 63.6% | 0.31 | -0.84 | -72.3% | $277 | $288 | no |
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`.
+
+```
+python3 -m webull_bot.chart_reads.research_vwap_expiry
+```
+<!-- VWAP_EXPIRY_END -->
