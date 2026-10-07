@@ -4759,3 +4759,95 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_ema_reject reversal
 ```
 <!-- EMA_REVERSAL_END -->
+
+<!-- EMA_RECLAIM_START -->
+### 2026-10-07 reclaim: crack, pullback, trigger, confirmation
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. This sequence was frozen before the score. It does not replace the VWAP-confluence rejection gate, and it does not replace the simpler reversal variant already scored. A long needs a bearish stack (9 EMA under the 20, both lower than three bars ago, close under VWAP) with at least two tags of the 9 that close back under, then a green bar that closes above the prior red bar's high and above both EMAs, then a pullback that tests the 9 and holds, then a green bar that closes above the 9, the 20, and VWAP, then a next bar that also closes green. The fill is the open after that confirmation. The short is the mirror and buys a put. The price stop is one cent beyond the trigger bar. A close back across the 9 EMA exits at that close, and the price stop still fills first. Shares sell half if the 5-minute 200 EMA is beyond the fill and then stop the rest at the raw entry. One 0 DTE contract sells there in full. The 50% and 100% targets are on the option premium. Everything is flat at the 15:30 open. Dropping the crack, dropping the pullback, and dropping both are variants. The 9 EMA reclaim is the population the features are tested on.
+
+Signals per month are holdout fills before the one-position filter, from 2022-01-01 through 2026-10-06. Win rate is the share of trades with a positive dollar result. Break-even is the win rate the payoff needs.
+
+| Book | Signals/mo | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| strict_structure_shares | 9.98 | 250 | 15.2% | 49.3% | 0.18 | -4.36 | -28.7% | $714 | $3,568 | $714 | no |
+| strict_structure_0dte | 9.98 | 567 | 27.5% | 21.9% | 1.35 | 0.84 | -46.8% | $4,158 | $8,158 | $939 | no |
+| strict_ema200_shares | 9.98 | 250 | 14.0% | 51.2% | 0.15 | -4.67 | -29.0% | $711 | $3,556 | $714 | no |
+| strict_ema200_0dte | 9.98 | 570 | 31.6% | 26.3% | 1.30 | 0.73 | -60.6% | $3,493 | $7,493 | $12 | no |
+| strict_prem50_0dte | 9.98 | 576 | 45.7% | 46.2% | 0.98 | 0.18 | -72.5% | $832 | $4,832 | $180 | no |
+| strict_prem100_0dte | 9.98 | 576 | 33.9% | 32.6% | 1.06 | 0.41 | -63.2% | $1,495 | $5,495 | $883 | no |
+| body_structure_shares | 24.47 | 458 | 14.2% | 47.7% | 0.18 | -6.09 | -46.2% | $538 | n/a | $547 | no |
+| body_structure_0dte | 24.47 | 1309 | 27.0% | 23.6% | 1.19 | 0.91 | -39.5% | $5,067 | n/a | $2 | no |
+| body_ema200_shares | 24.47 | 458 | 13.8% | 49.2% | 0.16 | -6.32 | -45.9% | $541 | n/a | $549 | no |
+| body_ema200_0dte | 24.47 | 1334 | 31.0% | 27.0% | 1.22 | 0.89 | -38.7% | $5,404 | n/a | $0 | no |
+| body_prem50_0dte | 24.47 | 1398 | 45.4% | 45.3% | 1.00 | 0.31 | -63.4% | $1,087 | n/a | -$0 | no |
+| body_prem100_0dte | 24.47 | 1370 | 33.2% | 31.4% | 1.09 | 0.68 | -46.9% | $2,827 | n/a | $1 | no |
+| no_crack_structure_shares | 62.03 | 581 | 16.0% | 50.6% | 0.19 | -6.83 | -54.2% | $458 | $2,290 | $448 | no |
+| no_crack_structure_0dte | 62.03 | 2451 | 27.7% | 22.2% | 1.34 | 1.61 | -26.0% | $14,800 | $18,800 | $0 | yes, not promoted |
+| no_crack_ema200_shares | 62.03 | 581 | 16.0% | 53.4% | 0.17 | -7.22 | -54.2% | $458 | n/a | $451 | no |
+| no_crack_ema200_0dte | 62.03 | 2587 | 31.8% | 26.6% | 1.29 | 1.48 | -25.7% | $12,786 | n/a | $0 | yes, not promoted |
+| no_crack_prem50_0dte | 62.03 | 3133 | 46.6% | 46.3% | 1.01 | 0.45 | -71.8% | $1,592 | n/a | $1 | no |
+| no_crack_prem100_0dte | 62.03 | 2833 | 34.0% | 31.9% | 1.10 | 1.08 | -38.0% | $5,375 | n/a | $2 | no |
+| no_pullback_structure_shares | 32.29 | 493 | 17.4% | 49.9% | 0.21 | -6.10 | -47.7% | $524 | $2,621 | $520 | no |
+| no_pullback_structure_0dte | 32.29 | 1552 | 27.6% | 21.7% | 1.38 | 1.38 | -28.3% | $10,866 | $14,866 | $0 | yes, not promoted |
+| no_pullback_ema200_shares | 32.29 | 493 | 16.8% | 49.9% | 0.20 | -6.17 | -46.6% | $535 | n/a | $521 | no |
+| no_pullback_ema200_0dte | 32.29 | 1610 | 32.2% | 26.4% | 1.32 | 1.24 | -37.4% | $9,336 | n/a | $0 | no |
+| no_pullback_prem50_0dte | 32.29 | 1804 | 47.0% | 46.7% | 1.01 | 0.36 | -56.0% | $1,354 | n/a | $1 | no |
+| no_pullback_prem100_0dte | 32.29 | 1719 | 34.8% | 32.5% | 1.11 | 0.86 | -59.0% | $3,954 | n/a | $1 | no |
+| no_crack_no_pullback_structure_shares | 25.98 | 582 | 16.8% | 50.4% | 0.20 | -6.60 | -53.4% | $466 | n/a | $455 | no |
+| no_crack_no_pullback_structure_0dte | 25.98 | 1507 | 28.0% | 21.9% | 1.39 | 1.34 | -32.1% | $11,430 | n/a | $1 | no |
+| no_crack_no_pullback_ema200_shares | 25.98 | 582 | 17.0% | 54.1% | 0.17 | -7.14 | -53.5% | $465 | n/a | $459 | no |
+| no_crack_no_pullback_ema200_0dte | 25.98 | 1507 | 32.2% | 27.8% | 1.24 | 1.12 | -51.5% | $7,011 | n/a | $2 | no |
+| no_crack_no_pullback_prem50_0dte | 25.98 | 1507 | 46.4% | 45.1% | 1.05 | 0.62 | -44.3% | $2,103 | n/a | $1 | no |
+| no_crack_no_pullback_prem100_0dte | 25.98 | 1507 | 34.1% | 31.7% | 1.12 | 0.83 | -69.1% | $3,917 | n/a | $1 | no |
+| reclaim9_structure_shares | 127.45 | 1185 | 16.5% | 46.6% | 0.23 | -9.67 | -77.5% | $225 | n/a | $221 | no |
+| reclaim9_structure_0dte | 127.45 | 7392 | 26.7% | 22.2% | 1.27 | 1.71 | -49.0% | $33,156 | n/a | $0 | no |
+| reclaim9_ema200_shares | 127.45 | 1185 | 16.6% | 48.3% | 0.21 | -10.14 | -77.5% | $225 | n/a | $220 | no |
+| reclaim9_ema200_0dte | 127.45 | 7392 | 29.3% | 25.6% | 1.20 | 1.50 | -49.6% | $24,041 | n/a | $1 | no |
+| reclaim9_prem50_0dte | 127.45 | 6429 | 42.1% | 42.3% | 0.99 | -0.22 | -99.6% | $11 | n/a | $0 | no |
+| reclaim9_prem100_0dte | 127.45 | 7392 | 31.3% | 29.1% | 1.11 | 1.51 | -49.7% | $13,776 | n/a | $0 | no |
+
+The strict order fires about 10 times a month. Share books lost money on every variant. The strict 0 DTE book finished the holdout at $4,158 (567 trades, 27.5% wins against a 21.9% break-even, profit factor 1.35, Sharpe 0.84, drawdown -46.8%) and training finished at $939. The drawdown misses the gate. Seed-17 random 0 DTE entries finished at $331. Dropping the crack is the version that matches the 2026-10-07 tape. Its 0 DTE book finished at $14,800 (2,451 trades, profit factor 1.34, Sharpe 1.61, drawdown -26.0%) and cleared the holdout arithmetic. It is not promoted. The training account went to $0. Dropping the pullback also cleared the holdout ($10,866, profit factor 1.38, Sharpe 1.38, drawdown -28.3%) and the training account went to $0. The half-scale at the 200 EMA did not repair the share books. The +50% premium target finished near or below the stake. The +100% target made holdout money and wiped training.
+
+strict_structure_shares random holdout, seed 17, 100 trades, ending $885, profit factor 0.13, Sharpe -3.21. strict_structure_0dte random holdout, seed 17, 415 trades, ending $331, profit factor 0.87, Sharpe 0.26. reclaim9_structure_0dte random holdout, seed 17, 4694 trades, ending $1,817, profit factor 1.01, Sharpe 0.48.
+
+### What else shows up before the reclaim
+
+The outcome is the after-cost R of one share on the structure exit, both directions, one position at a time. R is the dollar result divided by the distance from the fill to the trigger stop. A feature survives only when its holdout q is at or under 0.10, train and holdout each have at least 30 trades with it on, its mean R beats the base reclaim in both windows, and that mean is above zero in both windows. q is Benjamini-Hochberg across these 22 features. The t-test treats the trades as independent, and they are not, so a passing q is still a generous bar. Dukascopy volume is a bid-tick count. There is no advance-decline series, so breadth is QQQ reclaiming its own session VWAP. QQQ 5-minute bars run 2017-02-16 through 2022-07-08.
+
+| Feature | Train n | Train mean R | Train lift | Holdout n | Holdout mean R | Holdout lift | Cohen d | t | q | Survives |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| macd_hist_turn | 3772 | -1.40 | 0.05 | 3548 | -0.97 | 0.07 | 0.08 | 3.33 | 0.00 | no |
+| macd_cross_zero | 610 | -1.34 | 0.11 | 584 | -0.90 | 0.14 | 0.09 | 2.48 | 0.02 | no |
+| rsi_divergence | 765 | -1.52 | -0.07 | 777 | -1.14 | -0.10 | -0.07 | -1.91 | 1.00 | no |
+| rsi_recover | 1735 | -1.40 | 0.05 | 1642 | -1.03 | 0.01 | 0.01 | 0.40 | 0.63 | no |
+| trendline_break | 1798 | -1.46 | -0.01 | 1632 | -1.05 | -0.01 | -0.00 | -0.19 | 0.90 | no |
+| volume_fade | 1502 | -1.14 | 0.31 | 3650 | -1.00 | 0.04 | 0.05 | 2.08 | 0.05 | no |
+| volume_expand | 436 | -0.97 | 0.48 | 505 | -0.79 | 0.24 | 0.16 | 4.20 | 0.00 | no |
+| vwap_stretch | 7804 | -1.45 | 0.00 | 7392 | -1.04 | 0.00 | n/a | n/a | n/a | no |
+| higher_low | 5803 | -1.52 | -0.07 | 5259 | -1.09 | -0.05 | -0.11 | -4.69 | 1.00 | no |
+| below_opening_range | 1782 | -1.13 | 0.32 | 2016 | -0.97 | 0.07 | 0.06 | 2.21 | 0.04 | no |
+| above_opening_range | 2356 | -1.75 | -0.30 | 2179 | -1.23 | -0.19 | -0.16 | -6.42 | 1.00 | no |
+| morning | 1567 | -1.04 | 0.41 | 1599 | -0.78 | 0.25 | 0.20 | 8.19 | 0.00 | no |
+| midday | 4215 | -1.54 | -0.09 | 3999 | -1.05 | -0.01 | -0.01 | -0.46 | 0.90 | no |
+| afternoon | 2022 | -1.57 | -0.12 | 1794 | -1.25 | -0.21 | -0.17 | -6.92 | 1.00 | no |
+| gap_against | 3960 | -1.45 | 0.00 | 3764 | -1.01 | 0.03 | 0.04 | 1.77 | 0.09 | no |
+| gap_with | 3823 | -1.45 | -0.00 | 3628 | -1.07 | -0.03 | -0.04 | -1.77 | 1.00 | no |
+| vix_rising | 3529 | -1.38 | 0.07 | 3349 | -0.95 | 0.09 | 0.10 | 4.53 | 0.00 | no |
+| qqq_reclaim | 3865 | -1.39 | 0.06 | 389 | -0.50 | 0.54 | 0.35 | 9.37 | 0.00 | no |
+| prior_day_against | 3862 | -1.44 | 0.01 | 3675 | -1.02 | 0.02 | 0.03 | 1.17 | 0.24 | no |
+| hammer_at_low | 541 | -1.58 | -0.13 | 423 | -1.06 | -0.02 | -0.01 | -0.26 | 0.90 | no |
+| engulfing_at_low | 785 | -1.34 | 0.11 | 884 | -1.06 | -0.02 | -0.01 | -0.45 | 0.90 | no |
+| star_at_low | 9 | -0.90 | 0.55 | 7 | -0.86 | 0.18 | 0.11 | n/a | n/a | no |
+
+The reclaim population has 7392 non-overlapping holdout trades. Their mean after-cost R is -1.04. No feature survived. A survivor needs a holdout q at or under 0.10, at least 30 trades in each window, a mean R above the base in both windows, and a mean R above zero in both windows. The largest holdout lifts that still failed are qqq_reclaim lift 0.54 R (q 0.00), morning lift 0.25 R (q 0.00), volume_expand lift 0.24 R (q 0.00). Those lifts are smaller losses, not gains. Morning still lost 0.78 R, an expanding trigger bar lost 0.79 R, and a MACD cross below zero lost 0.90 R. Afternoon (lift -0.21 R) and a close above the opening range (lift -0.19 R) were worse than the base. A higher low, RSI divergence, the trendline break, and the hammer, engulfing, and morning-star shapes at the low did not help. The 2 standard deviation VWAP stretch was on for every holdout trade, so it did not split the sample. QQQ reclaiming its VWAP has the largest lift, on 389 holdout trades, because that file ends 2022-07-08. Its mean R is still -0.50. Nine features had a negative holdout lift. No feature had a positive mean R in both windows. The combo is the unfiltered setup. Nothing was added on top of it.
+
+No combo. No feature survived, so the base setup was not filtered.
+
+Yahoo 5-minute cache. On Yahoo 5-minute SPY for 2026-10-07 the session in this file runs 09:30 through 12:40 ET. Long rejections: 10:25, 10:30, 10:40, 10:55, 11:00. Crack through the prior high: 11:30, 12:20. Pullback that holds the 9: 11:05, 11:10, 11:20, 11:25, 11:30, 12:00. Trigger above the 9, the 20, and VWAP: 11:30, 11:35, 11:40, 11:45, 11:55, 12:05, 12:10, 12:20, 12:30. Confirmation: 11:35, 11:40, 11:45, 12:10. Strict: no long signal. Drop the crack: trigger 11:30 confirmation 11:35 fill 11:40 at 775.79; trigger 12:05 confirmation 12:10 fill 12:15 at 776.60. Drop the pullback: trigger 11:30 confirmation 11:35 fill 11:40 at 775.79. The first bar that meets a step is the one that is marked. The rule was not moved onto a later print.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_ema_reclaim
+```
+<!-- EMA_RECLAIM_END -->
