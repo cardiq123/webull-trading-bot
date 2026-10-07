@@ -2,7 +2,7 @@
   "rules": {
     "range": "09:30-09:35 ET only. 5-minute: the 09:30 bar. 1-minute: 09:30 through 09:34.",
     "days": "Monday, Wednesday, Friday only.",
-    "skip": "CPI release, Employment Situation, FOMC decision day. 2026 BLS and Fed calendars.",
+    "skip": "CPI release, Employment Situation, FOMC decision day. 2017-2026 BLS and Fed calendars.",
     "break": "First later bar that trades strictly through the high or the low. Equal is not a break.",
     "both_sides": "A bar through both sides is skipped.",
     "one_trade": "First break only, one option per session.",
@@ -16,21 +16,944 @@
       500.0
     ],
     "sizing": "contracts = floor(min(risk, equity) / one-contract debit). Skip when one contract costs more than that budget.",
-    "exit": "+100% of the entry ask, -50% of the entry ask, or 15:30 ET, first one.",
-    "stop_gap": "A bid through the stop fills at that bid. A target fills at the target. Stop is checked first.",
+    "exit": "No stop. Calls take profit at +100% of the entry ask. Puts take profit at +50% of the entry ask. Otherwise sell the 15:30 ET bid, which can be near zero. No adds and no rolls.",
+    "target_fill": "A target fills at the limit. A 15:30 open already through the target fills at the limit. There is no stop, so an adverse wick is held.",
     "iv": "Prior session VIX1D close, else prior VIX close, divided by 100. 1.3x is a sensitivity.",
     "spread": "Half-spread is the greater of $0.01 and 1.5% of the model mid.",
     "account": "Default is a $1,000 cash account. Sale proceeds settle the next session (T+1). A margin account under $25,000 is reported for the pattern-day-trader count and is not the default, because $1,000 is under the $2,000 margin minimum.",
     "model": "Intraday Black-Scholes. No listed chain. The model is the main uncertainty."
   },
   "counts": {
-    "sessions": 38,
+    "sessions": 1431,
     "statuses": {
-      "weekday": 16,
-      "break": 18,
-      "event": 4
+      "break": 1138,
+      "no_0dte": 45,
+      "event": 234,
+      "both_sides": 4,
+      "no_range": 9,
+      "weekday": 1
     },
     "events": [
+      {
+        "date": "2017-03-10",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-03-15",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2017-04-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-05-03",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2017-05-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-05-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2017-06-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-06-14",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2017-07-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-07-14",
+        "kind": "CPI"
+      },
+      {
+        "date": "2017-07-26",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2017-08-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-08-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2017-09-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-09-20",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2017-10-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-10-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2017-11-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2017-11-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-11-15",
+        "kind": "CPI"
+      },
+      {
+        "date": "2017-12-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2017-12-13",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2018-01-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-01-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-01-31",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-02-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-02-14",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-03-09",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-03-21",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-04-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-04-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-05-02",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-05-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-06-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-06-13",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-07-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-08-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-08-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-08-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-09-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-09-26",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2018-10-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-11-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-11-14",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-12-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2018-12-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2018-12-19",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-01-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-01-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-01-30",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-02-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-02-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-03-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-03-20",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-04-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-04-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-05-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-05-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-05-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-06-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-06-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-07-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-07-31",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-08-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-09-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-09-18",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-10-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-10-11",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-10-30",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2019-11-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-11-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2019-12-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2019-12-11",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2020-01-10",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-01-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2020-02-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-03-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-03-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2020-04-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-04-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2020-05-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-06-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-06-10",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2020-07-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2020-08-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-08-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2020-09-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-09-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2020-09-16",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2020-10-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-11-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-12-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2020-12-16",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-01-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-01-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-01-27",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-02-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-02-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-03-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-03-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-03-17",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-04-28",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-05-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-05-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-06-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-06-16",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-07-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-07-28",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-08-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-08-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-09-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-09-22",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-10-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-10-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-11-03",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2021-11-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-11-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-12-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2021-12-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2021-12-15",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-01-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-01-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2022-01-26",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-02-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-03-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-03-16",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-04-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-05-04",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-05-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-05-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2022-06-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-06-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2022-06-15",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-07-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-07-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2022-07-27",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-08-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-08-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2022-09-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-09-21",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-10-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-11-02",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2022-11-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-12-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2022-12-14",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-01-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-02-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-02-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-03-10",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-03-22",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-04-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2023-05-03",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-05-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-05-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2023-06-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-06-14",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-07-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-07-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2023-07-26",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-08-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-09-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-09-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2023-09-20",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-10-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-11-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2023-11-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-12-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2023-12-13",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-01-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-01-31",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-02-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-03-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-03-20",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-04-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-04-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-05-01",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-05-03",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-05-15",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-06-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-06-12",
+        "kind": "CPI+FOMC"
+      },
+      {
+        "date": "2024-07-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-07-31",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-08-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-08-14",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-09-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-09-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-09-18",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2024-10-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-11-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-11-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-12-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2024-12-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2024-12-18",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-01-10",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-01-15",
+        "kind": "CPI"
+      },
+      {
+        "date": "2025-01-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-02-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-02-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2025-03-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-03-12",
+        "kind": "CPI"
+      },
+      {
+        "date": "2025-03-19",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-04-04",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-05-02",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-05-07",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-06-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-06-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2025-06-18",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-07-30",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-08-01",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-09-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2025-09-17",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-10-24",
+        "kind": "CPI"
+      },
+      {
+        "date": "2025-10-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2025-12-10",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-01-09",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-01-28",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-02-11",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-02-13",
+        "kind": "CPI"
+      },
+      {
+        "date": "2026-03-06",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-03-11",
+        "kind": "CPI"
+      },
+      {
+        "date": "2026-03-18",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-04-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2026-04-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-05-08",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-06-05",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-06-10",
+        "kind": "CPI"
+      },
+      {
+        "date": "2026-06-17",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-07-29",
+        "kind": "FOMC"
+      },
+      {
+        "date": "2026-08-07",
+        "kind": "NFP"
+      },
+      {
+        "date": "2026-08-12",
+        "kind": "CPI"
+      },
       {
         "date": "2026-09-04",
         "kind": "NFP"
@@ -48,157 +971,361 @@
         "kind": "NFP"
       }
     ],
-    "first": "2026-08-13",
+    "first": "2017-02-17",
     "last": "2026-10-06"
   },
-  "sample_text": "Yahoo's 5-minute file runs from 2026-08-13 through 2026-10-06, 38 sessions. Yahoo returned no 5-minute SPY bars for January 2026. No Alpaca, Polygon, or other intraday key is in this environment, and a paid archive was not bought. A 60-minute bar does not contain the 09:30-09:35 high and low, so it was not used as a stand-in. Session marks: {\"weekday\": 16, \"break\": 18, \"event\": 4}. Skipped releases inside the file: [{\"date\": \"2026-09-04\", \"kind\": \"NFP\"}, {\"date\": \"2026-09-11\", \"kind\": \"CPI\"}, {\"date\": \"2026-09-16\", \"kind\": \"FOMC\"}, {\"date\": \"2026-10-02\", \"kind\": \"NFP\"}].",
-  "buy_hold_text": "SPY buy and hold, 1 share from the first open to the last close, ended at $1,003.32.",
-  "minute_text": "1-minute bars cover 2026-10-01 through 2026-10-06. The 09:30-09:34 high and low matched the 5-minute candle on 4 of 4 overlapping sessions. The 1-minute break, cash, $100, over that short window only: 0 trades, ending $1,000.00. Premium skips 1. Settlement skips 0. PDT blocked 0. The break days in that file were 2026-10-05, and each was skipped because one contract cost more than $100. That window is anecdotal and is not the verdict.",
-  "chart_text": "Charts, examples only: 2026-10-06 5m high 778.73 low 777.97, no trade, after that candle 777.96-781.62, close 779.14; 2026-10-05 5m high 770.93 low 769.63, break traded, after that candle 769.98-776.60, close 774.94; 2026-10-02 5m high 770.84 low 769.49, no trade, NFP, after that candle 767.15-772.65, close 769.67; 2026-09-30 5m high 767.29 low 766.00, break traded, after that candle 762.20-769.41, close 762.44; 2026-09-25 5m high 769.52 low 767.75, break traded, after that candle 766.29-772.28, close 771.36; 2026-10-06 1m high 778.73 low 777.97, no trade, after that candle 777.96-781.62, close 779.14.",
-  "buy_hold": {
-    "shares": 1,
-    "ending": 1003.3213778712594,
-    "start": "2026-08-13",
-    "end": "2026-10-06",
-    "first_open": 774.8699951171875,
-    "last_close": 779.1400146484375
+  "sample_text": "The sample is Dukascopy's public SPYUSUSD bid 1-minute candles, no account, from 2017-02-17 through 2026-10-06, 1431 sessions with a bar. Prices are bids, about a penny under the consolidated mid, and they are unadjusted. SPY did not split in this window. Dukascopy volume is unused. Tuesday and Thursday were not downloaded, except 2026-10-06 for the chart. Yahoo's 5-minute opening high and low on 23 overlapping sessions differed by a median of $0.0240. The pre-registered gate is $0.05, and this file passed, so the default break is the first 1-minute bar through the 09:30-09:35 range. Yahoo returned no 5-minute SPY bars for January 2026. No Alpaca, Polygon, or other intraday key is in this environment, and a paid archive was not bought. A 60-minute bar does not contain the 09:30-09:35 high and low, so it was not used. The shared holiday list treats Juneteenth as closed in every year, so 2019-06-19 and 2020-06-19 are missing even though the NYSE was open. 2019-06-19 was also an FOMC statement day. Session marks: {\"break\": 1138, \"no_0dte\": 45, \"event\": 234, \"both_sides\": 4, \"no_range\": 9, \"weekday\": 1}. Skipped releases inside the file: {\"NFP\": 107, \"CPI+FOMC\": 6, \"FOMC\": 67, \"CPI\": 54}. The dates are the 2017-2026 calendar. No regular-session bars on 2018-12-05. December 5, 2018 was a national day of mourning and the NYSE was closed.",
+  "buy_hold_text": "SPY buy and hold, 4 shares from the first open to the last close of the scored file, ended at $3,178.79.",
+  "minute_text": "Overlap check: 23 sessions, median absolute difference $0.0240 on the 09:30-09:35 high and the low. Gate $0.05. Passed.",
+  "chart_text": "Charts, examples only: 2026-10-06 5m high 778.72 low 777.94, no trade, after that candle 777.94-781.61, close 779.27; 2026-10-05 5m high 770.92 low 769.65, break traded, after that candle 769.97-776.60, close 774.61; 2026-10-02 5m high 770.80 low 769.46, no trade, NFP, after that candle 767.13-772.64, close 769.60; 2026-09-30 5m high 767.27 low 766.22, break traded, after that candle 762.40-769.40, close 762.47; 2026-09-25 5m high 769.51 low 767.74, break traded, after that candle 766.27-772.27, close 771.31; 2026-10-06 1m high 778.72 low 777.94, no trade, after that candle 777.94-781.61, close 779.27.",
+  "flat_note": "28 of 43 default trades reached 15:30. Their average bid was $0.08, 21.4% of the entry ask.",
+  "risk_200_note": "The $200 book is a sensitivity. It does not replace the $100 cash rule.",
+  "clock_5m_text": "The same ticks aggregated to 5-minute bars, cash, $100: 44 trades, win rate 43.2%, calls at +100% 38.1% of 21, puts at +50% 39.1% of 23, 15:30 on 61.4%, average value $0.07 (17.4% of the entry ask), expectancy $-22.62, profit factor 0.49, Sharpe -0.55, max drawdown -99.6%, longest losing streak 10, ending $4.91. Premium skips 1025. Settlement skips 0. PDT blocked 0. That aggregation is a sensitivity, not the verdict.",
+  "pdt_note": "This file blocked no margin trades. Once the cash account was below the cost of one contract, later signals were premium skips, so a holiday week did not add a fourth trade to the counter.",
+  "first_half_note": " The full sample took no further trades after this half. The account was already below the cost of one contract, so the later signals are premium skips in the full book.",
+  "holdout_note": "That half's after-cost break-even is 55.8% and its win rate is 61.6%. ",
+  "clock": "1m",
+  "coverage": {
+    "study_days": 1432,
+    "sessions": 1431,
+    "empty": [
+      "2018-12-05"
+    ],
+    "missing": 0,
+    "poison": [],
+    "first": "2017-02-17 09:30:00-05:00",
+    "last": "2026-10-06 15:59:00-04:00",
+    "rows": 554574
   },
-  "compare_1m": [
+  "gate": {
+    "sessions": 23,
+    "median": 0.024008544921855446,
+    "passed": true
+  },
+  "gate_rows": [
     {
-      "date": "2026-10-01",
-      "five_high": 765.260009765625,
-      "five_low": 763.3900146484375,
-      "one_high": 765.260009765625,
-      "one_low": 763.3900146484375,
-      "match": true
+      "date": "2026-08-14",
+      "yahoo_high": 778.5800170898438,
+      "yahoo_low": 777.9199829101562,
+      "bid_high": 778.517,
+      "bid_low": 777.886,
+      "high_gap": 0.06301708984369725,
+      "low_gap": 0.03398291015628274
+    },
+    {
+      "date": "2026-08-17",
+      "yahoo_high": 776.7750244140625,
+      "yahoo_low": 775.4620971679688,
+      "bid_high": 776.747,
+      "bid_low": 775.436,
+      "high_gap": 0.028024414062542746,
+      "low_gap": 0.02609716796871453
+    },
+    {
+      "date": "2026-08-19",
+      "yahoo_high": 770.6300048828125,
+      "yahoo_low": 769.8599853515625,
+      "bid_high": 770.606,
+      "bid_low": 769.836,
+      "high_gap": 0.024004882812505457,
+      "low_gap": 0.023985351562487267
+    },
+    {
+      "date": "2026-08-21",
+      "yahoo_high": 766.1400146484375,
+      "yahoo_low": 764.8300170898438,
+      "bid_high": 765.966,
+      "bid_low": 764.786,
+      "high_gap": 0.17401464843749181,
+      "low_gap": 0.04401708984380548
+    },
+    {
+      "date": "2026-08-24",
+      "yahoo_high": 764.8099975585938,
+      "yahoo_low": 763.2000122070312,
+      "bid_high": 764.796,
+      "bid_low": 763.176,
+      "high_gap": 0.013997558593700887,
+      "low_gap": 0.024012207031205435
+    },
+    {
+      "date": "2026-08-26",
+      "yahoo_high": 765.7999877929688,
+      "yahoo_low": 764.6799926757812,
+      "bid_high": 765.787,
+      "bid_low": 764.687,
+      "high_gap": 0.01298779296871544,
+      "low_gap": 0.007007324218761823
+    },
+    {
+      "date": "2026-08-28",
+      "yahoo_high": 772.0900268554688,
+      "yahoo_low": 771.469970703125,
+      "bid_high": 772.057,
+      "bid_low": 771.456,
+      "high_gap": 0.03302685546873363,
+      "low_gap": 0.01397070312498272
+    },
+    {
+      "date": "2026-08-31",
+      "yahoo_high": 767.6199951171875,
+      "yahoo_low": 766.3049926757812,
+      "bid_high": 767.597,
+      "bid_low": 766.286,
+      "high_gap": 0.02299511718752001,
+      "low_gap": 0.01899267578130548
+    },
+    {
+      "date": "2026-09-02",
+      "yahoo_high": 762.52001953125,
+      "yahoo_low": 761.739990234375,
+      "bid_high": 762.477,
+      "bid_low": 761.716,
+      "high_gap": 0.043019531250024556,
+      "low_gap": 0.023990234374991815
+    },
+    {
+      "date": "2026-09-04",
+      "yahoo_high": 772.8300170898438,
+      "yahoo_low": 771.8900146484375,
+      "bid_high": 772.817,
+      "bid_low": 771.847,
+      "high_gap": 0.013017089843742724,
+      "low_gap": 0.04301464843752001
+    },
+    {
+      "date": "2026-09-09",
+      "yahoo_high": 764.3800048828125,
+      "yahoo_low": 763.239990234375,
+      "bid_high": 764.347,
+      "bid_low": 763.196,
+      "high_gap": 0.03300488281252001,
+      "low_gap": 0.043990234374973625
+    },
+    {
+      "date": "2026-09-11",
+      "yahoo_high": 765.8599853515625,
+      "yahoo_low": 764.2249755859375,
+      "bid_high": 765.836,
+      "bid_low": 764.186,
+      "high_gap": 0.023985351562487267,
+      "low_gap": 0.03897558593746453
+    },
+    {
+      "date": "2026-09-14",
+      "yahoo_high": 759.2100219726562,
+      "yahoo_low": 758.5800170898438,
+      "bid_high": 759.177,
+      "bid_low": 758.566,
+      "high_gap": 0.03302197265622908,
+      "low_gap": 0.014017089843719077
+    },
+    {
+      "date": "2026-09-16",
+      "yahoo_high": 759.7000122070312,
+      "yahoo_low": 759.1400146484375,
+      "bid_high": 759.657,
+      "bid_low": 759.116,
+      "high_gap": 0.04301220703121089,
+      "low_gap": 0.024014648437514552
+    },
+    {
+      "date": "2026-09-18",
+      "yahoo_high": 761.760009765625,
+      "yahoo_low": 760.9500122070312,
+      "bid_high": 761.747,
+      "bid_low": 760.926,
+      "high_gap": 0.013009765625042746,
+      "low_gap": 0.024012207031205435
+    },
+    {
+      "date": "2026-09-21",
+      "yahoo_high": 766.6500244140625,
+      "yahoo_low": 766.030029296875,
+      "bid_high": 766.636,
+      "bid_low": 765.997,
+      "high_gap": 0.014024414062532742,
+      "low_gap": 0.033029296875042746
+    },
+    {
+      "date": "2026-09-23",
+      "yahoo_high": 773.0499877929688,
+      "yahoo_low": 772.4400024414062,
+      "bid_high": 773.007,
+      "bid_low": 772.436,
+      "high_gap": 0.04298779296880184,
+      "low_gap": 0.00400244140621453
+    },
+    {
+      "date": "2026-09-25",
+      "yahoo_high": 769.52001953125,
+      "yahoo_low": 767.75,
+      "bid_high": 769.507,
+      "bid_low": 767.736,
+      "high_gap": 0.013019531250051841,
+      "low_gap": 0.014000000000010004
+    },
+    {
+      "date": "2026-09-28",
+      "yahoo_high": 768.6099853515625,
+      "yahoo_low": 767.489990234375,
+      "bid_high": 768.596,
+      "bid_low": 767.466,
+      "high_gap": 0.013985351562496362,
+      "low_gap": 0.023990234374991815
+    },
+    {
+      "date": "2026-09-30",
+      "yahoo_high": 767.2899780273438,
+      "yahoo_low": 766.0,
+      "bid_high": 767.267,
+      "bid_low": 766.216,
+      "high_gap": 0.02297802734369725,
+      "low_gap": 0.21600000000000819
     },
     {
       "date": "2026-10-02",
-      "five_high": 770.8400268554688,
-      "five_low": 769.489990234375,
-      "one_high": 770.8400268554688,
-      "one_low": 769.489990234375,
-      "match": true
+      "yahoo_high": 770.8400268554688,
+      "yahoo_low": 769.489990234375,
+      "bid_high": 770.796,
+      "bid_low": 769.457,
+      "high_gap": 0.04402685546870089,
+      "low_gap": 0.032990234375006366
     },
     {
       "date": "2026-10-05",
-      "five_high": 770.9299926757812,
-      "five_low": 769.6300048828125,
-      "one_high": 770.9299926757812,
-      "one_low": 769.6300048828125,
-      "match": true
+      "yahoo_high": 770.9299926757812,
+      "yahoo_low": 769.6300048828125,
+      "bid_high": 770.917,
+      "bid_low": 769.647,
+      "high_gap": 0.012992675781219987,
+      "low_gap": 0.016995117187548203
     },
     {
       "date": "2026-10-06",
-      "five_high": 778.72998046875,
-      "five_low": 777.969970703125,
-      "one_high": 778.72998046875,
-      "one_low": 777.969970703125,
-      "match": true
+      "yahoo_high": 778.72998046875,
+      "yahoo_low": 777.969970703125,
+      "bid_high": 778.717,
+      "bid_low": 777.936,
+      "high_gap": 0.012980468750015461,
+      "low_gap": 0.03397070312496453
     }
   ],
+  "buy_hold": {
+    "shares": 4,
+    "ending": 3178.7913381261606,
+    "start": "2017-02-17",
+    "end": "2026-10-06",
+    "first_open": 233.945,
+    "last_close": 779.267
+  },
   "charts": [
     {
       "date": "2026-10-06",
       "clock": "5m",
       "path": "reports/setups/orb_mwf_spy_2026-10-06.png",
-      "or_high": 778.72998046875,
-      "or_low": 777.969970703125,
+      "or_high": 778.717,
+      "or_low": 777.936,
       "status": "weekday",
       "event": null,
-      "close": 779.1400146484375,
-      "high_after": 781.6199951171875,
-      "low_after": 777.9600219726562,
+      "close": 779.267,
+      "high_after": 781.607,
+      "low_after": 777.936,
       "complete": true
     },
     {
       "date": "2026-10-05",
       "clock": "5m",
       "path": "reports/setups/orb_mwf_spy_2026-10-05.png",
-      "or_high": 770.9299926757812,
-      "or_low": 769.6300048828125,
+      "or_high": 770.917,
+      "or_low": 769.647,
       "status": "break",
       "event": null,
-      "close": 774.9400024414062,
-      "high_after": 776.60498046875,
-      "low_after": 769.97998046875,
+      "close": 774.607,
+      "high_after": 776.596,
+      "low_after": 769.966,
       "complete": true
     },
     {
       "date": "2026-10-02",
       "clock": "5m",
       "path": "reports/setups/orb_mwf_spy_2026-10-02.png",
-      "or_high": 770.8400268554688,
-      "or_low": 769.489990234375,
+      "or_high": 770.796,
+      "or_low": 769.457,
       "status": "event",
       "event": "NFP",
-      "close": 769.6699829101562,
-      "high_after": 772.6500244140625,
-      "low_after": 767.14501953125,
+      "close": 769.597,
+      "high_after": 772.637,
+      "low_after": 767.126,
       "complete": true
     },
     {
       "date": "2026-09-30",
       "clock": "5m",
       "path": "reports/setups/orb_mwf_spy_2026-09-30.png",
-      "or_high": 767.2899780273438,
-      "or_low": 766.0,
+      "or_high": 767.267,
+      "or_low": 766.216,
       "status": "break",
       "event": null,
-      "close": 762.4400024414062,
-      "high_after": 769.4099731445312,
-      "low_after": 762.2000122070312,
+      "close": 762.467,
+      "high_after": 769.396,
+      "low_after": 762.397,
       "complete": true
     },
     {
       "date": "2026-09-25",
       "clock": "5m",
       "path": "reports/setups/orb_mwf_spy_2026-09-25.png",
-      "or_high": 769.52001953125,
-      "or_low": 767.75,
+      "or_high": 769.507,
+      "or_low": 767.736,
       "status": "break",
       "event": null,
-      "close": 771.3599853515625,
-      "high_after": 772.280029296875,
-      "low_after": 766.2899780273438,
+      "close": 771.307,
+      "high_after": 772.267,
+      "low_after": 766.266,
       "complete": true
     },
     {
       "date": "2026-10-06",
       "clock": "1m",
       "path": "reports/setups/orb_mwf_spy_2026-10-06_1m.png",
-      "or_high": 778.72998046875,
-      "or_low": 777.969970703125,
+      "or_high": 778.717,
+      "or_low": 777.936,
       "status": "weekday",
       "event": null,
-      "close": 779.1400146484375,
-      "high_after": 781.6199951171875,
-      "low_after": 777.9600219726562,
+      "close": 779.267,
+      "high_after": 781.607,
+      "low_after": 777.936,
       "complete": true
     }
   ],
   "probe": "Yahoo returned no 5-minute SPY bars for January 2026.",
   "default": {
-    "trades": 13,
-    "win_rate": 0.23076923076923078,
-    "expectancy": -17.921745806572865,
-    "ending": 767.0173045145528,
-    "max_drawdown": -0.47944601629646855,
-    "sharpe": -1.7491371890680785,
-    "profit_factor": 0.5140585434724294,
-    "avg_win": 82.1544402703404,
-    "avg_loss": -47.94460162964685,
+    "trades": 43,
+    "win_rate": 0.3953488372093023,
+    "expectancy": -23.14775151857241,
+    "ending": 4.6466847013860475,
+    "max_drawdown": -0.9957572416263125,
+    "sharpe": -1.0326535402900539,
+    "profit_factor": 0.4771916560978793,
+    "avg_win": 53.44150461859634,
+    "avg_loss": -73.22534206979813,
     "losing_streak": 10,
     "reasons": {
-      "target": 3,
-      "stop": 10,
-      "time": 0
+      "target": 15,
+      "time": 28
     },
-    "pct_target": 0.23076923076923078,
-    "pct_stop": 0.7692307692307693,
-    "pct_time": 0.0,
+    "call_trades": 19,
+    "put_trades": 24,
+    "pct_call_target": 0.3157894736842105,
+    "pct_put_target": 0.375,
+    "pct_time": 0.6511627906976745,
+    "time_count": 28,
+    "time_at_1530": 28,
+    "time_avg_exit": 0.08097630874078712,
+    "time_avg_ratio": 0.214490290880581,
     "pdt_blocked": 0,
-    "premium_skipped": 5,
+    "premium_skipped": 1095,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -209,26 +1336,31 @@
     "iv_scale": 1.0
   },
   "risk_200": {
-    "trades": 16,
-    "win_rate": 0.25,
-    "expectancy": -37.46422131685395,
-    "ending": 400.5724589303368,
-    "max_drawdown": -0.912373140782994,
-    "sharpe": 0.36099619012066925,
-    "profit_factor": 0.4590378765282821,
-    "avg_win": 127.16229734315837,
-    "avg_loss": -92.33972753685805,
-    "losing_streak": 9,
+    "trades": 36,
+    "win_rate": 0.4722222222222222,
+    "expectancy": -27.48732953543461,
+    "ending": 10.456136724353925,
+    "max_drawdown": -0.9915332701452144,
+    "sharpe": -0.38405864808917106,
+    "profit_factor": 0.671934548139305,
+    "avg_win": 119.22095653975511,
+    "avg_loss": -158.75263812902546,
+    "losing_streak": 3,
     "reasons": {
-      "target": 4,
-      "stop": 12,
-      "time": 0
+      "target": 15,
+      "time": 21
     },
-    "pct_target": 0.25,
-    "pct_stop": 0.75,
-    "pct_time": 0.0,
+    "call_trades": 17,
+    "put_trades": 19,
+    "pct_call_target": 0.35294117647058826,
+    "pct_put_target": 0.47368421052631576,
+    "pct_time": 0.5833333333333334,
+    "time_count": 21,
+    "time_at_1530": 21,
+    "time_avg_exit": 0.09702093898687293,
+    "time_avg_ratio": 0.2589806089281999,
     "pdt_blocked": 0,
-    "premium_skipped": 2,
+    "premium_skipped": 1102,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -239,26 +1371,31 @@
     "iv_scale": 1.0
   },
   "risk_500": {
-    "trades": 6,
-    "win_rate": 0.0,
-    "expectancy": -158.16818885967257,
-    "ending": 50.99086684196448,
-    "max_drawdown": -0.9490091331580355,
-    "sharpe": -6.76742056861696,
-    "profit_factor": 0.0,
-    "avg_win": 0.0,
-    "avg_loss": -158.16818885967257,
-    "losing_streak": 6,
+    "trades": 12,
+    "win_rate": 0.4166666666666667,
+    "expectancy": -82.93395852778538,
+    "ending": 4.792497666574983,
+    "max_drawdown": -0.9970814113132681,
+    "sharpe": -0.2891241677647059,
+    "profit_factor": 0.5332626191001327,
+    "avg_win": 227.41137991528475,
+    "avg_loss": -304.6092002728355,
+    "losing_streak": 3,
     "reasons": {
-      "target": 0,
-      "stop": 6,
-      "time": 0
+      "target": 3,
+      "time": 9
     },
-    "pct_target": 0.0,
-    "pct_stop": 1.0,
-    "pct_time": 0.0,
+    "call_trades": 7,
+    "put_trades": 5,
+    "pct_call_target": 0.2857142857142857,
+    "pct_put_target": 0.2,
+    "pct_time": 0.75,
+    "time_count": 9,
+    "time_at_1530": 9,
+    "time_avg_exit": 0.1652883833803952,
+    "time_avg_ratio": 0.4272182728136025,
     "pdt_blocked": 0,
-    "premium_skipped": 12,
+    "premium_skipped": 1126,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -269,26 +1406,31 @@
     "iv_scale": 1.0
   },
   "next_open": {
-    "trades": 11,
-    "win_rate": 0.2727272727272727,
-    "expectancy": -11.310236884237268,
-    "ending": 875.58739427339,
-    "max_drawdown": -0.3379180839312501,
-    "sharpe": -0.9804228301088134,
-    "profit_factor": 0.6786162908598579,
-    "avg_win": 87.56762154112612,
-    "avg_loss": -48.38943379374854,
+    "trades": 48,
+    "win_rate": 0.4166666666666667,
+    "expectancy": -20.725978936642488,
+    "ending": 5.153011041159974,
+    "max_drawdown": -0.9953965206232874,
+    "sharpe": -0.5339105601461097,
+    "profit_factor": 0.5041605538278333,
+    "avg_win": 50.57711854103747,
+    "avg_loss": -71.65676284927103,
     "losing_streak": 7,
     "reasons": {
-      "target": 3,
-      "stop": 8,
-      "time": 0
+      "target": 18,
+      "time": 30
     },
-    "pct_target": 0.2727272727272727,
-    "pct_stop": 0.7272727272727273,
-    "pct_time": 0.0,
+    "call_trades": 23,
+    "put_trades": 25,
+    "pct_call_target": 0.34782608695652173,
+    "pct_put_target": 0.4,
+    "pct_time": 0.625,
+    "time_count": 30,
+    "time_at_1530": 30,
+    "time_avg_exit": 0.07599104332436278,
+    "time_avg_ratio": 0.201778559722739,
     "pdt_blocked": 0,
-    "premium_skipped": 7,
+    "premium_skipped": 1090,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -299,26 +1441,31 @@
     "iv_scale": 1.0
   },
   "iv_130": {
-    "trades": 3,
-    "win_rate": 0.3333333333333333,
-    "expectancy": 2.583150191158533,
-    "ending": 1007.7494505734755,
-    "max_drawdown": -0.09092025002649506,
-    "sharpe": 0.31354801020783274,
-    "profit_factor": 1.0852334938720178,
-    "avg_win": 98.66970059997067,
-    "avg_loss": -45.460125013247534,
-    "losing_streak": 2,
+    "trades": 37,
+    "win_rate": 0.32432432432432434,
+    "expectancy": -26.758212941105914,
+    "ending": 9.946121179081112,
+    "max_drawdown": -0.9907199986801594,
+    "sharpe": -0.928255297181692,
+    "profit_factor": 0.3734105817147569,
+    "avg_win": 49.16784208166189,
+    "avg_loss": -63.20271935203445,
+    "losing_streak": 7,
     "reasons": {
-      "target": 1,
-      "stop": 2,
-      "time": 0
+      "target": 10,
+      "time": 27
     },
-    "pct_target": 0.3333333333333333,
-    "pct_stop": 0.6666666666666666,
-    "pct_time": 0.0,
+    "call_trades": 18,
+    "put_trades": 19,
+    "pct_call_target": 0.16666666666666666,
+    "pct_put_target": 0.3684210526315789,
+    "pct_time": 0.7297297297297297,
+    "time_count": 27,
+    "time_at_1530": 27,
+    "time_avg_exit": 0.13547772097905264,
+    "time_avg_ratio": 0.3032639757282163,
     "pdt_blocked": 0,
-    "premium_skipped": 15,
+    "premium_skipped": 1101,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -329,26 +1476,31 @@
     "iv_scale": 1.3
   },
   "margin": {
-    "trades": 13,
-    "win_rate": 0.23076923076923078,
-    "expectancy": -17.921745806572865,
-    "ending": 767.0173045145528,
-    "max_drawdown": -0.47944601629646855,
-    "sharpe": -1.7491371890680785,
-    "profit_factor": 0.5140585434724294,
-    "avg_win": 82.1544402703404,
-    "avg_loss": -47.94460162964685,
+    "trades": 43,
+    "win_rate": 0.3953488372093023,
+    "expectancy": -23.14775151857241,
+    "ending": 4.6466847013860475,
+    "max_drawdown": -0.9957572416263125,
+    "sharpe": -1.0326535402900539,
+    "profit_factor": 0.4771916560978793,
+    "avg_win": 53.44150461859634,
+    "avg_loss": -73.22534206979813,
     "losing_streak": 10,
     "reasons": {
-      "target": 3,
-      "stop": 10,
-      "time": 0
+      "target": 15,
+      "time": 28
     },
-    "pct_target": 0.23076923076923078,
-    "pct_stop": 0.7692307692307693,
-    "pct_time": 0.0,
+    "call_trades": 19,
+    "put_trades": 24,
+    "pct_call_target": 0.3157894736842105,
+    "pct_put_target": 0.375,
+    "pct_time": 0.6511627906976745,
+    "time_count": 28,
+    "time_at_1530": 28,
+    "time_avg_exit": 0.08097630874078712,
+    "time_avg_ratio": 0.214490290880581,
     "pdt_blocked": 0,
-    "premium_skipped": 5,
+    "premium_skipped": 1095,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -359,26 +1511,31 @@
     "iv_scale": 1.0
   },
   "random": {
-    "trades": 13,
-    "win_rate": 0.15384615384615385,
-    "expectancy": -26.2198259180949,
-    "ending": 659.1422630647663,
-    "max_drawdown": -0.404032698017877,
-    "sharpe": -3.7493271802527817,
-    "profit_factor": 0.3224405792154903,
-    "avg_win": 81.10459596312843,
-    "avg_loss": -45.733357169226416,
-    "losing_streak": 9,
+    "trades": 51,
+    "win_rate": 0.39215686274509803,
+    "expectancy": -19.382020473266877,
+    "ending": 11.51695586338885,
+    "max_drawdown": -0.9886675242930139,
+    "sharpe": -1.0283097634731295,
+    "profit_factor": 0.5138043317599981,
+    "avg_win": 52.230707010124014,
+    "avg_loss": -65.58378013997067,
+    "losing_streak": 10,
     "reasons": {
-      "target": 2,
-      "stop": 11,
-      "time": 0
+      "target": 19,
+      "time": 32
     },
-    "pct_target": 0.15384615384615385,
-    "pct_stop": 0.8461538461538461,
-    "pct_time": 0.0,
+    "call_trades": 26,
+    "put_trades": 25,
+    "pct_call_target": 0.23076923076923078,
+    "pct_put_target": 0.52,
+    "pct_time": 0.6274509803921569,
+    "time_count": 32,
+    "time_at_1530": 32,
+    "time_avg_exit": 0.08680641123000521,
+    "time_avg_ratio": 0.22517924296555852,
     "pdt_blocked": 0,
-    "premium_skipped": 5,
+    "premium_skipped": 1087,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -389,26 +1546,31 @@
     "iv_scale": 1.0
   },
   "first_half": {
-    "trades": 9,
-    "win_rate": 0.0,
-    "expectancy": -46.84302547446151,
-    "ending": 578.4127707298463,
-    "max_drawdown": -0.4215872292701537,
-    "sharpe": -14.741755776194223,
-    "profit_factor": 0.0,
-    "avg_win": 0.0,
-    "avg_loss": -46.84302547446151,
-    "losing_streak": 9,
+    "trades": 43,
+    "win_rate": 0.3953488372093023,
+    "expectancy": -23.14775151857241,
+    "ending": 4.6466847013860475,
+    "max_drawdown": -0.9957572416263125,
+    "sharpe": -1.4310813448716284,
+    "profit_factor": 0.4771916560978793,
+    "avg_win": 53.44150461859634,
+    "avg_loss": -73.22534206979813,
+    "losing_streak": 10,
     "reasons": {
-      "target": 0,
-      "stop": 9,
-      "time": 0
+      "target": 15,
+      "time": 28
     },
-    "pct_target": 0.0,
-    "pct_stop": 1.0,
-    "pct_time": 0.0,
+    "call_trades": 19,
+    "put_trades": 24,
+    "pct_call_target": 0.3157894736842105,
+    "pct_put_target": 0.375,
+    "pct_time": 0.6511627906976745,
+    "time_count": 28,
+    "time_at_1530": 28,
+    "time_avg_exit": 0.08097630874078712,
+    "time_avg_ratio": 0.214490290880581,
     "pdt_blocked": 0,
-    "premium_skipped": 0,
+    "premium_skipped": 526,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -419,26 +1581,31 @@
     "iv_scale": 1.0
   },
   "holdout": {
-    "trades": 4,
-    "win_rate": 0.75,
-    "expectancy": 47.15113344617659,
-    "ending": 1188.604533784706,
-    "max_drawdown": -0.05785878702631486,
-    "sharpe": 4.470959858883835,
-    "profit_factor": 4.259738813724642,
-    "avg_win": 82.1544402703404,
-    "avg_loss": -57.85878702631487,
-    "losing_streak": 1,
+    "trades": 359,
+    "win_rate": 0.6155988857938719,
+    "expectancy": 7.408093472025455,
+    "ending": 3659.5055564571394,
+    "max_drawdown": -0.2646307698861361,
+    "sharpe": 1.5991262676913056,
+    "profit_factor": 1.2667005178037898,
+    "avg_win": 57.155590701959916,
+    "avg_loss": -72.25999991794205,
+    "losing_streak": 5,
     "reasons": {
-      "target": 3,
-      "stop": 1,
-      "time": 0
+      "target": 213,
+      "time": 146
     },
-    "pct_target": 0.75,
-    "pct_stop": 0.25,
-    "pct_time": 0.0,
+    "call_trades": 199,
+    "put_trades": 160,
+    "pct_call_target": 0.5226130653266332,
+    "pct_put_target": 0.68125,
+    "pct_time": 0.40668523676880225,
+    "time_count": 146,
+    "time_at_1530": 144,
+    "time_avg_exit": 0.07634742474288495,
+    "time_avg_ratio": 0.09384581782046134,
     "pdt_blocked": 0,
-    "premium_skipped": 5,
+    "premium_skipped": 210,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,
@@ -448,27 +1615,32 @@
     "fill": "level",
     "iv_scale": 1.0
   },
-  "one_minute": {
-    "trades": 0,
-    "win_rate": 0.0,
-    "expectancy": 0.0,
-    "ending": 1000.0,
-    "max_drawdown": 0.0,
-    "sharpe": 0.0,
-    "profit_factor": null,
-    "avg_win": 0.0,
-    "avg_loss": 0.0,
-    "losing_streak": 0,
+  "clock_5m": {
+    "trades": 44,
+    "win_rate": 0.4318181818181818,
+    "expectancy": -22.615723962202274,
+    "ending": 4.908145663099408,
+    "max_drawdown": -0.9956378144377058,
+    "sharpe": -0.5475799223483241,
+    "profit_factor": 0.48637525293413447,
+    "avg_win": 49.59468080955767,
+    "avg_loss": -77.49563158873983,
+    "losing_streak": 10,
     "reasons": {
-      "target": 0,
-      "stop": 0,
-      "time": 0
+      "target": 17,
+      "time": 27
     },
-    "pct_target": 0.0,
-    "pct_stop": 0.0,
-    "pct_time": 0.0,
+    "call_trades": 21,
+    "put_trades": 23,
+    "pct_call_target": 0.38095238095238093,
+    "pct_put_target": 0.391304347826087,
+    "pct_time": 0.6136363636363636,
+    "time_count": 27,
+    "time_at_1530": 27,
+    "time_avg_exit": 0.06514552899128398,
+    "time_avg_ratio": 0.17362408485255468,
     "pdt_blocked": 0,
-    "premium_skipped": 1,
+    "premium_skipped": 1025,
     "settlement_skipped": 0,
     "iv_skipped": 0,
     "no_fill": 0,

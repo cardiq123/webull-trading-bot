@@ -353,10 +353,12 @@ def render(payload: dict) -> str:
             "",
             f"Random call-or-put at the same break, seed 17, same exits: {_plain(payload['random'])}",
             "",
-            f"First half of the break days, replayed from a fresh $1,000: {_plain(payload['first_half'])}",
+            f"First half of the break days, replayed from a fresh $1,000: {_plain(payload['first_half'])}"
+            + payload.get("first_half_note", ""),
             "",
             f"Second half of the break days, also from a fresh $1,000 and not from the equity left after the first half: {_plain(payload['holdout'])} "
-            "That half was not used to change the rule. A second-half row that finishes above $1,000 was not promoted.",
+            + payload.get("holdout_note", "")
+            + "That half was not used to change the rule. A second-half row that finishes above $1,000 was not promoted.",
             "",
             payload["buy_hold_text"],
             "",
@@ -541,7 +543,11 @@ def main() -> None:
         one_read = next((read for read in reads if read.day == CHART_DAY), None)
         charts.append(_chart(minutes, CHART_DAY, one_read, "1m", CHART_DIR / f"orb_mwf_spy_{CHART_DAY.isoformat()}_1m.png"))
     median_text = "n/a" if gate["median"] is None else f"${gate['median']:.4f}"
-    empty_note = f" {len(coverage['empty'])} study days had no published regular-session bars."
+    empty_note = ""
+    if coverage["empty"]:
+        empty_note = " No regular-session bars on " + ", ".join(coverage["empty"]) + "."
+        if "2018-12-05" in coverage["empty"]:
+            empty_note += " December 5, 2018 was a national day of mourning and the NYSE was closed."
     source_lead = (
         "The sample is Dukascopy's public SPYUSUSD bid 1-minute candles, no account, from "
         f"{counted['first']} through {counted['last']}, {counted['sessions']} sessions with a bar. "
@@ -598,7 +604,25 @@ def main() -> None:
             f"This file blocked {blocked} margin trades. The cash book took those trades. Cash is the verdict."
         )
     else:
-        pdt_note = "This file blocked no margin trades."
+        pdt_note = (
+            "This file blocked no margin trades. Once the cash account was below the cost of one contract, "
+            "later signals were premium skips, so a holiday week did not add a fourth trade to the counter."
+        )
+    first_half_note = ""
+    if (
+        books["default"]["trades"] == books["first_half"]["trades"]
+        and abs(books["default"]["ending"] - books["first_half"]["ending"]) < 0.05
+    ):
+        first_half_note = (
+            " The full sample took no further trades after this half. "
+            "The account was already below the cost of one contract, so the later signals are premium skips in the full book."
+        )
+    hold_be = _after_cost_breakeven(books["holdout"])
+    holdout_note = ""
+    if hold_be is not None and int(books["holdout"]["trades"]):
+        holdout_note = (
+            f"That half's after-cost break-even is {_pct(hold_be)} and its win rate is {_pct(books['holdout']['win_rate'])}. "
+        )
     chart_bits = []
     for fact in charts:
         if "or_high" not in fact:
@@ -624,6 +648,8 @@ def main() -> None:
         "risk_200_note": _risk_200_note(books["risk_200"]),
         "clock_5m_text": clock_5m_text,
         "pdt_note": pdt_note,
+        "first_half_note": first_half_note,
+        "holdout_note": holdout_note,
         "clock": clock,
         "coverage": {key: value for key, value in coverage.items() if key != "rows" or True},
         "gate": {key: value for key, value in gate.items() if key != "rows"},
