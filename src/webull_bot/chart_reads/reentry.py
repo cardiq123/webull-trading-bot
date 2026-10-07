@@ -138,7 +138,7 @@ def _scan(prep: Prepared, symbol: str, start: int, end: int, direction: str, var
 
 def walk_reentry(prep: Prepared, item: Reentry, target: str, stop_name: str) -> dict | None:
     """Close through the stop level, after a target tag on that bar. Flat at 15:30."""
-    if target not in ("band", "ema200") or stop_name not in ("ema20", "vwap"):
+    if target not in ("band", "ema200") or stop_name not in ("ema9", "ema20", "vwap"):
         raise ValueError("unknown re-entry exit")
     fill_i = item.fill_i
     if fill_i >= len(prep.close):
@@ -530,7 +530,14 @@ def _trade_color(prep: Prepared, i: int, direction: str) -> bool:
 
 
 def _level(prep: Prepared, i: int, name: str) -> float | None:
-    value = float(prep.ema20[i] if name == "ema20" else prep.vwap[i])
+    if name == "ema9":
+        value = float(prep.ema9[i])
+    elif name == "ema20":
+        value = float(prep.ema20[i])
+    elif name == "vwap":
+        value = float(prep.vwap[i])
+    else:
+        return None
     if not np.isfinite(value):
         return None
     return value
