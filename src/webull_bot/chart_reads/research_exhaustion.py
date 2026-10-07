@@ -355,6 +355,7 @@ def main() -> None:
         f"From $5,000 that 0 DTE book finished at {_money(five.get('ending_equity'))} "
         f"({five.get('trades', 0)} trades, profit factor {_pf(five.get('profit_factor'))}, "
         f"drawdown {_pct(five.get('max_drawdown'))}). "
+        "One contract, so the extra cash is idle and that smaller drawdown is the same dollar path. "
         f"The VWAP target, shares, finished at {_ending(by_name['vwap_shares']['hold'], by_name['vwap_shares']['train'])}. "
         f"The VWAP target as one 0 DTE contract finished at {_ending(by_name['vwap_0dte']['hold'], by_name['vwap_0dte']['train'])}. "
         + " ".join(random_bits)

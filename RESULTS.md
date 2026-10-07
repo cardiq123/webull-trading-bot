@@ -4972,3 +4972,26 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_wick
 ```
 <!-- WICK_END -->
+
+<!-- EXHAUST_START -->
+### Trend-exhaustion shelf
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. The sandbox forward test was not changed. The shelf was frozen before this score. After the first bar of the session that tags the upper 2 SD VWAP band while the 9 EMA is above the 20 EMA, support is the lowest low of the later bars. A later tag does not move that anchor. The signal is a 5-minute close strictly below that support and strictly below the 9 EMA, with the 9 still above the 20. The MACD histogram has to shrink for three bars off a positive print. A histogram that is only getting more negative does not count. RSI has to have printed at least 70 after the tag, and the signal bar has to be rolling down from that print. The fill is the next open. The stop is one cent above the last confirmed 2-bar swing high. The 20 EMA and VWAP are separate targets, because one contract cannot scale out of both. A book skips the trade when that level is not beyond the fill. Flat at the 15:30 open. The long is the mirror: a lower-band tag in a downtrend, resistance at the highest high after it, a close above that high and the 9 EMA, MACD rising off a negative print, and RSI rolling up from 30.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| ema20_shares | 63 | 20.6% | 56.7% | 0.20 | -1.60 | -5.0% | $950 | n/a | $898 | no |
+| ema20_0dte | 131 | 72.5% | 53.7% | 2.27 | 1.07 | -18.7% | $2,235 | $6,235 | $806 | no |
+| vwap_shares | 24 | 16.7% | 68.4% | 0.09 | -1.38 | -3.7% | $963 | n/a | $978 | no |
+| vwap_0dte | 35 | 54.3% | 52.9% | 1.06 | 0.11 | -18.2% | $1,029 | n/a | $1,058 | no |
+
+The shelf fires about 5.8 times a month on the holdout, both directions. Target the 20 EMA, shares finished at $950 (63 trades, win 20.6% against break-even 56.7%, profit factor 0.20, Sharpe -1.60, drawdown -5.0%, train $898). The same entries as one 0 DTE contract finished at $2,235 (131 trades, win 72.5% against break-even 53.7%, profit factor 2.27, Sharpe 1.07, drawdown -18.7%, train $806). From $5,000 that 0 DTE book finished at $6,235 (131 trades, profit factor 2.27, drawdown -4.0%). One contract, so the extra cash is idle and that smaller drawdown is the same dollar path. The VWAP target, shares, finished at $963 (24 trades, win 16.7% against break-even 68.4%, profit factor 0.09, Sharpe -1.38, drawdown -3.7%, train $978). The VWAP target as one 0 DTE contract finished at $1,029 (35 trades, win 54.3% against break-even 52.9%, profit factor 1.06, Sharpe 0.11, drawdown -18.2%, train $1,058). ema20_shares random holdout, seed 17, 63 entries, 13 trades, ending $986, profit factor 0.21, Sharpe -0.97, drawdown -1.4%. ema20_0dte random holdout, seed 17, 131 entries, 46 trades, ending $980, profit factor 0.95, Sharpe -0.02, drawdown -11.8%. Share books are long only. A target that is not beyond the fill is skipped. A row that clears the holdout arithmetic is not promoted.
+
+Yahoo 5-minute cache. Yahoo 5-minute SPY on 2026-10-07 runs 09:30 through 13:50 ET in this file. The first uptrend upper-band tag is 11:45, high 776.45 against the band 776.15, with the 9 EMA at 775.34 and the 20 EMA at 775.25. Support is the lowest low after that tag, the 12:00 low at 775.80. The 12:00 bar closes at 776.24 and its low is 775.80. The 12:05 low is 776.19. Those prints sit near 776.2. The line stays on the pullback low. It is not moved onto 776.2. No 5-minute close in this file, through 13:50 ET, is below that support and the 9 EMA with a three-bar MACD fade off a positive histogram and RSI rolling down from 70. The short is not marked.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_exhaustion
+```
+<!-- EXHAUST_END -->
