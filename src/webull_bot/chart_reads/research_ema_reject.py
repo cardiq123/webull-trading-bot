@@ -168,7 +168,7 @@ def _pack(book: dict, gate: bool) -> dict:
 
 
 def _signals_by_variant(frame: pd.DataFrame, symbol: str) -> dict[str, list]:
-    grouped = {"ema": [], "vwap": [], "ema20": []}
+    grouped = {"ema": [], "vwap": [], "ema20": [], "reversal": []}
     for signal in find_signals(frame, symbol):
         grouped[signal.variant].append(signal)
     return grouped
@@ -797,5 +797,260 @@ def main() -> None:
     print(f"WROTE {RULES_PATH} {JSON_PATH} {EQUITY_PATH}", flush=True)
 
 
+REVERSAL_MARK_START = "<!-- EMA_REVERSAL_START -->"
+REVERSAL_MARK_END = "<!-- EMA_REVERSAL_END -->"
+REVERSAL_PRIMARY = (
+    ("reversal", "reject", "swing", "shares", True),
+    ("reversal", "reject", "swing", "0dte", False),
+    ("reversal", "reject", "ema", "shares", True),
+    ("reversal", "reject", "ema", "0dte", False),
+)
+REVERSAL_EXTRA = (
+    ("reversal", "reject", "r1", "shares", True),
+    ("reversal", "reject", "r1", "0dte", False),
+    ("reversal", "reject", "r2", "shares", True),
+    ("reversal", "reject", "r2", "0dte", False),
+)
+
+
+def _reversal_row(name: str, hold: dict, train: dict | None, stake_5: dict | None) -> str:
+    five = _money(stake_5.get("ending_equity")) if stake_5 else "n/a"
+    train_end = _money(train.get("ending_equity")) if train else "n/a"
+    return (
+        f"| {name} | {hold.get('trades', 0)} | {_pct(hold.get('win_rate'))} | "
+        f"{_pct(hold.get('breakeven_win_rate'))} | {_pf(hold.get('profit_factor'))} | "
+        f"{_num(hold.get('sharpe'))} | {_pct(hold.get('max_drawdown'))} | "
+        f"{_money(hold.get('ending_equity'))} | {five} | {train_end} | "
+        f"{'yes, not promoted' if passes_gate(hold) else 'no'} |"
+    )
+
+
+def score_reversal() -> None:
+    """Score the frozen reversal variant. Does not replace the rejection gate."""
+    rules = frozen_rules()
+    RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RULES_PATH.write_text(json.dumps(rules, indent=2) + "\n")
+    written = json.loads(RULES_PATH.read_text())
+    if written["gate_variant"] != "vwap" or "Not the gate" not in written["variants"]["reversal"]:
+        raise SystemExit("reversal rules were not frozen before the score")
+
+    minutes, info = load_minutes("SPY")
+    if minutes is None:
+        raise SystemExit(f"SPY minutes are not ready {info}")
+    spy = to_five_minute(minutes)
+    qqq, qqq_anecdotal, qqq_note = _qqq()
+    iv, _yahoo_daily = _prepare_iv()
+    print(f"REVERSAL SPY bars {len(spy)}", flush=True)
+
+    def _books(symbol: str, frame: pd.DataFrame, anecdotal: bool) -> list[dict]:
+        signals = [item for item in find_signals(frame, symbol) if item.variant == "reversal"]
+        print(f"REVERSAL {symbol} signals {len(signals)}", flush=True)
+        rows = []
+        for spec in REVERSAL_PRIMARY + REVERSAL_EXTRA:
+            if anecdotal and spec not in REVERSAL_PRIMARY[:2]:
+                continue
+            name = _name(spec)
+            stakes = (1000.0, 5000.0) if spec in REVERSAL_PRIMARY else (1000.0,)
+            packed = {}
+            for stake in stakes:
+                hold = _run(frame, signals, spec, stake, iv, start=HOLDOUT_START)
+                train = _run(frame, signals, spec, stake, iv, end=TRAIN_END) if stake == 1000.0 else None
+                packed[str(int(stake))] = {
+                    "holdout": _pack(hold, False),
+                    "train": _pack(train, False) if train is not None else None,
+                }
+                if stake == 1000.0 and spec in REVERSAL_PRIMARY[:2] and not anecdotal:
+                    considered = [
+                        item for item in signals
+                        if _day(item.fill_time) >= HOLDOUT_START
+                        and np.isfinite(item.swing)
+                        and (item.direction == "long" or not spec[4])
+                    ]
+                    random_book = simulate(
+                        frame,
+                        random_signals(
+                            frame.loc[frame.index.date >= HOLDOUT_START] if len(frame) else frame,
+                            symbol,
+                            len(considered),
+                            RANDOM_SEED,
+                        ),
+                        stop="reject",
+                        target="r1",
+                        kind=spec[3],
+                        stake=stake,
+                        long_only=spec[4],
+                        iv_points=iv,
+                        start=HOLDOUT_START,
+                    )
+                    packed[str(int(stake))]["random"] = _pack(random_book, False)
+            print(f"REVERSAL {symbol} {name} hold {packed['1000']['holdout'].get('trades')}", flush=True)
+            rows.append({"name": name, "spec": spec, "stakes": packed, "anecdotal": anecdotal})
+        return rows
+
+    spy_rows = _books("SPY", spy, False)
+    qqq_rows = _books("QQQ", qqq, qqq_anecdotal) if qqq is not None and not qqq.empty else []
+    chart = _yahoo_5m("SPY")
+    chart_note = "Yahoo returned no 5-minute SPY bars for 2026-10-07."
+    if chart is not None and not chart.empty:
+        day = chart[chart.index.date == CHART_DAY]
+        marked = [item for item in find_signals(chart, "SPY") if item.variant == "reversal" and _day(item.fill_time) == CHART_DAY]
+        if day.empty:
+            chart_note = "The Yahoo 5-minute file has no 2026-10-07 session, so no reversal bar was invented."
+        elif not marked:
+            chart_note = (
+                f"On Yahoo 5-minute SPY for 2026-10-07 the reversal rule marks 0 signals. "
+                f"The session runs {day.index[0].strftime('%H:%M')} through {day.index[-1].strftime('%H:%M')} ET. "
+                "The rule was not loosened."
+            )
+        else:
+            bits = ", ".join(
+                f"{item.direction} confirmation {_as_clock(item.signal_time)} fill {_as_clock(item.fill_time)}"
+                for item in marked
+            )
+            chart_note = (
+                f"On Yahoo 5-minute SPY for 2026-10-07 the reversal rule marks {len(marked)} signal(s): {bits}. "
+                "That day is not in the Dukascopy score. The rule was not loosened."
+            )
+
+    lines = [
+        REVERSAL_MARK_START,
+        "### Reversal through the 9 EMA, the 20 EMA, and VWAP",
+        "",
+        "Backtests only. Nothing was sent to a broker. Live trading stays off. "
+        "The chop-breakout order rules were not changed. "
+        "This variant was frozen before this score and does not replace the VWAP-confluence rejection gate. "
+        "A long needs the prior bar in the bearish stack (9 EMA below the 20 EMA, and that close below session VWAP), "
+        "then a green bar whose close is above the 9 EMA, the 20 EMA, and VWAP, then a next bar that also closes green. "
+        "The fill is the open after that confirmation. The short is the mirror and buys a put. "
+        "The price stop is one cent beyond the breakout bar. The ema rows exit on a close back across the 9 EMA, and the price stop still fills first on that bar. "
+        "Swing, 1R, and 2R are the other targets, the same menu as the rejection study. "
+        "The chop guard is not part of this variant. The cash share book is long only. The 0 DTE book takes both directions.",
+        "",
+        "| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    random_bits = []
+    for row in spy_rows + [{**item, "name": f"QQQ {item['name']}"} for item in qqq_rows]:
+        hold = row["stakes"]["1000"]["holdout"]
+        train = row["stakes"]["1000"].get("train")
+        five = row["stakes"].get("5000", {}).get("holdout") if "5000" in row["stakes"] else None
+        lines.append(_reversal_row(row["name"], hold, train, five))
+        random_metrics = row["stakes"]["1000"].get("random")
+        if random_metrics:
+            random_bits.append(
+                f"{row['name']} random holdout, seed 17, {random_metrics.get('trades', 0)} trades, "
+                f"ending {_money(random_metrics.get('ending_equity'))}, "
+                f"profit factor {_pf(random_metrics.get('profit_factor'))}, "
+                f"Sharpe {_num(random_metrics.get('sharpe'))}."
+            )
+    cleared = [
+        row for row in spy_rows
+        if passes_gate(row["stakes"]["1000"]["holdout"])
+    ]
+    if cleared:
+        bits = []
+        for row in cleared:
+            train = row["stakes"]["1000"].get("train") or {}
+            train_pf = (train or {}).get("profit_factor")
+            under = ", under the 1.10 line" if train_pf is not None and float(train_pf) < 1.10 else ""
+            bits.append(
+                f"{row['name']} clears the holdout arithmetic and is not promoted. "
+                f"Training finished at {_money((train or {}).get('ending_equity'))}, "
+                f"profit factor {_pf(train_pf)}{under}."
+            )
+        by_name = {row["name"]: row for row in spy_rows}
+        follow: list[str] = []
+        swing = by_name.get("reversal_swing_0dte")
+        if swing is not None:
+            hold = swing["stakes"]["1000"]["holdout"]
+            misses = []
+            if hold.get("profit_factor") is None or float(hold["profit_factor"]) < 1.10:
+                misses.append("the profit factor")
+            if hold.get("max_drawdown") is not None and float(hold["max_drawdown"]) < -0.30:
+                misses.append("the drawdown")
+            if misses:
+                follow.append(
+                    "The swing target is the one the rejection gate uses, and that 0 DTE book misses "
+                    + " and ".join(misses)
+                    + "."
+                )
+            else:
+                follow.append("The swing target is the one the rejection gate uses.")
+        ema = by_name.get("reversal_ema_0dte")
+        if ema is not None:
+            hold = ema["stakes"]["1000"]["holdout"]
+            train_book = ema["stakes"]["1000"].get("train") or {}
+            ending = train_book.get("ending_equity")
+            wiped = " and wiped the training account" if ending is not None and float(ending) < 1.0 else ""
+            follow.append(
+                "The close-back-across-the-9 exit finished the holdout at "
+                f"{_money(hold.get('ending_equity'))}{wiped}."
+            )
+        two_r = by_name.get("reversal_r2_0dte")
+        if two_r is not None:
+            hold = two_r["stakes"]["1000"]["holdout"]
+            if hold.get("max_drawdown") is not None and float(hold["max_drawdown"]) < -0.30:
+                follow.append("The 2R 0 DTE holdout misses the drawdown line.")
+        follow.append("None of these replace the gate.")
+        bits.extend(follow)
+        lines += ["", " ".join(bits)]
+    lines += [
+        "",
+        "Holdout is a fresh account from 2022-01-01 through 2026-10-06. Train is a fresh account through 2021-12-31. "
+        "QQQ stays off the gate while its Dukascopy file is short. "
+        + qqq_note,
+        "",
+        " ".join(random_bits) if random_bits else "No random row.",
+        "",
+        chart_note,
+        "",
+        "Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.",
+        "",
+        "```",
+        "python3 -m webull_bot.chart_reads.research_ema_reject reversal",
+        "```",
+        REVERSAL_MARK_END,
+        "",
+    ]
+    block = "\n".join(lines)
+    path = Path("RESULTS.md")
+    text = path.read_text() if path.exists() else ""
+    if REVERSAL_MARK_START in text and REVERSAL_MARK_END in text:
+        before = text.split(REVERSAL_MARK_START)[0]
+        after = text.split(REVERSAL_MARK_END)[1]
+        path.write_text(before + block + after.lstrip("\n"))
+    else:
+        path.write_text(text.rstrip() + "\n\n" + block)
+    payload = {
+        "rows": [
+            {
+                "name": row["name"],
+                "holdout": row["stakes"]["1000"]["holdout"],
+                "train": row["stakes"]["1000"].get("train"),
+                "holdout_5000": row["stakes"].get("5000", {}).get("holdout"),
+                "random": row["stakes"]["1000"].get("random"),
+            }
+            for row in spy_rows
+        ],
+        "qqq": [row["name"] for row in qqq_rows],
+        "chart": chart_note,
+    }
+    Path("reports/ema_reversal.json").write_text(json.dumps(payload, indent=2, default=str) + "\n")
+    print(chart_note, flush=True)
+    print("WROTE reports/ema_reversal.json", flush=True)
+
+
+def _as_clock(stamp) -> str:
+    clock = pd.Timestamp(stamp)
+    if clock.tzinfo is not None:
+        clock = clock.tz_convert("America/New_York")
+    return clock.strftime("%H:%M")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "reversal":
+        score_reversal()
+    else:
+        main()

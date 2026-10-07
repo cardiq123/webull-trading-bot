@@ -321,6 +321,68 @@ def test_metrics_match_a_flat_account():
     assert stats["sharpe"] == 0.0
 
 
+def _reversal_day(direction: str) -> tuple[pd.DataFrame, int]:
+    """Downtrend or uptrend, then a bar that closes through 9, 20, and VWAP."""
+    rows = []
+    price = 100.0
+    step = -0.15 if direction == "long" else 0.15
+    for _i in range(55):
+        nxt = price + step
+        rows.append((price, max(price, nxt) + 0.02, min(price, nxt) - 0.02, nxt, 3000.0))
+        price = nxt
+    frame = _day(rows + [(price, price, price, price, 3000.0)] * 4)
+    ind = indicator_frame(frame)
+    i = 55
+    prior = ind.iloc[i - 1]
+    if direction == "long":
+        assert float(prior["ema9"]) < float(prior["ema20"])
+        assert float(prior["close"]) < float(prior["vwap"])
+        level = max(float(prior["ema9"]), float(prior["ema20"]), float(prior["vwap"]), float(prior["close"])) + 2.0
+        frame.iloc[i] = (float(prior["close"]), level, float(prior["close"]) - 0.2, level, 3000.0)
+        frame.iloc[i + 1] = (level - 0.3, level, level - 0.4, level - 0.1, 3000.0)
+        frame.iloc[i + 2] = (level - 0.05, level, level - 0.2, level - 0.05, 3000.0)
+    else:
+        assert float(prior["ema9"]) > float(prior["ema20"])
+        assert float(prior["close"]) > float(prior["vwap"])
+        level = min(float(prior["ema9"]), float(prior["ema20"]), float(prior["vwap"]), float(prior["close"])) - 2.0
+        frame.iloc[i] = (float(prior["close"]), float(prior["close"]) + 0.2, level, level, 3000.0)
+        frame.iloc[i + 1] = (level + 0.3, level + 0.4, level, level + 0.1, 3000.0)
+        frame.iloc[i + 2] = (level + 0.05, level + 0.2, level, level + 0.05, 3000.0)
+    return frame, i
+
+
+def test_reversal_is_not_the_gate_and_fills_after_confirmation():
+    rules = frozen_rules()
+    assert rules["gate_variant"] == "vwap"
+    assert "reversal" in rules["variants"]
+    assert "Not the gate" in rules["variants"]["reversal"]
+    frame, breakout = _reversal_day("long")
+    ind = indicator_frame(frame)
+    signals = [item for item in find_signals(frame, "SPY") if item.variant == "reversal"]
+    assert len(signals) == 1
+    signal = signals[0]
+    assert signal.direction == "long"
+    assert signal.signal_time == ind.index[breakout + 1]
+    assert signal.fill_time == ind.index[breakout + 2]
+    assert signal.stop_reject == float(frame.iloc[breakout]["low"]) - STOP_PAD
+    red = frame.copy()
+    red.iloc[breakout + 1, red.columns.get_loc("close")] = float(red.iloc[breakout + 1]["open"]) - 0.05
+    assert [item for item in find_signals(red, "SPY") if item.variant == "reversal"] == []
+    mirror, short_bar = _reversal_day("short")
+    shorts = [item for item in find_signals(mirror, "SPY") if item.variant == "reversal"]
+    assert len(shorts) == 1
+    assert shorts[0].direction == "short"
+    assert shorts[0].signal_time == indicator_frame(mirror).index[short_bar + 1]
+    assert shorts[0].stop_reject == float(mirror.iloc[short_bar]["high"]) + STOP_PAD
+
+
+def test_reversal_does_not_confirm_into_the_next_session():
+    frame, breakout = _reversal_day("long")
+    nxt = frame.copy()
+    nxt.index = nxt.index.map(lambda stamp: stamp + pd.Timedelta(days=1) if stamp >= frame.index[breakout + 1] else stamp)
+    assert [item for item in find_signals(nxt, "SPY") if item.variant == "reversal"] == []
+
+
 def test_sources_do_not_touch_the_forward_test():
     root = Path("src/webull_bot/chart_reads")
     for name in ("ema_reject.py", "research_ema_reject.py"):

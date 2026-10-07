@@ -168,6 +168,30 @@ def test_window_and_whole_shares():
         _at("2026-10-06T10:35:00"),
     )
     assert list(done.index.strftime("%H:%M")) == ["09:30"]
+    # Yahoo's stamp is the bar open. At 10:45 the 09:30 bar has closed
+    # (10:30) and the 10:30 bar has not. At 11:35 both of today's bars have.
+    today = completed_hourly(
+        _frame(
+            [
+                ("2026-10-07 09:30", 100, 101, 99, 100),
+                ("2026-10-07 10:30", 102, 103, 101, 102),
+                ("2026-10-07 11:30", 103, 104, 102, 103),
+            ]
+        ),
+        _at("2026-10-07T10:45:00"),
+    )
+    assert list(today.index.strftime("%H:%M")) == ["09:30"]
+    later = completed_hourly(
+        _frame(
+            [
+                ("2026-10-07 09:30", 100, 101, 99, 100),
+                ("2026-10-07 10:30", 102, 103, 101, 102),
+                ("2026-10-07 11:30", 103, 104, 102, 103),
+            ]
+        ),
+        _at("2026-10-07T11:35:00"),
+    )
+    assert list(later.index.strftime("%H:%M")) == ["09:30", "10:30"]
 
 
 def test_dry_run_prints_the_buy_and_the_day_trail_without_sending(tmp_path):

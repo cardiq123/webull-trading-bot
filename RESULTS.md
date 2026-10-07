@@ -4727,3 +4727,35 @@ python3 -m webull_bot.chart_reads.research_candles
 ```
 <!-- CANDLES_END -->
 
+<!-- EMA_REVERSAL_START -->
+### Reversal through the 9 EMA, the 20 EMA, and VWAP
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The chop-breakout order rules were not changed. This variant was frozen before this score and does not replace the VWAP-confluence rejection gate. A long needs the prior bar in the bearish stack (9 EMA below the 20 EMA, and that close below session VWAP), then a green bar whose close is above the 9 EMA, the 20 EMA, and VWAP, then a next bar that also closes green. The fill is the open after that confirmation. The short is the mirror and buys a put. The price stop is one cent beyond the breakout bar. The ema rows exit on a close back across the 9 EMA, and the price stop still fills first on that bar. Swing, 1R, and 2R are the other targets, the same menu as the rejection study. The chop guard is not part of this variant. The cash share book is long only. The 0 DTE book takes both directions.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Train $1,000 | Clears |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| reversal_swing_shares | 432 | 16.0% | 54.7% | 0.16 | -5.70 | -45.4% | $546 | $2,730 | $602 | no |
+| reversal_swing_0dte | 1084 | 52.4% | 51.4% | 1.04 | 0.49 | -45.6% | $1,783 | $5,783 | $872 | no |
+| reversal_ema_shares | 435 | 17.2% | 45.1% | 0.25 | -5.03 | -42.7% | $573 | $2,867 | $568 | no |
+| reversal_ema_0dte | 1165 | 27.6% | 21.1% | 1.42 | 1.12 | -61.0% | $10,757 | $14,757 | -$0 | no |
+| reversal_r1_shares | 434 | 30.6% | 61.6% | 0.28 | -4.63 | -44.1% | $559 | n/a | $564 | no |
+| reversal_r1_0dte | 1042 | 46.8% | 42.0% | 1.22 | 1.33 | -26.0% | $6,345 | n/a | $1,290 | yes, not promoted |
+| reversal_r2_shares | 434 | 29.7% | 52.6% | 0.38 | -3.75 | -44.4% | $556 | n/a | $602 | no |
+| reversal_r2_0dte | 991 | 33.9% | 27.3% | 1.37 | 1.19 | -33.4% | $12,073 | n/a | $3,746 | no |
+| QQQ reversal_swing_shares | 14 | 14.3% | 68.4% | 0.08 | -8.02 | -2.8% | $972 | $4,862 | $1,000 | no |
+| QQQ reversal_swing_0dte | 32 | 53.1% | 46.1% | 1.33 | 1.74 | -16.9% | $1,208 | $5,208 | $1,000 | no |
+
+reversal_r1_0dte clears the holdout arithmetic and is not promoted. Training finished at $1,290, profit factor 1.02, under the 1.10 line. The swing target is the one the rejection gate uses, and that 0 DTE book misses the profit factor and the drawdown. The close-back-across-the-9 exit finished the holdout at $10,757 and wiped the training account. The 2R 0 DTE holdout misses the drawdown line. None of these replace the gate.
+
+Holdout is a fresh account from 2022-01-01 through 2026-10-06. Train is a fresh account through 2021-12-31. QQQ stays off the gate while its Dukascopy file is short. Dukascopy publishes QQQUSUSD, but this cache has 1038 day files, short of the 2017+ file. The QQQ rows are Yahoo 5-minute bars from 2026-08-14 through 2026-10-07, about 60 days. That sample cannot clear 300 out-of-sample trades. It is not the gate.
+
+reversal_swing_shares random holdout, seed 17, 255 trades, ending $716, profit factor 0.05, Sharpe -6.38. reversal_swing_0dte random holdout, seed 17, 575 trades, ending $6, profit factor 0.80, Sharpe -0.45.
+
+On Yahoo 5-minute SPY for 2026-10-07 the reversal rule marks 0 signals. The session runs 09:30 through 12:10 ET. The rule was not loosened.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_ema_reject reversal
+```
+<!-- EMA_REVERSAL_END -->
