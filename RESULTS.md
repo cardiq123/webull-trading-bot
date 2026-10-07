@@ -4487,3 +4487,117 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_vwap_band
 ```
 <!-- VWAP_BAND_END -->
+
+<!-- EMA_REJECT_START -->
+## 9/20 EMA rejection, 5-minute SPY and QQQ
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox forward test was not changed. The rules were frozen before this score. The gate is the chart that was pointed at: a 9/20 downtrend or its long mirror, a bar that tags the 9 EMA within 0.10 ATR and closes back on the trend side, with session VWAP within 0.10 ATR of the 9 EMA. The stop is one cent beyond the rejection bar. The target is the prior 5-bar swing. The 9 EMA alone, the intact 20 EMA, the 20 EMA stop, and the 1R, 2R, and 9 EMA cross exits are variants. A bar within 0.10 ATR of the 9 EMA cannot reach a 20 EMA that is at least 0.10 ATR away, so the intact-20 variant matches the 9 EMA variant. A variant that looks better was not promoted. Train is a fresh account through 2021-12-31. The holdout is a fresh account from 2022-01-01 through 2026-10-06. 2026-10-07 is the illustration, not part of the Dukascopy score.
+
+SPY is Dukascopy 1-minute bids resampled to 5 minutes, 2017-02-16 through 2026-10-06, 2416 sessions, 936992 minute bars, 187540 five-minute bars, 0 days missing, 2 empty files. Volume is a bid-tick count. Dukascopy publishes QQQUSUSD, but this cache has 342 day files, short of the 2017+ file. The QQQ rows are Yahoo 5-minute bars from 2026-08-14 through 2026-10-07, about 60 days. That sample cannot clear 300 out-of-sample trades. It is not the gate.
+
+The cash share book is long only. A $1,000 cash account cannot short, so it cannot express the short rejection on that chart. Calls and puts are long premium, so the 0 DTE book takes both directions. Shares risk 1% of equity to the stop, with fractional shares. Options are exactly one at-the-money contract when the debit fits in settled cash. A $5,000 account does not buy a second contract. A debit that fits in $5,000 and not in $1,000 is skipped on the smaller stake, so the two endings need not match. A sale settles the next session. The option price is Black-Scholes with the prior session's VIX1D close, or the prior VIX close before that print exists, a half-spread of the greater of one cent and 1.5% of the mid, and the repo's option fees. There is no listed chain. Time left uses the bar's left timestamp. QQQ uses the same SPX volatility print. The chop guard is on for every book: relative volume under 0.85 versus the prior 20 bars (chop v2), an EMA spread under 0.10 ATR, or a 9 EMA slope under 0.05 ATR. Chop v2's 0.75 ATR stack width is not used. Dukascopy volume is a bid-tick count. Dukascopy prices are bids and omit dividends, so that buy-and-hold is the lower reference. Yahoo adjusted daily SPY and QQQ include dividends. Taxes are ignored: these books realize short-term gains, and a buy-and-hold defers them.
+
+| Book | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | Gate |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| vwap_swing_shares | 101 | 8.9% | 48.0% | 0.11 | -3.30 | -12.1% | $879 | $4,396 | no |
+| vwap_swing_0dte | 242 | 31.4% | 41.2% | 0.65 | -0.43 | -95.8% | $75 | $3,725 | no |
+| QQQ vwap_swing_shares | 3 | 0.0% | 100.0% | 0.00 | -4.36 | -0.3% | $997 | $4,983 | no |
+| QQQ vwap_swing_0dte | 7 | 42.9% | 41.5% | 1.06 | 0.25 | -6.9% | $1,004 | $5,004 | no |
+
+### Training account, through 2021-12-31
+
+Fresh $1,000 and $5,000. This is not the gate. An option account that cannot pay for the next contract stops, and the rest of the signals are skips.
+
+| Book | Trades | PF | Sharpe | Max DD | $1,000 | $5,000 |
+|---|---:|---:|---:|---:|---:|---:|
+| vwap_swing_shares | 49 | 0.26 | -1.16 | -4.8% | $953 | $4,765 |
+| vwap_swing_0dte | 106 | 0.81 | -0.18 | -25.8% | $823 | $4,823 |
+| QQQ vwap_swing_shares | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+| QQQ vwap_swing_0dte | 0 | n/a | 0.00 | 0.0% | $1,000 | $5,000 |
+
+No default book cleared the holdout gate (profit factor at least 1.10, Sharpe at least 0.40, max drawdown no worse than -30%, and at least 300 trades). SPY buy-and-hold on the same bid series finished the holdout at $1,635 from $1,000 (Sharpe 0.69, max drawdown -25.3%) and $8,176 from $5,000. That series pays no dividends. Yahoo adjusted SPY, which includes dividends, finished at $1,737 (Sharpe 0.76, max drawdown -24.5%). Yahoo adjusted QQQ finished at $1,945 (Sharpe 0.72, max drawdown -34.9%).
+
+### Rolling windows, full sample
+
+One continuous account from the first SPY session, not a fresh holdout. Each window is that account's percentage change, restated from the starting stake. When an option account can no longer pay for a contract, later windows use the equity that is left.
+
+**vwap_swing_shares, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $989 (SPY $1,078), bad $983 (SPY $958), good $1,000 (SPY $1,182). 84.5% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $989 (QQQ $1,117), bad $983 (QQQ $951), good $1,000 (QQQ $1,244). 84.5% lost money, against 19.1% for QQQ.
+
+**vwap_swing_shares, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $977 (SPY $1,143), bad $969 (SPY $936), good $998 (SPY $1,290). 94.2% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $977 (QQQ $1,235), bad $969 (QQQ $928), good $998 (QQQ $1,438). 94.2% lost money, against 13.5% for QQQ.
+
+**vwap_swing_shares, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $4,946 (SPY $5,392), bad $4,913 (SPY $4,791), good $5,000 (SPY $5,912). 84.5% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $4,946 (QQQ $5,587), bad $4,913 (QQQ $4,756), good $5,000 (QQQ $6,220). 84.5% lost money, against 19.1% for QQQ.
+
+**vwap_swing_shares, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $4,885 (SPY $5,714), bad $4,844 (SPY $4,682), good $4,988 (SPY $6,450). 94.2% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $4,885 (QQQ $6,176), bad $4,844 (QQQ $4,638), good $4,988 (QQQ $7,192). 94.2% lost money, against 13.5% for QQQ.
+
+**vwap_swing_0dte, $1,000, 6 months.** Versus SPY bids: 110 windows. Median ending $952 (SPY $1,078), bad $609 (SPY $958), good $1,211 (SPY $1,182). 72.7% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $952 (QQQ $1,117), bad $609 (QQQ $951), good $1,211 (QQQ $1,244). 72.7% lost money, against 19.1% for QQQ.
+
+**vwap_swing_0dte, $1,000, 12 months.** Versus SPY bids: 104 windows. Median ending $891 (SPY $1,143), bad $389 (SPY $936), good $1,163 (SPY $1,290). 79.8% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $891 (QQQ $1,235), bad $389 (QQQ $928), good $1,163 (QQQ $1,438). 79.8% lost money, against 13.5% for QQQ.
+
+**vwap_swing_0dte, $5,000, 6 months.** Versus SPY bids: 110 windows. Median ending $4,945 (SPY $5,392), bad $4,663 (SPY $4,791), good $5,071 (SPY $5,912). 77.3% lost money, against 21.8% for SPY.
+
+Versus Yahoo adjusted QQQ: 110 windows. Median ending $4,945 (QQQ $5,587), bad $4,663 (QQQ $4,756), good $5,071 (QQQ $6,220). 77.3% lost money, against 19.1% for QQQ.
+
+**vwap_swing_0dte, $5,000, 12 months.** Versus SPY bids: 104 windows. Median ending $4,904 (SPY $5,714), bad $4,427 (SPY $4,682), good $5,124 (SPY $6,450). 82.7% lost money, against 15.4% for SPY.
+
+Versus Yahoo adjusted QQQ: 104 windows. Median ending $4,904 (QQQ $6,176), bad $4,427 (QQQ $4,638), good $5,124 (QQQ $7,192). 82.7% lost money, against 13.5% for QQQ.
+
+### Variants and the both-directions share baseline
+
+These rows use the same holdout and the same $1,000 stake. They do not replace the VWAP-confluence default.
+
+| Book | Trades | Win | PF | Sharpe | Max DD | Ending | Clears the numbers |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ema_swing_shares | 898 | 11.7% | 0.12 | -11.93 | -66.2% | $338 | no |
+| ema_swing_0dte | 237 | 30.4% | 0.67 | -0.32 | -99.9% | $1 | no |
+| ema20_swing_shares | 898 | 11.7% | 0.12 | -11.93 | -66.2% | $338 | no |
+| ema20_swing_0dte | 237 | 30.4% | 0.67 | -0.32 | -99.9% | $1 | no |
+| vwap_ema20stop_swing_shares | 101 | 16.8% | 0.18 | -2.58 | -11.0% | $890 | no |
+| vwap_ema20stop_swing_0dte | 269 | 49.8% | 1.05 | 0.28 | -49.7% | $1,215 | no |
+| vwap_r1_shares | 101 | 7.9% | 0.06 | -3.49 | -13.6% | $864 | no |
+| vwap_r1_0dte | 187 | 31.0% | 0.56 | -1.26 | -99.5% | $6 | no |
+| vwap_r2_shares | 101 | 13.9% | 0.17 | -2.75 | -12.7% | $874 | no |
+| vwap_r2_0dte | 195 | 19.5% | 0.68 | -0.49 | -99.7% | $4 | no |
+| vwap_ema_shares | 101 | 14.9% | 0.25 | -2.44 | -11.6% | $885 | no |
+| vwap_ema_0dte | 229 | 13.1% | 0.70 | -0.81 | -97.2% | $40 | no |
+| vwap_swing_shares_both | 234 | 7.3% | 0.07 | -5.70 | -28.2% | $718 | no |
+
+Random entries use seed 17, the same count of holdout signals that have a prior swing, and a 1R target. One draw. It was not used to change the rule.
+
+
+
+**vwap_swing_shares.** Random holdout trades 57, ending $931, profit factor 0.03, Sharpe -2.84, max drawdown -6.9%.
+
+**vwap_swing_0dte.** Random holdout trades 294, ending $722, profit factor 0.89, Sharpe -0.27, max drawdown -49.3%.
+
+Same holdout trades, split by the volatility print. VIX1D starts in 2023. Earlier sessions use the 30-day VIX as same-day vol. This split was not used to change the rule.
+
+
+
+**vwap_swing_0dte.** VIX 84 trades, profit factor 0.56, dollar profit -$512; VIX1D 158 trades, profit factor 0.72, dollar profit -$412. Largest trade $191 on 2024-05-02 (target). The book lost $925.
+
+Fractional share counts are a research fill. Webull equity orders in this repo are whole shares, so a quantity under one share would not be sent. No sandbox forward command was added.
+
+
+
+**vwap_swing_shares.** 0 of 101 holdout trades were under one share.
+
+Charts: `reports/ema_reject_equity.png` and `reports/ema_reject_20261007.png`. The 2026-10-07 chart is Yahoo 5-minute, 2026-08-14 through 2026-10-07, because the Dukascopy file ends with the last complete session and does not include that day. EMAs on the chart are computed from those Yahoo bars, not from the 2017 bid series. The user read the 9 EMA and VWAP stacked near 775.05 at 10:20 ET. On these bars, 9 EMA 775.05, 20 EMA 776.32, VWAP 775.04, close 774.77, high 774.99. The frozen rule does not mark 10:20 as a gate signal. It failed: rel volume 0.43 is below 0.85; high is 0.11 ATR from the 9 EMA, or the close is not back below it. Relative volume would still exclude the bar if the tag were widened to the measured distance. The chart marks 0 other VWAP-confluence signal(s) that day. The tolerances were not changed after this reading.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_ema_reject
+```
+<!-- EMA_REJECT_END -->

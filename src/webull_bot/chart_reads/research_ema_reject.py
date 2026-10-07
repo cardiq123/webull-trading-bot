@@ -100,7 +100,10 @@ def _num(value) -> str:
 def _money(value) -> str:
     if value is None:
         return "n/a"
-    return f"${float(value):,.0f}"
+    number = float(value)
+    if number < 0:
+        return f"-${abs(number):,.0f}"
+    return f"${number:,.0f}"
 
 
 def _price(value) -> str:
@@ -381,9 +384,13 @@ def _chart_sentence(reading: dict, day_signals: list[dict], source: str) -> str:
             f"The chart marks {len(day_signals)} VWAP-confluence signal(s) that day."
         )
     else:
+        volume_note = ""
+        if any(str(item).startswith("rel volume") for item in blockers):
+            volume_note = "Relative volume would still exclude the bar if the tag were widened to the measured distance. "
         marked = (
             "The frozen rule does not mark 10:20 as a gate signal. "
             + (f"It failed: {'; '.join(blockers)}. " if blockers else "")
+            + volume_note
             + f"The chart marks {len(day_signals)} other VWAP-confluence signal(s) that day."
         )
     return (
@@ -429,11 +436,12 @@ def _top_trade(trades: list[dict]) -> str:
         return ""
     top = max(trades, key=lambda trade: float(trade["pnl"]))
     total = sum(float(trade["pnl"]) for trade in trades)
-    share = (float(top["pnl"]) / total) if total else 0.0
-    return (
-        f"Largest trade {_money(top['pnl'])} on {_day(top['fill_time'])} ({top['reason']}), "
-        f"{_pct(share)} of that book's dollar profit."
-    )
+    if total > 0:
+        share = float(top["pnl"]) / total
+        tail = f"{_pct(share)} of that book's dollar profit."
+    else:
+        tail = f"The book lost {_money(abs(total))}."
+    return f"Largest trade {_money(top['pnl'])} on {_day(top['fill_time'])} ({top['reason']}). {tail}"
 
 
 def _row(book: dict) -> str:
@@ -467,8 +475,8 @@ def _markdown(payload: dict) -> str:
         "",
         "The cash share book is long only. A $1,000 cash account cannot short, so it cannot express the short rejection on that chart. "
         "Calls and puts are long premium, so the 0 DTE book takes both directions. "
-        "Shares risk 1% of equity to the stop, with fractional shares. Options are exactly one at-the-money contract when the debit fits in settled cash, "
-        "so a $5,000 account does not buy more contracts. When the debit already fits in $1,000, the extra cash sits idle and the dollar profit matches. "
+        "Shares risk 1% of equity to the stop, with fractional shares. Options are exactly one at-the-money contract when the debit fits in settled cash. "
+        "A $5,000 account does not buy a second contract. A debit that fits in $5,000 and not in $1,000 is skipped on the smaller stake, so the two endings need not match. "
         "A sale settles the next session. The option price is Black-Scholes with the prior session's VIX1D close, or the prior VIX close before that print exists, "
         "a half-spread of the greater of one cent and 1.5% of the mid, and the repo's option fees. There is no listed chain. "
         "Time left uses the bar's left timestamp. QQQ uses the same SPX volatility print. "
@@ -508,8 +516,7 @@ def _markdown(payload: dict) -> str:
     lines.append(
         "One continuous account from the first SPY session, not a fresh holdout. "
         "Each window is that account's percentage change, restated from the starting stake. "
-        "After a $1,000 option account dies, later windows are flat and show $1,000. "
-        "The $5,000 continuation is the path that stayed open."
+        "When an option account can no longer pay for a contract, later windows use the equity that is left."
     )
     lines.append("")
     lines.append(payload["window_text"])
@@ -588,14 +595,15 @@ def _qqq() -> tuple[pd.DataFrame | None, bool, str]:
 
 
 def _yahoo_note(frame: pd.DataFrame | None, count: int, missing) -> str:
+    del missing
     if frame is None or frame.empty:
         return (
-            f"Dukascopy publishes QQQUSUSD, but this cache has {count} day files "
-            f"and {missing} days still missing. Yahoo returned no 5-minute bars."
+            f"Dukascopy publishes QQQUSUSD, but this cache has {count} day files, "
+            "short of the 2017+ file. Yahoo returned no 5-minute bars."
         )
     return (
-        f"Dukascopy publishes QQQUSUSD, but this cache has {count} day files "
-        f"and {missing} days still missing, short of the 2017+ file. "
+        f"Dukascopy publishes QQQUSUSD, but this cache has {count} day files, "
+        "short of the 2017+ file. "
         f"The QQQ rows are Yahoo 5-minute bars from {frame.index[0].date()} through {frame.index[-1].date()}, "
         "about 60 days. That sample cannot clear 300 out-of-sample trades. It is not the gate."
     )
@@ -717,7 +725,7 @@ def main() -> None:
         "",
     ]
     share_lines = [
-        "Fractional share counts are a research fill. Webull equity orders in this repo are whole shares, so a $1,000 or $5,000 account would skip most of these ETF orders. No sandbox forward command was added.",
+        "Fractional share counts are a research fill. Webull equity orders in this repo are whole shares, so a quantity under one share would not be sent. No sandbox forward command was added.",
         "",
     ]
     for book in rows:
