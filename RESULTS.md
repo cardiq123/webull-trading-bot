@@ -3868,3 +3868,413 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.research_account_winners
 ```
 <!-- ACCOUNT_WINNERS_END -->
+
+<!-- ACCOUNT_HUNT_START -->
+## Second search for a small-account book
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox forward test was not changed. The rules were frozen before this score. A neighbor that looks better was not promoted. The earlier 10-month sleeve, the fully invested dual-momentum book, and the monthly TQQQ filter keep the numbers already published.
+
+Cash earns zero. A cash account sells at the next open and buys the session after that. Costs are the Webull stock schedule. Taxes are ignored, so a monthly or daily book that realizes short-term gains looks better here than it would in a taxable account. Fractional shares. The pattern-day-trader rule does not come up, because these are overnight holds and the cash book does not round-trip the same name the same day.
+
+Post-earnings drift was skipped. The free Yahoo earnings calendar for AAPL starts 2014-07-22, which does not cover a training window back through 2008. A short recent list would be a different study.
+
+Stock momentum uses the point-in-time Dow (42 names had Yahoo prices). Missing Yahoo history, so those membership dates cannot be held: DWDP, KFT, UTX, WBA. That hole can hide a name that was removed and then stopped trading. It is not a survivor list, and it is not the S&P 100. A free point-in-time S&P 100 file was not in this repo. The current-member Dow book is the survivor diagnostic in the checks table. The gap between that diagnostic and the point-in-time book is the haircut estimate. It was not applied as a new return.
+
+The risk-sized Connors RSI(2) book already published on ETFs had a Sharpe of 0.07 and a walk-forward Sharpe of -0.09. The risk-sized sector rotation had a Sharpe of 0.06. Those books use the 0.75 percent sizer and a hard stop. The books below are fully invested versions of different rules. They do not replace those rows.
+
+### Holdout from 2017-01-01, fresh $1,000
+
+SPY and QQQ on each row are bought on that book's own holdout dates. A yes under SPY risk means the frozen test: profitable training, and either a higher holdout Sharpe and Calmar than SPY, or a CAGR within three points of SPY with a drawdown at least ten points milder. Rows marked $5,000 are the option books. One contract does not fit the story of a $1,000 account, so those rows, and the SPY and QQQ numbers beside them, start at $5,000.
+
+| Book | CAGR | Max DD | Sharpe | Positive months | Ending | SPY ending | QQQ ending | Beats SPY risk | Beats SPY raw |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| rsi2_equal | 1.0% | -22.2% | 0.15 | 51.7% | $1,105 | $4,028 | $6,791 | no | no |
+| ibs_equal | 1.2% | -26.5% | 0.16 | 54.2% | $1,127 | $4,028 | $6,791 | no | no |
+| three_down | 1.0% | -29.0% | 0.14 | 55.9% | $1,105 | $4,028 | $6,791 | no | no |
+| rsi2_qqq_overlay | 8.2% | -31.6% | 0.51 | 55.9% | $2,148 | $4,028 | $6,791 | no | no |
+| tqqq_sma200 | 27.6% | -57.8% | 0.76 | 42.4% | $10,774 | $4,028 | $6,791 | no | yes |
+| tqqq_band3 | 32.7% | -62.1% | 0.84 | 42.4% | $15,806 | $4,028 | $6,791 | no | yes |
+| tqqq_vol20 | 30.3% | -50.5% | 0.83 | 47.5% | $13,192 | $4,028 | $6,791 | no | yes |
+| tqqq_half | 18.6% | -40.3% | 0.71 | 42.4% | $5,304 | $4,028 | $6,791 | no | yes |
+| qqq_tqqq_blend | 22.2% | -44.5% | 0.75 | 43.2% | $7,062 | $4,028 | $6,791 | no | yes |
+| upro_sma200 | 16.6% | -50.0% | 0.63 | 43.2% | $4,467 | $4,028 | $6,791 | no | yes |
+| spy_vol15_weekly | 9.7% | -21.5% | 0.79 | 56.8% | $2,469 | $4,028 | $6,791 | no | no |
+| qqq_vol15_weekly | 14.1% | -22.5% | 0.96 | 60.2% | $3,627 | $4,028 | $6,791 | yes | no |
+| spy_vol15_weekly_sma | 7.9% | -16.1% | 0.77 | 50.8% | $2,103 | $4,028 | $6,791 | no | no |
+| qqq_vol15_weekly_sma | 13.2% | -17.0% | 0.99 | 55.1% | $3,358 | $4,028 | $6,791 | yes | no |
+| sector_top3_12m | 14.5% | -30.2% | 0.86 | 66.1% | $3,756 | $4,028 | $6,791 | no | no |
+| dow_mom_top5 | 5.1% | -26.8% | 0.38 | 50.8% | $1,621 | $4,028 | $6,791 | no | no |
+| spy_tom | 2.9% | -11.2% | 0.40 | 63.6% | $1,317 | $4,028 | $6,791 | no | no |
+| spy_pre_holiday | -1.0% | -10.2% | -0.33 | 32.2% | $910 | $4,028 | $6,791 | no | no |
+| spy_calendar_both | 2.4% | -14.3% | 0.33 | 57.6% | $1,259 | $4,028 | $6,791 | no | no |
+| spy_calendar_blend | 8.9% | -15.4% | 0.81 | 61.9% | $2,303 | $4,028 | $6,791 | no | no |
+| qqq_tom | 3.3% | -14.8% | 0.38 | 56.8% | $1,376 | $4,028 | $6,791 | no | no |
+| qqq_pre_holiday | -1.4% | -15.9% | -0.36 | 34.7% | $870 | $4,028 | $6,791 | no | no |
+| qqq_calendar_both | 2.8% | -19.3% | 0.31 | 57.6% | $1,305 | $4,028 | $6,791 | no | no |
+| qqq_calendar_blend | 12.2% | -23.8% | 0.87 | 62.7% | $3,077 | $4,028 | $6,791 | no | no |
+| wheel_f ($5,000) | 0.5% | -13.2% | 0.14 | 64.4% | $5,260 | $20,139 | $33,957 | no | no |
+| covered_f ($5,000) | 0.6% | -17.1% | 0.14 | 59.3% | $5,305 | $20,139 | $33,957 | no | no |
+| gtaa_10m | 6.9% | -10.5% | 0.96 | 65.3% | $1,925 | $4,028 | $6,791 | yes | no |
+| dual_invested | 8.4% | -37.6% | 0.49 | 50.0% | $2,192 | $4,028 | $6,791 | no | no |
+| tqqq_monthly | 25.6% | -69.9% | 0.70 | 51.7% | $9,255 | $4,028 | $6,791 | no | yes |
+
+### What each frozen book does
+
+**rsi2_equal.** Equal-weight the liquid ETFs whose RSI(2) is below 10 and whose close is above the 200-day average. Exit a name when its close is above the 5-day average. Otherwise cash. About 105.1 new positions a year and 88.3 rebalances a year. Full-sample CAGR 1.6%, max drawdown -22.2%, Sharpe 0.20, positive months 51.3%, ending $1,404.
+
+**ibs_equal.** Equal-weight the liquid ETFs whose internal bar strength is below 0.2 and whose close is above the 200-day average. Exit when IBS is above 0.8. Otherwise cash. About 270.0 new positions a year and 168.3 rebalances a year. Full-sample CAGR 2.8%, max drawdown -26.5%, Sharpe 0.30, positive months 55.1%, ending $1,837.
+
+**three_down.** Equal-weight the liquid ETFs with three lower closes in a row and a close above the 200-day average. Exit when the close is above the 5-day average. Otherwise cash. About 105.8 new positions a year and 94.1 rebalances a year. Full-sample CAGR 1.4%, max drawdown -29.0%, Sharpe 0.18, positive months 54.8%, ending $1,359.
+
+**rsi2_qqq_overlay.** Hold the RSI(2) sleeve when any of those ETFs is on. Otherwise hold QQQ. About 117.8 new positions a year and 87.8 rebalances a year. Full-sample CAGR 5.7%, max drawdown -51.0%, Sharpe 0.39, positive months 55.1%, ending $3,317.
+
+**tqqq_sma200.** Hold TQQQ when QQQ's close is above its 200-day average. Otherwise cash. Checked every day. About 3.1 new positions a year and 6.1 rebalances a year. Full-sample CAGR 28.7%, max drawdown -59.8%, Sharpe 0.77, positive months 55.4%, ending $66,903.
+
+**tqqq_band3.** Hold TQQQ only after QQQ closes 3 percent above its 200-day average. Exit only after a close 3 percent below it. About 0.8 new positions a year and 1.6 rebalances a year. Full-sample CAGR 30.9%, max drawdown -62.1%, Sharpe 0.81, positive months 54.5%, ending $88,116.
+
+**tqqq_vol20.** Hold TQQQ only while QQQ is above its 200-day average, and scale the weight to min(1, 0.20 / 20-day realized vol). About 3.1 new positions a year and 51.9 rebalances a year. Full-sample CAGR 30.7%, max drawdown -59.1%, Sharpe 0.84, positive months 55.9%, ending $85,975.
+
+**tqqq_half.** Hold 50 percent TQQQ when QQQ is above its 200-day average. The rest is cash. About 3.1 new positions a year and 6.1 rebalances a year. Full-sample CAGR 19.4%, max drawdown -45.1%, Sharpe 0.72, positive months 55.4%, ending $19,041.
+
+**qqq_tqqq_blend.** Hold 50 percent QQQ and 50 percent TQQQ when QQQ is above its 200-day average. Otherwise cash. About 6.1 new positions a year and 6.1 rebalances a year. Full-sample CAGR 22.8%, max drawdown -48.9%, Sharpe 0.76, positive months 55.9%, ending $30,387.
+
+**upro_sma200.** Hold UPRO when SPY's close is above its 200-day average. Otherwise cash. About 2.7 new positions a year and 5.3 rebalances a year. Full-sample CAGR 22.0%, max drawdown -58.2%, Sharpe 0.73, positive months 58.1%, ending $31,026.
+
+**spy_vol15_weekly.** Hold SPY at min(1, 0.15 / 20-day realized vol). Rebalance weekly. No leverage. About 0.0 new positions a year and 22.3 rebalances a year. Full-sample CAGR 9.8%, max drawdown -35.9%, Sharpe 0.77, positive months 65.6%, ending $7,389.
+
+**qqq_vol15_weekly.** Hold QQQ at min(1, 0.15 / 20-day realized vol). Rebalance weekly. No leverage. About 0.0 new positions a year and 33.1 rebalances a year. Full-sample CAGR 12.7%, max drawdown -31.5%, Sharpe 0.89, positive months 61.2%, ending $13,455.
+
+**spy_vol15_weekly_sma.** The weekly 15 percent SPY vol target, and only while SPY is above its 200-day average. About 1.6 new positions a year and 14.0 rebalances a year. Full-sample CAGR 7.4%, max drawdown -19.1%, Sharpe 0.71, positive months 56.2%, ending $4,625.
+
+**qqq_vol15_weekly_sma.** The weekly 15 percent QQQ vol target, and only while QQQ is above its 200-day average. About 1.5 new positions a year and 25.1 rebalances a year. Full-sample CAGR 9.7%, max drawdown -22.2%, Sharpe 0.78, positive months 55.1%, ending $7,452.
+
+**sector_top3_12m.** Each month give one third to each of the three sector SPDRs with the best 12-month return, and only if that return is positive. About 7.7 new positions a year and 7.0 rebalances a year. Full-sample CAGR 9.7%, max drawdown -30.2%, Sharpe 0.64, positive months 59.7%, ending $7,569.
+
+**dow_mom_top5.** Each month hold the top 5 point-in-time Dow names by 12-1 month return, and only while SPY is above its 200-day average. About 18.1 new positions a year and 9.8 rebalances a year. Full-sample CAGR 6.4%, max drawdown -26.8%, Sharpe 0.46, positive months 51.2%, ending $2,926.
+
+**spy_tom.** Hold SPY on the last session of the month and the first three sessions. Otherwise cash. About 12.0 new positions a year and 24.0 rebalances a year. Full-sample CAGR 0.8%, max drawdown -24.9%, Sharpe 0.14, positive months 55.9%, ending $1,178.
+
+**spy_pre_holiday.** Hold SPY on the session before an NYSE weekday holiday. Otherwise cash. About 9.1 new positions a year and 18.2 rebalances a year. Full-sample CAGR -0.5%, max drawdown -15.3%, Sharpe -0.15, positive months 32.7%, ending $890.
+
+**spy_calendar_both.** Hold SPY when either the turn-of-month window or the pre-holiday session is on. Otherwise cash. About 17.2 new positions a year and 34.3 rebalances a year. Full-sample CAGR 0.8%, max drawdown -27.8%, Sharpe 0.14, positive months 53.2%, ending $1,186.
+
+**spy_calendar_blend.** Keep half in SPY all the time. Add the other half only in the combined calendar window. About 0.0 new positions a year and 34.4 rebalances a year. Full-sample CAGR 6.0%, max drawdown -42.2%, Sharpe 0.56, positive months 62.4%, ending $3,584.
+
+**qqq_tom.** Hold QQQ on the last session of the month and the first three sessions. Otherwise cash. About 12.0 new positions a year and 24.0 rebalances a year. Full-sample CAGR 1.3%, max drawdown -28.9%, Sharpe 0.19, positive months 55.5%, ending $1,325.
+
+**qqq_pre_holiday.** Hold QQQ on the session before an NYSE weekday holiday. Otherwise cash. About 9.1 new positions a year and 18.2 rebalances a year. Full-sample CAGR -0.5%, max drawdown -16.4%, Sharpe -0.12, positive months 36.1%, ending $890.
+
+**qqq_calendar_both.** Hold QQQ when either the turn-of-month window or the pre-holiday session is on. Otherwise cash. About 17.2 new positions a year and 34.3 rebalances a year. Full-sample CAGR 1.4%, max drawdown -29.4%, Sharpe 0.19, positive months 54.4%, ending $1,347.
+
+**qqq_calendar_blend.** Keep half in QQQ all the time. Add the other half only in the combined calendar window. About 0.0 new positions a year and 34.4 rebalances a year. Full-sample CAGR 8.6%, max drawdown -39.2%, Sharpe 0.67, positive months 60.5%, ending $6,022.
+
+**wheel_f.** On F, sell one 30-day 0.30-delta cash-secured put. If assigned, sell a 0.30-delta covered call until the shares are called away. Black-Scholes, not a chain. Opened 261 option cycles. Assigned 37. Called away 36. Skipped 0 cycles when the cash was short of the strike or the credit did not cover the fee. Full-sample CAGR 0.3%, max drawdown -12.9%, Sharpe 0.11, positive months 62.4%, ending $5,371.
+
+**covered_f.** Buy 100 shares of F when they fit, and sell a 30-day 0.30-delta call against them. Opened 261 option cycles. Assigned 0. Called away 65. Skipped 0 cycles when the cash was short of the strike or the credit did not cover the fee. Full-sample CAGR 0.3%, max drawdown -17.1%, Sharpe 0.09, positive months 56.3%, ending $5,323.
+
+### Rolling windows versus SPY and QQQ
+
+Each window starts at a month-end. The dollar figure is what the stake is worth at the end. SPY and QQQ pay entry and exit friction. The $5,000 figure is the same return on a $5,000 stake. For the wheel and the covered call, the $1,000 lines scale that $5,000 path. One contract does not scale that way. The separate $1,000 wheel is in the checks table.
+
+**rsi2_equal.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,006 (SPY $1,064), bad case $939 (SPY $934), good case $1,086 (SPY $1,165). 45.9% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,006 (QQQ $1,099), bad case $939 (QQQ $939), good case $1,086 (QQQ $1,214). 45.9% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,031 (SPY $5,320), bad case $4,695 (SPY $4,671), good case $5,429 (SPY $5,827). 45.9% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,031 (QQQ $5,495), bad case $4,695 (QQQ $4,695), good case $5,429 (QQQ $6,068). 45.9% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,017 (SPY $1,147), bad case $907 (SPY $930), good case $1,141 (SPY $1,295). 45.0% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,017 (QQQ $1,194), bad case $907 (QQQ $945), good case $1,141 (QQQ $1,387). 45.0% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,084 (SPY $5,733), bad case $4,537 (SPY $4,650), good case $5,705 (SPY $6,473). 45.0% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,084 (QQQ $5,972), bad case $4,537 (QQQ $4,727), good case $5,705 (QQQ $6,934). 45.0% lost money, against 13.5% for QQQ.
+
+**ibs_equal.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,015 (SPY $1,064), bad case $929 (SPY $934), good case $1,091 (SPY $1,165). 38.5% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,015 (QQQ $1,099), bad case $929 (QQQ $939), good case $1,091 (QQQ $1,214). 38.5% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,073 (SPY $5,320), bad case $4,645 (SPY $4,671), good case $5,456 (SPY $5,827). 38.5% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,073 (QQQ $5,495), bad case $4,645 (QQQ $4,695), good case $5,456 (QQQ $6,068). 38.5% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,033 (SPY $1,147), bad case $917 (SPY $930), good case $1,137 (SPY $1,295). 37.8% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,033 (QQQ $1,194), bad case $917 (QQQ $945), good case $1,137 (QQQ $1,387). 37.8% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,165 (SPY $5,733), bad case $4,584 (SPY $4,650), good case $5,683 (SPY $6,473). 37.8% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,165 (QQQ $5,972), bad case $4,584 (QQQ $4,727), good case $5,683 (QQQ $6,934). 37.8% lost money, against 13.5% for QQQ.
+
+**three_down.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,012 (SPY $1,064), bad case $927 (SPY $934), good case $1,088 (SPY $1,165). 39.7% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,012 (QQQ $1,099), bad case $927 (QQQ $939), good case $1,088 (QQQ $1,214). 39.7% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,061 (SPY $5,320), bad case $4,637 (SPY $4,671), good case $5,438 (SPY $5,827). 39.7% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,061 (QQQ $5,495), bad case $4,637 (QQQ $4,695), good case $5,438 (QQQ $6,068). 39.7% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,017 (SPY $1,147), bad case $923 (SPY $930), good case $1,116 (SPY $1,295). 39.8% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,017 (QQQ $1,194), bad case $923 (QQQ $945), good case $1,116 (QQQ $1,387). 39.8% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,084 (SPY $5,733), bad case $4,613 (SPY $4,650), good case $5,582 (SPY $6,473). 39.8% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,084 (QQQ $5,972), bad case $4,613 (QQQ $4,727), good case $5,582 (QQQ $6,934). 39.8% lost money, against 13.5% for QQQ.
+
+**rsi2_qqq_overlay.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,044 (SPY $1,064), bad case $916 (SPY $934), good case $1,143 (SPY $1,165). 32.7% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,044 (QQQ $1,099), bad case $916 (QQQ $939), good case $1,143 (QQQ $1,214). 32.7% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,219 (SPY $5,320), bad case $4,578 (SPY $4,671), good case $5,717 (SPY $5,827). 32.7% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,219 (QQQ $5,495), bad case $4,578 (QQQ $4,695), good case $5,717 (QQQ $6,068). 32.7% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,077 (SPY $1,147), bad case $903 (SPY $930), good case $1,227 (SPY $1,295). 27.5% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,077 (QQQ $1,194), bad case $903 (QQQ $945), good case $1,227 (QQQ $1,387). 27.5% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,384 (SPY $5,733), bad case $4,516 (SPY $4,650), good case $6,134 (SPY $6,473). 27.5% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,384 (QQQ $5,972), bad case $4,516 (QQQ $4,727), good case $6,134 (QQQ $6,934). 27.5% lost money, against 13.5% for QQQ.
+
+**tqqq_sma200.**
+6-month, $1,000 versus SPY: 196 windows. Median ending $1,186 (SPY $1,080), bad case $727 (SPY $968), good case $1,594 (SPY $1,166). 30.1% lost money, against 17.3% for SPY.
+6-month, $1,000 versus QQQ: 196 windows. Median ending $1,186 (QQQ $1,105), bad case $727 (QQQ $963), good case $1,594 (QQQ $1,212). 30.1% lost money, against 18.9% for QQQ.
+6-month, $5,000 versus SPY: 196 windows. Median ending $5,929 (SPY $5,401), bad case $3,637 (SPY $4,838), good case $7,971 (SPY $5,828). 30.1% lost money, against 17.3% for SPY.
+6-month, $5,000 versus QQQ: 196 windows. Median ending $5,929 (QQQ $5,525), bad case $3,637 (QQQ $4,813), good case $7,971 (QQQ $6,061). 30.1% lost money, against 18.9% for QQQ.
+12-month, $1,000 versus SPY: 190 windows. Median ending $1,381 (SPY $1,158), bad case $694 (SPY $994), good case $2,122 (SPY $1,298). 31.6% lost money, against 10.5% for SPY.
+12-month, $1,000 versus QQQ: 190 windows. Median ending $1,381 (QQQ $1,217), bad case $694 (QQQ $1,014), good case $2,122 (QQQ $1,387). 31.6% lost money, against 8.4% for QQQ.
+12-month, $5,000 versus SPY: 190 windows. Median ending $6,906 (SPY $5,792), bad case $3,468 (SPY $4,969), good case $10,610 (SPY $6,490). 31.6% lost money, against 10.5% for SPY.
+12-month, $5,000 versus QQQ: 190 windows. Median ending $6,906 (QQQ $6,084), bad case $3,468 (QQQ $5,071), good case $10,610 (QQQ $6,935). 31.6% lost money, against 8.4% for QQQ.
+
+**tqqq_band3.**
+6-month, $1,000 versus SPY: 196 windows. Median ending $1,185 (SPY $1,080), bad case $751 (SPY $968), good case $1,589 (SPY $1,166). 28.1% lost money, against 17.3% for SPY.
+6-month, $1,000 versus QQQ: 196 windows. Median ending $1,185 (QQQ $1,105), bad case $751 (QQQ $963), good case $1,589 (QQQ $1,212). 28.1% lost money, against 18.9% for QQQ.
+6-month, $5,000 versus SPY: 196 windows. Median ending $5,927 (SPY $5,401), bad case $3,756 (SPY $4,838), good case $7,944 (SPY $5,828). 28.1% lost money, against 17.3% for SPY.
+6-month, $5,000 versus QQQ: 196 windows. Median ending $5,927 (QQQ $5,525), bad case $3,756 (QQQ $4,813), good case $7,944 (QQQ $6,061). 28.1% lost money, against 18.9% for QQQ.
+12-month, $1,000 versus SPY: 190 windows. Median ending $1,303 (SPY $1,158), bad case $773 (SPY $994), good case $2,071 (SPY $1,298). 26.3% lost money, against 10.5% for SPY.
+12-month, $1,000 versus QQQ: 190 windows. Median ending $1,303 (QQQ $1,217), bad case $773 (QQQ $1,014), good case $2,071 (QQQ $1,387). 26.3% lost money, against 8.4% for QQQ.
+12-month, $5,000 versus SPY: 190 windows. Median ending $6,514 (SPY $5,792), bad case $3,865 (SPY $4,969), good case $10,354 (SPY $6,490). 26.3% lost money, against 10.5% for SPY.
+12-month, $5,000 versus QQQ: 190 windows. Median ending $6,514 (QQQ $6,084), bad case $3,865 (QQQ $5,071), good case $10,354 (QQQ $6,935). 26.3% lost money, against 8.4% for QQQ.
+
+**tqqq_vol20.**
+6-month, $1,000 versus SPY: 196 windows. Median ending $1,179 (SPY $1,080), bad case $738 (SPY $968), good case $1,589 (SPY $1,166). 30.1% lost money, against 17.3% for SPY.
+6-month, $1,000 versus QQQ: 196 windows. Median ending $1,179 (QQQ $1,105), bad case $738 (QQQ $963), good case $1,589 (QQQ $1,212). 30.1% lost money, against 18.9% for QQQ.
+6-month, $5,000 versus SPY: 196 windows. Median ending $5,893 (SPY $5,401), bad case $3,691 (SPY $4,838), good case $7,947 (SPY $5,828). 30.1% lost money, against 17.3% for SPY.
+6-month, $5,000 versus QQQ: 196 windows. Median ending $5,893 (QQQ $5,525), bad case $3,691 (QQQ $4,813), good case $7,947 (QQQ $6,061). 30.1% lost money, against 18.9% for QQQ.
+12-month, $1,000 versus SPY: 190 windows. Median ending $1,386 (SPY $1,158), bad case $752 (SPY $994), good case $2,070 (SPY $1,298). 26.8% lost money, against 10.5% for SPY.
+12-month, $1,000 versus QQQ: 190 windows. Median ending $1,386 (QQQ $1,217), bad case $752 (QQQ $1,014), good case $2,070 (QQQ $1,387). 26.8% lost money, against 8.4% for QQQ.
+12-month, $5,000 versus SPY: 190 windows. Median ending $6,928 (SPY $5,792), bad case $3,760 (SPY $4,969), good case $10,351 (SPY $6,490). 26.8% lost money, against 10.5% for SPY.
+12-month, $5,000 versus QQQ: 190 windows. Median ending $6,928 (QQQ $6,084), bad case $3,760 (QQQ $5,071), good case $10,351 (QQQ $6,935). 26.8% lost money, against 8.4% for QQQ.
+
+**tqqq_half.**
+6-month, $1,000 versus SPY: 196 windows. Median ending $1,130 (SPY $1,080), bad case $819 (SPY $968), good case $1,363 (SPY $1,166). 29.6% lost money, against 17.3% for SPY.
+6-month, $1,000 versus QQQ: 196 windows. Median ending $1,130 (QQQ $1,105), bad case $819 (QQQ $963), good case $1,363 (QQQ $1,212). 29.6% lost money, against 18.9% for QQQ.
+6-month, $5,000 versus SPY: 196 windows. Median ending $5,650 (SPY $5,401), bad case $4,094 (SPY $4,838), good case $6,815 (SPY $5,828). 29.6% lost money, against 17.3% for SPY.
+6-month, $5,000 versus QQQ: 196 windows. Median ending $5,650 (QQQ $5,525), bad case $4,094 (QQQ $4,813), good case $6,815 (QQQ $6,061). 29.6% lost money, against 18.9% for QQQ.
+12-month, $1,000 versus SPY: 190 windows. Median ending $1,212 (SPY $1,158), bad case $819 (SPY $994), good case $1,661 (SPY $1,298). 28.4% lost money, against 10.5% for SPY.
+12-month, $1,000 versus QQQ: 190 windows. Median ending $1,212 (QQQ $1,217), bad case $819 (QQQ $1,014), good case $1,661 (QQQ $1,387). 28.4% lost money, against 8.4% for QQQ.
+12-month, $5,000 versus SPY: 190 windows. Median ending $6,059 (SPY $5,792), bad case $4,094 (SPY $4,969), good case $8,304 (SPY $6,490). 28.4% lost money, against 10.5% for SPY.
+12-month, $5,000 versus QQQ: 190 windows. Median ending $6,059 (QQQ $6,084), bad case $4,094 (QQQ $5,071), good case $8,304 (QQQ $6,935). 28.4% lost money, against 8.4% for QQQ.
+
+**qqq_tqqq_blend.**
+6-month, $1,000 versus SPY: 196 windows. Median ending $1,142 (SPY $1,080), bad case $790 (SPY $968), good case $1,417 (SPY $1,166). 29.1% lost money, against 17.3% for SPY.
+6-month, $1,000 versus QQQ: 196 windows. Median ending $1,142 (QQQ $1,105), bad case $790 (QQQ $963), good case $1,417 (QQQ $1,212). 29.1% lost money, against 18.9% for QQQ.
+6-month, $5,000 versus SPY: 196 windows. Median ending $5,711 (SPY $5,401), bad case $3,948 (SPY $4,838), good case $7,083 (SPY $5,828). 29.1% lost money, against 17.3% for SPY.
+6-month, $5,000 versus QQQ: 196 windows. Median ending $5,711 (QQQ $5,525), bad case $3,948 (QQQ $4,813), good case $7,083 (QQQ $6,061). 29.1% lost money, against 18.9% for QQQ.
+12-month, $1,000 versus SPY: 190 windows. Median ending $1,282 (SPY $1,158), bad case $785 (SPY $994), good case $1,791 (SPY $1,298). 29.5% lost money, against 10.5% for SPY.
+12-month, $1,000 versus QQQ: 190 windows. Median ending $1,282 (QQQ $1,217), bad case $785 (QQQ $1,014), good case $1,791 (QQQ $1,387). 29.5% lost money, against 8.4% for QQQ.
+12-month, $5,000 versus SPY: 190 windows. Median ending $6,410 (SPY $5,792), bad case $3,927 (SPY $4,969), good case $8,957 (SPY $6,490). 29.5% lost money, against 10.5% for SPY.
+12-month, $5,000 versus QQQ: 190 windows. Median ending $6,410 (QQQ $6,084), bad case $3,927 (QQQ $5,071), good case $8,957 (QQQ $6,935). 29.5% lost money, against 8.4% for QQQ.
+
+**upro_sma200.**
+6-month, $1,000 versus SPY: 204 windows. Median ending $1,146 (SPY $1,081), bad case $757 (SPY $967), good case $1,467 (SPY $1,166). 29.4% lost money, against 17.2% for SPY.
+6-month, $1,000 versus QQQ: 204 windows. Median ending $1,146 (QQQ $1,105), bad case $757 (QQQ $963), good case $1,467 (QQQ $1,213). 29.4% lost money, against 18.6% for QQQ.
+6-month, $5,000 versus SPY: 204 windows. Median ending $5,732 (SPY $5,406), bad case $3,785 (SPY $4,836), good case $7,337 (SPY $5,830). 29.4% lost money, against 17.2% for SPY.
+6-month, $5,000 versus QQQ: 204 windows. Median ending $5,732 (QQQ $5,525), bad case $3,785 (QQQ $4,813), good case $7,337 (QQQ $6,063). 29.4% lost money, against 18.6% for QQQ.
+12-month, $1,000 versus SPY: 198 windows. Median ending $1,198 (SPY $1,157), bad case $775 (SPY $1,000), good case $1,824 (SPY $1,297). 34.3% lost money, against 10.1% for SPY.
+12-month, $1,000 versus QQQ: 198 windows. Median ending $1,198 (QQQ $1,212), bad case $775 (QQQ $1,021), good case $1,824 (QQQ $1,379). 34.3% lost money, against 8.1% for QQQ.
+12-month, $5,000 versus SPY: 198 windows. Median ending $5,991 (SPY $5,785), bad case $3,877 (SPY $5,001), good case $9,120 (SPY $6,485). 34.3% lost money, against 10.1% for SPY.
+12-month, $5,000 versus QQQ: 198 windows. Median ending $5,991 (QQQ $6,061), bad case $3,877 (QQQ $5,106), good case $9,120 (QQQ $6,896). 34.3% lost money, against 8.1% for QQQ.
+
+**spy_vol15_weekly.**
+6-month, $1,000 versus SPY: 253 windows. Median ending $1,062 (SPY $1,068), bad case $927 (SPY $934), good case $1,147 (SPY $1,166). 25.3% lost money, against 20.9% for SPY.
+6-month, $1,000 versus QQQ: 253 windows. Median ending $1,062 (QQQ $1,100), bad case $927 (QQQ $938), good case $1,147 (QQQ $1,214). 25.3% lost money, against 22.1% for QQQ.
+6-month, $5,000 versus SPY: 253 windows. Median ending $5,310 (SPY $5,341), bad case $4,635 (SPY $4,668), good case $5,733 (SPY $5,831). 25.3% lost money, against 20.9% for SPY.
+6-month, $5,000 versus QQQ: 253 windows. Median ending $5,310 (QQQ $5,500), bad case $4,635 (QQQ $4,690), good case $5,733 (QQQ $6,069). 25.3% lost money, against 22.1% for QQQ.
+12-month, $1,000 versus SPY: 247 windows. Median ending $1,117 (SPY $1,147), bad case $936 (SPY $930), good case $1,257 (SPY $1,295). 19.0% lost money, against 16.6% for SPY.
+12-month, $1,000 versus QQQ: 247 windows. Median ending $1,117 (QQQ $1,195), bad case $936 (QQQ $944), good case $1,257 (QQQ $1,387). 19.0% lost money, against 13.8% for QQQ.
+12-month, $5,000 versus SPY: 247 windows. Median ending $5,583 (SPY $5,735), bad case $4,682 (SPY $4,650), good case $6,284 (SPY $6,477). 19.0% lost money, against 16.6% for SPY.
+12-month, $5,000 versus QQQ: 247 windows. Median ending $5,583 (QQQ $5,976), bad case $4,682 (QQQ $4,719), good case $6,284 (QQQ $6,936). 19.0% lost money, against 13.8% for QQQ.
+
+**qqq_vol15_weekly.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,072 (SPY $1,064), bad case $951 (SPY $934), good case $1,167 (SPY $1,165). 22.6% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,072 (QQQ $1,099), bad case $951 (QQQ $939), good case $1,167 (QQQ $1,214). 22.6% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,361 (SPY $5,320), bad case $4,753 (SPY $4,671), good case $5,834 (SPY $5,827). 22.6% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,361 (QQQ $5,495), bad case $4,753 (QQQ $4,695), good case $5,834 (QQQ $6,068). 22.6% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,151 (SPY $1,147), bad case $958 (SPY $930), good case $1,282 (SPY $1,295). 13.9% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,151 (QQQ $1,194), bad case $958 (QQQ $945), good case $1,282 (QQQ $1,387). 13.9% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,757 (SPY $5,733), bad case $4,788 (SPY $4,650), good case $6,411 (SPY $6,473). 13.9% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,757 (QQQ $5,972), bad case $4,788 (QQQ $4,727), good case $6,411 (QQQ $6,934). 13.9% lost money, against 13.5% for QQQ.
+
+**spy_vol15_weekly_sma.**
+6-month, $1,000 versus SPY: 254 windows. Median ending $1,040 (SPY $1,067), bad case $937 (SPY $934), good case $1,134 (SPY $1,166). 27.2% lost money, against 20.9% for SPY.
+6-month, $1,000 versus QQQ: 254 windows. Median ending $1,040 (QQQ $1,101), bad case $937 (QQQ $938), good case $1,134 (QQQ $1,214). 27.2% lost money, against 22.0% for QQQ.
+6-month, $5,000 versus SPY: 254 windows. Median ending $5,199 (SPY $5,335), bad case $4,687 (SPY $4,669), good case $5,672 (SPY $5,830). 27.2% lost money, against 20.9% for SPY.
+6-month, $5,000 versus QQQ: 254 windows. Median ending $5,199 (QQQ $5,503), bad case $4,687 (QQQ $4,691), good case $5,672 (QQQ $6,069). 27.2% lost money, against 22.0% for QQQ.
+12-month, $1,000 versus SPY: 248 windows. Median ending $1,085 (SPY $1,147), bad case $913 (SPY $930), good case $1,228 (SPY $1,295). 29.0% lost money, against 16.5% for SPY.
+12-month, $1,000 versus QQQ: 248 windows. Median ending $1,085 (QQQ $1,196), bad case $913 (QQQ $944), good case $1,228 (QQQ $1,387). 29.0% lost money, against 13.7% for QQQ.
+12-month, $5,000 versus SPY: 248 windows. Median ending $5,424 (SPY $5,736), bad case $4,567 (SPY $4,650), good case $6,140 (SPY $6,476). 29.0% lost money, against 16.5% for SPY.
+12-month, $5,000 versus QQQ: 248 windows. Median ending $5,424 (QQQ $5,980), bad case $4,567 (QQQ $4,721), good case $6,140 (QQQ $6,936). 29.0% lost money, against 13.7% for QQQ.
+
+**qqq_vol15_weekly_sma.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,060 (SPY $1,064), bad case $937 (SPY $934), good case $1,156 (SPY $1,165). 25.3% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,060 (QQQ $1,099), bad case $937 (QQQ $939), good case $1,156 (QQQ $1,214). 25.3% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,298 (SPY $5,320), bad case $4,685 (SPY $4,671), good case $5,778 (SPY $5,827). 25.3% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,298 (QQQ $5,495), bad case $4,685 (QQQ $4,695), good case $5,778 (QQQ $6,068). 25.3% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,118 (SPY $1,147), bad case $935 (SPY $930), good case $1,260 (SPY $1,295). 21.5% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,118 (QQQ $1,194), bad case $935 (QQQ $945), good case $1,260 (QQQ $1,387). 21.5% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,591 (SPY $5,733), bad case $4,677 (SPY $4,650), good case $6,300 (SPY $6,473). 21.5% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,591 (QQQ $5,972), bad case $4,677 (QQQ $4,727), good case $6,300 (QQQ $6,934). 21.5% lost money, against 13.5% for QQQ.
+
+**sector_top3_12m.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,055 (SPY $1,064), bad case $949 (SPY $934), good case $1,157 (SPY $1,165). 25.7% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,055 (QQQ $1,099), bad case $949 (QQQ $939), good case $1,157 (QQQ $1,214). 25.7% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,275 (SPY $5,320), bad case $4,746 (SPY $4,671), good case $5,785 (SPY $5,827). 25.7% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,275 (QQQ $5,495), bad case $4,746 (QQQ $4,695), good case $5,785 (QQQ $6,068). 25.7% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,096 (SPY $1,147), bad case $954 (SPY $930), good case $1,253 (SPY $1,295). 21.9% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,096 (QQQ $1,194), bad case $954 (QQQ $945), good case $1,253 (QQQ $1,387). 21.9% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,480 (SPY $5,733), bad case $4,771 (SPY $4,650), good case $6,265 (SPY $6,473). 21.9% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,480 (QQQ $5,972), bad case $4,771 (QQQ $4,727), good case $6,265 (QQQ $6,934). 21.9% lost money, against 13.5% for QQQ.
+
+**dow_mom_top5.**
+6-month, $1,000 versus SPY: 203 windows. Median ending $1,022 (SPY $1,080), bad case $915 (SPY $967), good case $1,148 (SPY $1,164). 39.4% lost money, against 17.2% for SPY.
+6-month, $1,000 versus QQQ: 203 windows. Median ending $1,022 (QQQ $1,105), bad case $915 (QQQ $963), good case $1,148 (QQQ $1,210). 39.4% lost money, against 18.7% for QQQ.
+6-month, $5,000 versus SPY: 203 windows. Median ending $5,108 (SPY $5,402), bad case $4,575 (SPY $4,836), good case $5,741 (SPY $5,821). 39.4% lost money, against 17.2% for SPY.
+6-month, $5,000 versus QQQ: 203 windows. Median ending $5,108 (QQQ $5,524), bad case $4,575 (QQQ $4,813), good case $5,741 (QQQ $6,052). 39.4% lost money, against 18.7% for QQQ.
+12-month, $1,000 versus SPY: 197 windows. Median ending $1,056 (SPY $1,157), bad case $875 (SPY $999), good case $1,253 (SPY $1,297). 37.6% lost money, against 10.2% for SPY.
+12-month, $1,000 versus QQQ: 197 windows. Median ending $1,056 (QQQ $1,213), bad case $875 (QQQ $1,020), good case $1,253 (QQQ $1,380). 37.6% lost money, against 8.1% for QQQ.
+12-month, $5,000 versus SPY: 197 windows. Median ending $5,280 (SPY $5,786), bad case $4,374 (SPY $4,997), good case $6,265 (SPY $6,486). 37.6% lost money, against 10.2% for SPY.
+12-month, $5,000 versus QQQ: 197 windows. Median ending $5,280 (QQQ $6,063), bad case $4,374 (QQQ $5,101), good case $6,265 (QQQ $6,901). 37.6% lost money, against 8.1% for QQQ.
+
+**spy_tom.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,002 (SPY $1,064), bad case $946 (SPY $934), good case $1,065 (SPY $1,165). 47.1% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,002 (QQQ $1,099), bad case $946 (QQQ $939), good case $1,065 (QQQ $1,214). 47.1% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,012 (SPY $5,320), bad case $4,732 (SPY $4,671), good case $5,325 (SPY $5,827). 47.1% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,012 (QQQ $5,495), bad case $4,732 (QQQ $4,695), good case $5,325 (QQQ $6,068). 47.1% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $999 (SPY $1,147), bad case $929 (SPY $930), good case $1,095 (SPY $1,295). 50.6% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $999 (QQQ $1,194), bad case $929 (QQQ $945), good case $1,095 (QQQ $1,387). 50.6% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $4,996 (SPY $5,733), bad case $4,647 (SPY $4,650), good case $5,475 (SPY $6,473). 50.6% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $4,996 (QQQ $5,972), bad case $4,647 (QQQ $4,727), good case $5,475 (QQQ $6,934). 50.6% lost money, against 13.5% for QQQ.
+
+**spy_pre_holiday.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $998 (SPY $1,064), bad case $973 (SPY $934), good case $1,022 (SPY $1,165). 56.0% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $998 (QQQ $1,099), bad case $973 (QQQ $939), good case $1,022 (QQQ $1,214). 56.0% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $4,991 (SPY $5,320), bad case $4,865 (SPY $4,671), good case $5,108 (SPY $5,827). 56.0% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $4,991 (QQQ $5,495), bad case $4,865 (QQQ $4,695), good case $5,108 (QQQ $6,068). 56.0% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $996 (SPY $1,147), bad case $961 (SPY $930), good case $1,031 (SPY $1,295). 60.6% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $996 (QQQ $1,194), bad case $961 (QQQ $945), good case $1,031 (QQQ $1,387). 60.6% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $4,979 (SPY $5,733), bad case $4,807 (SPY $4,650), good case $5,153 (SPY $6,473). 60.6% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $4,979 (QQQ $5,972), bad case $4,807 (QQQ $4,727), good case $5,153 (QQQ $6,934). 60.6% lost money, against 13.5% for QQQ.
+
+**spy_calendar_both.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,001 (SPY $1,064), bad case $941 (SPY $934), good case $1,068 (SPY $1,165). 49.4% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,001 (QQQ $1,099), bad case $941 (QQQ $939), good case $1,068 (QQQ $1,214). 49.4% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,003 (SPY $5,320), bad case $4,705 (SPY $4,671), good case $5,340 (SPY $5,827). 49.4% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,003 (QQQ $5,495), bad case $4,705 (QQQ $4,695), good case $5,340 (QQQ $6,068). 49.4% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,002 (SPY $1,147), bad case $911 (SPY $930), good case $1,112 (SPY $1,295). 48.2% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,002 (QQQ $1,194), bad case $911 (QQQ $945), good case $1,112 (QQQ $1,387). 48.2% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,008 (SPY $5,733), bad case $4,553 (SPY $4,650), good case $5,562 (SPY $6,473). 48.2% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,008 (QQQ $5,972), bad case $4,553 (QQQ $4,727), good case $5,562 (QQQ $6,934). 48.2% lost money, against 13.5% for QQQ.
+
+**spy_calendar_blend.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,033 (SPY $1,064), bad case $959 (SPY $934), good case $1,106 (SPY $1,165). 23.7% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,033 (QQQ $1,099), bad case $959 (QQQ $939), good case $1,106 (QQQ $1,214). 23.7% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,167 (SPY $5,320), bad case $4,794 (SPY $4,671), good case $5,532 (SPY $5,827). 23.7% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,167 (QQQ $5,495), bad case $4,794 (QQQ $4,695), good case $5,532 (QQQ $6,068). 23.7% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,070 (SPY $1,147), bad case $939 (SPY $930), good case $1,172 (SPY $1,295). 19.9% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,070 (QQQ $1,194), bad case $939 (QQQ $945), good case $1,172 (QQQ $1,387). 19.9% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,350 (SPY $5,733), bad case $4,696 (SPY $4,650), good case $5,861 (SPY $6,473). 19.9% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,350 (QQQ $5,972), bad case $4,696 (QQQ $4,727), good case $5,861 (QQQ $6,934). 19.9% lost money, against 13.5% for QQQ.
+
+**qqq_tom.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,006 (SPY $1,064), bad case $942 (SPY $934), good case $1,078 (SPY $1,165). 45.1% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,006 (QQQ $1,099), bad case $942 (QQQ $939), good case $1,078 (QQQ $1,214). 45.1% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,032 (SPY $5,320), bad case $4,712 (SPY $4,671), good case $5,388 (SPY $5,827). 45.1% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,032 (QQQ $5,495), bad case $4,712 (QQQ $4,695), good case $5,388 (QQQ $6,068). 45.1% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,005 (SPY $1,147), bad case $925 (SPY $930), good case $1,112 (SPY $1,295). 47.0% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,005 (QQQ $1,194), bad case $925 (QQQ $945), good case $1,112 (QQQ $1,387). 47.0% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,027 (SPY $5,733), bad case $4,625 (SPY $4,650), good case $5,560 (SPY $6,473). 47.0% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,027 (QQQ $5,972), bad case $4,625 (QQQ $4,727), good case $5,560 (QQQ $6,934). 47.0% lost money, against 13.5% for QQQ.
+
+**qqq_pre_holiday.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $999 (SPY $1,064), bad case $967 (SPY $934), good case $1,025 (SPY $1,165). 50.6% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $999 (QQQ $1,099), bad case $967 (QQQ $939), good case $1,025 (QQQ $1,214). 50.6% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $4,995 (SPY $5,320), bad case $4,834 (SPY $4,671), good case $5,127 (SPY $5,827). 50.6% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $4,995 (QQQ $5,495), bad case $4,834 (QQQ $4,695), good case $5,127 (QQQ $6,068). 50.6% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $993 (SPY $1,147), bad case $961 (SPY $930), good case $1,041 (SPY $1,295). 57.0% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $993 (QQQ $1,194), bad case $961 (QQQ $945), good case $1,041 (QQQ $1,387). 57.0% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $4,965 (SPY $5,733), bad case $4,803 (SPY $4,650), good case $5,205 (SPY $6,473). 57.0% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $4,965 (QQQ $5,972), bad case $4,803 (QQQ $4,727), good case $5,205 (QQQ $6,934). 57.0% lost money, against 13.5% for QQQ.
+
+**qqq_calendar_both.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,009 (SPY $1,064), bad case $948 (SPY $934), good case $1,079 (SPY $1,165). 44.4% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,009 (QQQ $1,099), bad case $948 (QQQ $939), good case $1,079 (QQQ $1,214). 44.4% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,047 (SPY $5,320), bad case $4,742 (SPY $4,671), good case $5,396 (SPY $5,827). 44.4% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,047 (QQQ $5,495), bad case $4,742 (QQQ $4,695), good case $5,396 (QQQ $6,068). 44.4% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,003 (SPY $1,147), bad case $922 (SPY $930), good case $1,132 (SPY $1,295). 47.8% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,003 (QQQ $1,194), bad case $922 (QQQ $945), good case $1,132 (QQQ $1,387). 47.8% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,015 (SPY $5,733), bad case $4,612 (SPY $4,650), good case $5,661 (SPY $6,473). 47.8% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,015 (QQQ $5,972), bad case $4,612 (QQQ $4,727), good case $5,661 (QQQ $6,934). 47.8% lost money, against 13.5% for QQQ.
+
+**qqq_calendar_blend.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,051 (SPY $1,064), bad case $957 (SPY $934), good case $1,131 (SPY $1,165). 19.8% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,051 (QQQ $1,099), bad case $957 (QQQ $939), good case $1,131 (QQQ $1,214). 19.8% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,256 (SPY $5,320), bad case $4,787 (SPY $4,671), good case $5,655 (SPY $5,827). 19.8% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,256 (QQQ $5,495), bad case $4,787 (QQQ $4,695), good case $5,655 (QQQ $6,068). 19.8% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,102 (SPY $1,147), bad case $949 (SPY $930), good case $1,226 (SPY $1,295). 15.9% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,102 (QQQ $1,194), bad case $949 (QQQ $945), good case $1,226 (QQQ $1,387). 15.9% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,510 (SPY $5,733), bad case $4,745 (SPY $4,650), good case $6,128 (SPY $6,473). 15.9% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,510 (QQQ $5,972), bad case $4,745 (QQQ $4,727), good case $6,128 (QQQ $6,934). 15.9% lost money, against 13.5% for QQQ.
+
+**wheel_f.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,005 (SPY $1,064), bad case $979 (SPY $934), good case $1,024 (SPY $1,165). 39.3% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,005 (QQQ $1,099), bad case $979 (QQQ $939), good case $1,024 (QQQ $1,214). 39.3% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,026 (SPY $5,320), bad case $4,893 (SPY $4,671), good case $5,121 (SPY $5,827). 39.3% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,026 (QQQ $5,495), bad case $4,893 (QQQ $4,695), good case $5,121 (QQQ $6,068). 39.3% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,007 (SPY $1,147), bad case $972 (SPY $930), good case $1,037 (SPY $1,295). 40.6% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,007 (QQQ $1,194), bad case $972 (QQQ $945), good case $1,037 (QQQ $1,387). 40.6% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,034 (SPY $5,733), bad case $4,858 (SPY $4,650), good case $5,185 (SPY $6,473). 40.6% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,034 (QQQ $5,972), bad case $4,858 (QQQ $4,727), good case $5,185 (QQQ $6,934). 40.6% lost money, against 13.5% for QQQ.
+
+**covered_f.**
+6-month, $1,000 versus SPY: 257 windows. Median ending $1,002 (SPY $1,064), bad case $976 (SPY $934), good case $1,033 (SPY $1,165). 44.4% lost money, against 20.6% for SPY.
+6-month, $1,000 versus QQQ: 257 windows. Median ending $1,002 (QQQ $1,099), bad case $976 (QQQ $939), good case $1,033 (QQQ $1,214). 44.4% lost money, against 21.8% for QQQ.
+6-month, $5,000 versus SPY: 257 windows. Median ending $5,011 (SPY $5,320), bad case $4,881 (SPY $4,671), good case $5,165 (SPY $5,827). 44.4% lost money, against 20.6% for SPY.
+6-month, $5,000 versus QQQ: 257 windows. Median ending $5,011 (QQQ $5,495), bad case $4,881 (QQQ $4,695), good case $5,165 (QQQ $6,068). 44.4% lost money, against 21.8% for QQQ.
+12-month, $1,000 versus SPY: 251 windows. Median ending $1,005 (SPY $1,147), bad case $969 (SPY $930), good case $1,055 (SPY $1,295). 43.0% lost money, against 16.3% for SPY.
+12-month, $1,000 versus QQQ: 251 windows. Median ending $1,005 (QQQ $1,194), bad case $969 (QQQ $945), good case $1,055 (QQQ $1,387). 43.0% lost money, against 13.5% for QQQ.
+12-month, $5,000 versus SPY: 251 windows. Median ending $5,025 (SPY $5,733), bad case $4,844 (SPY $4,650), good case $5,276 (SPY $6,473). 43.0% lost money, against 16.3% for SPY.
+12-month, $5,000 versus QQQ: 251 windows. Median ending $5,025 (QQQ $5,972), bad case $4,844 (QQQ $4,727), good case $5,276 (QQQ $6,934). 43.0% lost money, against 13.5% for QQQ.
+
+### Neighbors and checks that were not allowed to take a tier
+
+| Check | Holdout CAGR | Max DD | Sharpe | Ending |
+|---|---:|---:|---:|---:|
+| rsi2_equal shuffle seed 17 | 1.0% | -32.9% | 0.14 | $1,104 |
+| rsi2_entry5 | 0.4% | -23.4% | 0.09 | $1,038 |
+| tqqq_band3 shuffle seed 17 | 2.0% | -86.7% | 0.29 | $1,212 |
+| tqqq_band2 | 30.7% | -60.9% | 0.81 | $13,596 |
+| spy_vol15_daily | 10.9% | -19.3% | 0.88 | $2,747 |
+| qqq_vol15_daily | 15.3% | -21.5% | 1.04 | $3,999 |
+| sector_top3_12m shuffle seed 17 | 10.1% | -39.7% | 0.59 | $2,555 |
+| sector_top2_12m | 15.8% | -33.2% | 0.85 | $4,196 |
+| sector_top3_6m | 8.7% | -31.4% | 0.57 | $2,255 |
+| sector_top3_3m | 9.7% | -21.2% | 0.71 | $2,471 |
+| dow_mom_top5 shuffle seed 17 | 18.9% | -32.8% | 1.00 | $5,420 |
+| dow_mom_top10 | 6.2% | -21.9% | 0.51 | $1,797 |
+| dow_mom_survivors | 12.7% | -36.2% | 0.73 | $3,221 |
+| spy_calendar_both shuffle seed 17 | 2.7% | -33.7% | 0.26 | $1,295 |
+| wheel_f $1,000 holdout | 4.2% | -30.4% | 0.33 | $1,496 |
+| SPLG covered call. no prices | n/a | n/a | n/a | n/a |
+| QQQM covered call. 100 shares at about $312.76 do not fit in $5,000 | n/a | n/a | n/a | n/a |
+
+### What the score does and does not say
+
+The daily TQQQ filter did not remove the crash the monthly filter took. On the full path, 2020 finished 91.6% for the plain 200-day rule, 79.9% for the 3 percent band, and 89.6% for the 20 percent vol target, because the rebound landed in the same year. 2022 finished -44.5%, -35.3%, and -36.7% on those three. The holdout max drawdown is still -57.8% for the plain daily rule, -62.1% for the 3 percent band, and -50.5% for the vol target, against -69.9% for the published monthly filter. Smaller than -70%, and still a crash. The 3 percent band made more holdout money ($15,806) than the vol target ($13,192). The frozen high-risk rule keeps the higher Calmar, so the band stays a candidate that was not the pick. Two neighbors looked better and were not promoted. The daily 15 percent QQQ vol target, which was not the weekly candidate, finished the holdout at $3,999 with a Sharpe of 1.04. The top-2 sector book finished at $4,196. The pre-registered books are the weekly vol target and the top 3. The point-in-time Dow momentum book lost to a shuffle of its own weights (seed 17 ended $5,420 against the real book's $1,621). The current-member Dow diagnostic ended $3,221. That gap is the survivorship haircut on this universe. It was not subtracted from another return, and this is not an S&P 100 test. The TQQQ 3 percent band beat its own shuffle, which ended $1,212. The wheel and the covered call are a Black-Scholes model on adjusted prices: no listed chain, no early assignment, and dividends are already inside the adjusted close so the formula uses a zero yield. On $5,000 the wheel finished the holdout at $5,260. The separate $1,000 wheel finished at $1,496. QQQM at about $312.76 needs about $31,276 for 100 shares, so it does not fit. Yahoo returned no SPLG prices here, so that fit check was not scored. On raw holdout dollars, the plain daily TQQQ rule ($10,774), the 3 percent band ($15,806), the vol target ($13,192), the QQQ/TQQQ blend ($7,062), and the published monthly filter ($9,255) beat both SPY ($4,028) and QQQ ($6,791). Half TQQQ ($5,304) and UPRO ($4,467) beat SPY and not QQQ. None of the levered books cleared the frozen risk-adjusted test against SPY. The vol target's Sharpe is 0.83 against SPY's 0.88 and QQQ's 0.98. The 10-month sleeve ($1,925), the weekly QQQ vol target with the 200-day filter ($3,358), and the weekly QQQ vol target without that filter ($3,627) cleared the SPY risk test. The filter version had the higher Calmar, so it took the moderate slot. All three finished behind SPY and QQQ on dollars. The moderate book's Sharpe is 0.99 against QQQ's 0.98. I would not call a one-hundredth of a Sharpe a win over QQQ. Its Calmar is higher because the drawdown is -17.0% against QQQ's -35.1%, and it made about half as much money. No book in this search beat QQQ buy-and-hold on both raw return and risk-adjusted return.
+
+### Tiers across this search and the earlier three books
+
+Conservative: gtaa_10m. The published 10-month sleeve: equal slices of SPY, EFA, IEF, and GLD, each held only above its 10-month average. Holdout CAGR 6.9%, max drawdown -10.5%, Sharpe 0.96, positive months 65.3%, ending $1,925. SPY on the same dates ended $4,028 (CAGR 15.3%, drawdown -33.7%, Sharpe 0.88). QQQ ended $6,791 (CAGR 21.7%, drawdown -35.1%, Sharpe 0.98). It did not beat SPY on raw holdout return. It did not beat QQQ on raw holdout return. It cleared the frozen risk-adjusted test against SPY. Moderate: qqq_vol15_weekly_sma. The weekly 15 percent QQQ vol target, and only while QQQ is above its 200-day average. Holdout CAGR 13.2%, max drawdown -17.0%, Sharpe 0.99, positive months 55.1%, ending $3,358. SPY on the same dates ended $4,028 (CAGR 15.3%, drawdown -33.7%, Sharpe 0.88). QQQ ended $6,791 (CAGR 21.7%, drawdown -35.1%, Sharpe 0.98). It did not beat SPY on raw holdout return. It did not beat QQQ on raw holdout return. It cleared the frozen risk-adjusted test against SPY. High risk: tqqq_vol20. Hold TQQQ only while QQQ is above its 200-day average, and scale the weight to min(1, 0.20 / 20-day realized vol). Holdout CAGR 30.3%, max drawdown -50.5%, Sharpe 0.83, positive months 47.5%, ending $13,192. SPY on the same dates ended $4,028 (CAGR 15.3%, drawdown -33.7%, Sharpe 0.88). QQQ ended $6,791 (CAGR 21.7%, drawdown -35.1%, Sharpe 0.98). It beat SPY on raw holdout return. It beat QQQ on raw holdout return. It did not clear the frozen risk-adjusted test against SPY.
+
+The bounce and chop share books were not re-run. On their published Dow windows they finished behind SPY buy-and-hold (the 15 percent trail bounce ended at $2,608.44 against four SPY shares at $3,242.23; the next-level bounce ended at $1,502.90). They are not finalists.
+
+Chart: `reports/account_hunt_equity.png`.
+
+If the goal is the milder crash, the book to look at first is still gtaa_10m. It is not in the bot. The default book is still dual momentum at 0.75 percent of equity, which on $1,000 fractional shares ended the earlier test at $1,046 and on whole shares at $1,002. The moderate book is a weekly QQQ weight between zero and one. The high-risk book is a daily TQQQ weight scaled by 20-day realized vol. OpenAPI equity orders are whole shares, so a $1,000 or $5,000 account would skip most of these ETF orders. Fractional shares, or a paper notional large enough to buy whole shares, would be required. A cash account can hold any of them overnight. Adding one to the sandbox would be a new forward command: read the daily close, write the target weight, and send the order on a later session. That command was not added, and the chop-breakout forward test was not edited. Live trading stays off.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. Live trading stays off.
+
+```
+python3 -m webull_bot.research_account_hunt
+```
+<!-- ACCOUNT_HUNT_END -->
