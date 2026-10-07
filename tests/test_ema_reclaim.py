@@ -284,7 +284,7 @@ def test_a_feature_does_not_read_the_fill_bar_and_the_combo_gate_is_two_sided():
 
 def test_sources_do_not_touch_the_forward_test():
     root = Path("src/webull_bot/chart_reads")
-    for name in ("ema_reclaim.py", "research_ema_reclaim.py"):
+    for name in ("ema_reclaim.py", "research_ema_reclaim.py", "band_exit.py", "research_band_exit.py"):
         text = (root / name).read_text()
         for banned in ("forward_options", "forward_chop", "option_quote", "place_option_order", "mark_options"):
             assert banned not in text
@@ -299,3 +299,106 @@ def test_share_book_is_long_only_and_flat_books_the_open():
     short_only = simulate(prep, _by(_mirror(prep), "strict"), mode="structure", kind="shares", stake=1000.0, long_only=True)
     assert short_only["metrics"]["trades"] == 0
     assert short_only["skips"]["short"] == 1
+
+
+def _band_setup() -> Setup:
+    return Setup("SPY", "strict", "long", 2, 3, 4, -1, -1, 99.0)
+
+
+def test_opposite_band_exits_the_whole_position_and_ignores_a_later_bar():
+    rules = frozen_rules()
+    assert "upper band for a long" in rules["band"]
+    assert "sell half at the first" in rules["band200"]
+    prep = _prep(
+        8,
+        open=[100, 100, 100, 100, 100, 100.2, 100, 100],
+        high=[100, 100, 100, 100, 100.2, 102.5, 100, 100],
+        low=[99, 99, 99, 99, 99.5, 99.8, 99, 99],
+        close=[100, 100, 100, 100, 100.1, 102.0, 100, 100],
+        ema9=np.full(8, 90.0),
+        vwap=np.full(8, 100.0),
+        std=np.full(8, 1.0),
+    )
+    path = walk(prep, _band_setup(), "band")
+    assert path is not None
+    assert path["reason"] == "band"
+    assert path["exit_spot"] == 102.0
+    assert path["scaled"] is False
+    later = _prep(
+        8,
+        open=[100, 100, 100, 100, 100, 100.2, 100, 100],
+        high=[100, 100, 100, 100, 100.2, 102.5, 1000, 100],
+        low=[99, 99, 99, 99, 99.5, 99.8, 99, 99],
+        close=[100, 100, 100, 100, 100.1, 102.0, 100, 100],
+        ema9=np.full(8, 90.0),
+        vwap=np.array([100, 100, 100, 100, 100, 100, 1, 100], dtype=float),
+        std=np.full(8, 1.0),
+    )
+    again = walk(later, _band_setup(), "band")
+    assert again["exit_spot"] == path["exit_spot"]
+    assert again["exit_time"] == path["exit_time"]
+    quiet = _prep(
+        8,
+        high=np.full(8, 100.4),
+        low=np.full(8, 99.6),
+        close=np.full(8, 100.0),
+        open=np.full(8, 100.0),
+        ema9=np.full(8, 90.0),
+        vwap=np.full(8, 100.0),
+        std=np.full(8, 1.0),
+    )
+    held = walk(quiet, _band_setup(), "band")
+    assert held is not None and held["reason"] == "last"
+
+
+def test_half_at_the_first_target_and_the_rest_at_the_other_or_the_9():
+    base = dict(
+        open=[100, 100, 100, 100, 100, 100.2, 100.4],
+        low=[99, 99, 99, 99, 99.5, 99.8, 99.5],
+        ema9=np.full(7, 90.0),
+        vwap=np.full(7, 100.0),
+        std=np.full(7, 1.0),
+        ema200=np.full(7, 104.0),
+    )
+    both = _prep(7, high=[100, 100, 100, 100, 100.2, 103.0, 105.0], close=[100, 100, 100, 100, 100, 102.4, 104.2], **base)
+    half = walk(both, _band_setup(), "band200", split_half=True)
+    assert half is not None
+    assert half["scaled"] is True
+    assert half["scale_spot"] == 102.0
+    assert half["reason"] == "ema200"
+    assert half["exit_spot"] == 104.0
+    faded = _prep(7, high=[100, 100, 100, 100, 100.2, 103.0, 100.4], close=[100, 100, 100, 100, 100, 102.4, 90.0], ema9=np.array([90, 90, 90, 90, 90, 90, 95.0]), **{k: v for k, v in base.items() if k != "ema9"})
+    rest = walk(faded, _band_setup(), "band200", split_half=True)
+    assert rest is not None and rest["reason"] == "ema" and rest["scaled"] is True and rest["exit_spot"] == 90.0
+    stopped = _prep(
+        7,
+        high=[100, 100, 100, 100, 100, 110, 110],
+        low=[99, 99, 99, 99, 99, 98, 99],
+        close=[100] * 7,
+        **{k: v for k, v in base.items() if k != "low"},
+    )
+    hit = walk(stopped, _band_setup(), "band200", split_half=True)
+    assert hit is not None and hit["reason"] == "stop" and hit["scaled"] is False
+    only_band = _prep(
+        7,
+        high=[100, 100, 100, 100, 100.2, 103.0, 100],
+        close=[100, 100, 100, 100, 100, 102.4, 100],
+        ema200=np.full(7, 90.0),
+        **{k: v for k, v in base.items() if k != "ema200"},
+    )
+    whole = walk(only_band, _band_setup(), "band200", split_half=True)
+    assert whole is not None and whole["reason"] == "band" and whole["scaled"] is False and whole["exit_spot"] == 102.0
+    contract = walk(both, _band_setup(), "band200", split_half=False)
+    assert contract is not None and contract["reason"] == "band" and contract["scaled"] is False and contract["exit_spot"] == 102.0
+    short = _prep(
+        7,
+        open=np.full(7, 100.0),
+        high=np.full(7, 100.4),
+        low=[100, 100, 100, 100, 100, 97.5, 100],
+        close=np.full(7, 99.5),
+        ema9=np.full(7, 110.0),
+        vwap=np.full(7, 100.0),
+        std=np.full(7, 1.0),
+    )
+    put = walk(short, Setup("SPY", "strict", "short", 2, 3, 4, -1, -1, 101.0), "band")
+    assert put is not None and put["reason"] == "band" and put["exit_spot"] == 98.0

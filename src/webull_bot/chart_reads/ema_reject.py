@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from webull_bot.calendar import next_trading_day
+from webull_bot.chart_reads.band_exit import walk_band
 from webull_bot.chart_reads.chop_v2 import REL_VOLUME_MAX, VOLUME_WINDOW
 from webull_bot.chart_reads.vwap_band import (
     GATE_DRAWDOWN,
@@ -163,6 +164,18 @@ def frozen_rules() -> dict:
             "r1": "1R from the fill to the stop. This cannot take the gate.",
             "r2": "2R from the fill to the stop. This cannot take the gate.",
             "ema": "Exit at the close of the first later bar that closes back across the 9 EMA. A stop on that bar fills first. This cannot take the gate.",
+            "band": (
+                "The opposite 2 SD session VWAP band, upper for a long and lower for a short, when it is beyond the fill. "
+                "The whole position exits there. The price stop fills first. A close back across the 9 EMA still exits at that close. "
+                "This cannot take the gate."
+            ),
+            "band200": (
+                "Half at the first of the opposite 2 SD band and the 5-minute 200 EMA, when each is beyond the fill. "
+                "The rest exits at the other or on a close back across the 9 EMA. The stop is not moved to the fill. "
+                "One 0 DTE contract sells at the first tag. This cannot take the gate."
+            ),
+            "prem50": "0 DTE only. Exit when the model bid is 50% above the entry ask. A gap fills at the open bid. This cannot take the gate.",
+            "prem100": "0 DTE only. Exit when the model bid is 100% above the entry ask. A gap fills at the open bid. This cannot take the gate.",
         },
         "flat": "Still open at 15:45 ET is sold at that bar's open. That bar's high and low are ignored. No overnight hold.",
         "same_bar": "If one bar can hit the stop and the target, the stop fills. A gap through either fills at the open. If both, the stop.",
@@ -736,13 +749,25 @@ def simulate(
         raise ValueError("kind must be shares or 0dte")
     if stop not in ("reject", "ema20"):
         raise ValueError("stop must be reject or ema20")
-    if target not in ("swing", "r1", "r2", "ema"):
-        raise ValueError("target must be swing, r1, r2, or ema")
+    if target not in ("swing", "r1", "r2", "ema", "band", "band200", "prem50", "prem100"):
+        raise ValueError("target must be swing, r1, r2, ema, band, band200, prem50, or prem100")
+    if target in ("prem50", "prem100") and kind != "0dte":
+        raise ValueError("premium targets are option exits")
     model = costs or CostModel()
     points = iv_points or {}
     bars = rth(frame)
     # The exit EMA is the same series the signal used. Slicing first would warm it up again.
-    ema9 = ema(bars["close"].astype(float), EMA_FAST) if target == "ema" and not bars.empty else None
+    managed = target in ("band", "band200", "prem50", "prem100")
+    close = bars["close"].astype(float) if not bars.empty else pd.Series(dtype=float)
+    ema9 = ema(close, EMA_FAST) if (target == "ema" or managed) and not bars.empty else None
+    ema200 = ema(close, 200) if managed and not bars.empty else None
+    if managed and not bars.empty:
+        bands = session_vwap(bars).reindex(bars.index)
+        vwap_all = bands["vwap"]
+        std_all = bands["upper"] - bands["vwap"]
+    else:
+        vwap_all = None
+        std_all = None
     if start is not None or end is not None:
         keep = [stamp for stamp in bars.index if (start is None or _day_key(stamp) >= start) and (end is None or _day_key(stamp) <= end)]
         bars = bars.loc[keep] if keep else bars.iloc[0:0]
@@ -812,27 +837,77 @@ def simulate(
                 skips["dust"] += 1
                 continue
             distance = abs(fill - stop_price)
-            level = _target_level(signal, fill, stop_price, target)
-            if target == "swing" and level is None:
-                skips["swing"] += 1
-                continue
-            if level is None:
-                skips["dust"] += 1
-                continue
-            if target == "ema":
-                series = ema9.reindex(session.index) if ema9 is not None else pd.Series(np.nan, index=session.index)
-                reason, exit_raw, exit_time = walk_ema_exit(session, loc, signal.direction, stop_price, series)
+            scale_raw = None
+            premium = None
+            if managed:
+                iv = _iv_on(day, points) if kind != "shares" else None
+                if kind != "shares" and iv is None:
+                    skips["iv"] += 1
+                    continue
+                aligned = session.index
+                entry_ask = None
+                strike = None
+                if target.startswith("prem"):
+                    strike = listed_strike(fill, fill)
+                    entry_mid = _option_mid("call" if signal.direction == "long" else "put", fill, strike, signal.fill_time, iv, 0)
+                    entry_ask = entry_mid + _half_spread(entry_mid)
+                path = walk_band(
+                    direction=signal.direction,
+                    fill=fill,
+                    stop=stop_price,
+                    fill_i=loc,
+                    open_=session["open"].to_numpy(dtype=float),
+                    high=session["high"].to_numpy(dtype=float),
+                    low=session["low"].to_numpy(dtype=float),
+                    close=session["close"].to_numpy(dtype=float),
+                    stamps=aligned,
+                    ema9=ema9.reindex(aligned).to_numpy(dtype=float),
+                    ema200=ema200.reindex(aligned).to_numpy(dtype=float),
+                    vwap=vwap_all.reindex(aligned).to_numpy(dtype=float),
+                    std=std_all.reindex(aligned).to_numpy(dtype=float),
+                    flat=FLAT,
+                    mode=target,
+                    split_half=kind == "shares" and target == "band200",
+                    session_end=len(session),
+                    iv=iv,
+                    strike=strike,
+                    entry_ask=entry_ask,
+                )
+                if path is None:
+                    skips["dust"] += 1
+                    continue
+                reason = path["reason"]
+                exit_raw = float(path["exit_spot"])
+                exit_time = path["exit_time"]
                 level = exit_raw
+                scale_raw = path["scale_spot"] if path["scaled"] else None
+                premium = path["premium"]
             else:
-                reason, exit_raw, exit_time = walk_exit(session, loc, signal.direction, stop_price, level)
+                level = _target_level(signal, fill, stop_price, target)
+                if target == "swing" and level is None:
+                    skips["swing"] += 1
+                    continue
+                if level is None:
+                    skips["dust"] += 1
+                    continue
+                if target == "ema":
+                    series = ema9.reindex(session.index) if ema9 is not None else pd.Series(np.nan, index=session.index)
+                    reason, exit_raw, exit_time = walk_ema_exit(session, loc, signal.direction, stop_price, series)
+                    level = exit_raw
+                else:
+                    reason, exit_raw, exit_time = walk_exit(session, loc, signal.direction, stop_price, level)
             if kind == "shares":
-                trade = _share_trade(signal, fill, exit_raw, exit_time, reason, level, distance, settled, equity, model)
+                trade = _share_trade(
+                    signal, fill, exit_raw, exit_time, reason, level, distance, settled, equity, model, scale_raw=scale_raw,
+                )
             else:
                 iv = _iv_on(day, points)
                 if iv is None:
                     skips["iv"] += 1
                     continue
-                trade = _option_trade(signal, fill, exit_raw, exit_time, reason, level, iv, settled)
+                trade = _option_trade(
+                    signal, fill, exit_raw, exit_time, reason, level, iv, settled, premium=premium,
+                )
             if trade is None:
                 skips["premium" if kind != "shares" else "dust"] += 1
                 continue
@@ -875,6 +950,16 @@ def _in_window(signal: Signal, start: date | None, end: date | None) -> bool:
     return True
 
 
+def _long_credit(quantity: float, exit_raw: float, scale_raw: float | None, costs: CostModel) -> float:
+    legs = [(1.0, exit_raw)] if scale_raw is None else [(0.5, float(scale_raw)), (0.5, exit_raw)]
+    credit = 0.0
+    for fraction, raw in legs:
+        px = sell_price(raw, costs)
+        qty = quantity * fraction
+        credit += qty * px - sell_regulatory_fees(px, qty, costs)
+    return credit
+
+
 def _share_trade(
     signal: Signal,
     fill: float,
@@ -886,17 +971,17 @@ def _share_trade(
     settled: float,
     equity: float,
     costs: CostModel,
+    scale_raw: float | None = None,
 ) -> dict | None:
     risk_dollars = RISK_FRACTION * equity
     if signal.direction == "long":
         entry_px = buy_price(fill, costs)
-        exit_px = sell_price(exit_raw, costs)
         room = settled / entry_px if entry_px > 0 else 0.0
         quantity = min(room, risk_dollars / distance)
         if quantity <= 1e-8:
             return None
         debit = quantity * entry_px + buy_fees(costs)
-        credit = quantity * exit_px - sell_regulatory_fees(exit_px, quantity, costs)
+        credit = _long_credit(quantity, exit_raw, scale_raw, costs)
     else:
         entry_px = sell_price(fill, costs)
         exit_px = buy_price(exit_raw, costs)
@@ -924,13 +1009,17 @@ def _option_trade(
     level: float,
     iv: float,
     settled: float,
+    premium: float | None = None,
 ) -> dict | None:
     right = "call" if signal.direction == "long" else "put"
     strike = listed_strike(fill, fill)
     entry_mid = _option_mid(right, fill, strike, signal.fill_time, iv, 0)
-    exit_mid = _option_mid(right, exit_raw, strike, exit_time, iv, 0)
     entry_ask = entry_mid + _half_spread(entry_mid)
-    exit_bid = max(0.0, exit_mid - _half_spread(exit_mid))
+    if premium is not None:
+        exit_bid = float(premium)
+    else:
+        exit_mid = _option_mid(right, exit_raw, strike, exit_time, iv, 0)
+        exit_bid = max(0.0, exit_mid - _half_spread(exit_mid))
     debit = entry_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, entry_ask, sell=False)
     if debit <= 0 or debit > settled + 1e-9:
         return None
