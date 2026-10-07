@@ -98,17 +98,20 @@ def load_state(journal: Journal) -> dict[str, Any]:
 
 
 def completed_hourly(frame: pd.DataFrame, now: datetime) -> pd.DataFrame:
-    """Bars whose session window has ended. The 15:30 bar ends at 16:00."""
+    """Bars whose session window has ended.
+
+    Yahoo's 60-minute stamp is the bar open. The 09:30 bar finishes at
+    10:30, so the 10:35 and 10:45 cycles can use it. The 10:30 bar finishes
+    at 11:30, so the 11:35 cycle is the first one that includes it. The
+    15:30 bar ends at 16:00, not 16:30.
+    """
+    from webull_bot.data.yfinance_provider import bar_end
+
     bars = rth(frame) if frame is not None else None
     if bars is None or bars.empty:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
     now_ny = pd.Timestamp(to_ny(now))
-    keep = []
-    for ts in bars.index:
-        start = pd.Timestamp(ts)
-        close_at = start.normalize() + pd.Timedelta(hours=16)
-        end = min(start + pd.Timedelta(hours=1), close_at)
-        keep.append(end <= now_ny)
+    keep = [bar_end(ts, "60m") <= now_ny for ts in bars.index]
     return bars.loc[keep]
 
 

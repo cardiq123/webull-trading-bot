@@ -121,6 +121,14 @@ def frozen_rules() -> dict:
         "variants": {
             "ema": "9 EMA tag only. This cannot take the gate.",
             "vwap": "The gate. Session VWAP is within 0.10 ATR of the 9 EMA on the signal bar.",
+            "reversal": (
+                "Not the gate. From a bearish stack on the prior bar (9 EMA below the 20 EMA, and that close below session VWAP), "
+                "a green 5-minute bar whose close is above the 9 EMA, the 20 EMA, and VWAP, then a next bar that also closes green. "
+                "The fill is the open of the bar after that confirmation. The mirror, from a bullish stack, buys the put. "
+                "The price stop is one cent beyond the breakout bar (under its low for a long, over its high for a short). "
+                "A close back across the 9 EMA is the same ema exit the rejection study already scores, and the price stop still fills first. "
+                "Swing, 1R, and 2R are the other targets. The chop guard is not part of this variant."
+            ),
             "ema20": (
                 "The bar does not trade through the 20 EMA. A short high stays at or below it. This cannot take the gate. "
                 "With a 0.10 ATR tag and a 0.10 ATR spread floor, a bar that tags the 9 EMA is already short of the 20 EMA, "
@@ -128,7 +136,8 @@ def frozen_rules() -> dict:
             ),
         },
         "chop": (
-            "Part of every variant, not a switch. Skip when this bar's volume is under 0.85 times the prior 20-bar average "
+            "Part of the rejection variants, not a switch. The reversal variant does not use it. "
+            "Skip when this bar's volume is under 0.85 times the prior 20-bar average "
             "(chop v2 REL_VOLUME_MAX and VOLUME_WINDOW). Skip when the 9 and 20 EMAs are under 0.10 ATR apart. "
             "Skip when the 9 EMA's 3-bar move is under 0.05 ATR in the trend direction. "
             "Chop v2's 0.75 ATR stack width is not the spread floor."
@@ -488,6 +497,71 @@ def find_signals(frame: pd.DataFrame, symbol: str) -> list[Signal]:
                     stop_reject, float(ema20[i]), swing, float(ema9[i]),
                 )
             )
+    found.extend(_reversal_signals(ind, symbol))
+    return found
+
+
+def _reversal_signals(ind: pd.DataFrame, symbol: str) -> list[Signal]:
+    """Stack, then a close through 9/20/VWAP, then a same-color confirmation.
+
+    The signal bar is the confirmation. The fill is the next open. The stop
+    is one cent beyond the breakout bar, not the confirmation bar.
+    """
+    count = len(ind)
+    if count < 4:
+        return []
+    opened = ind["open"].to_numpy(dtype=float)
+    ema9 = ind["ema9"].to_numpy(dtype=float)
+    ema20 = ind["ema20"].to_numpy(dtype=float)
+    close = ind["close"].to_numpy(dtype=float)
+    high = ind["high"].to_numpy(dtype=float)
+    low = ind["low"].to_numpy(dtype=float)
+    vwap = ind["vwap"].to_numpy(dtype=float)
+    swing_low = ind["swing_low"].to_numpy(dtype=float)
+    swing_high = ind["swing_high"].to_numpy(dtype=float)
+    index = ind.index
+    dates = index.date
+    clocks = index.time
+    found: list[Signal] = []
+    for i in range(1, count - 2):
+        if dates[i] != dates[i - 1] or dates[i] != dates[i + 1] or dates[i] != dates[i + 2]:
+            continue
+        if clocks[i + 1] > LAST_SIGNAL or clocks[i + 2] >= FLAT:
+            continue
+        prior = (ema9[i - 1], ema20[i - 1], close[i - 1], vwap[i - 1])
+        here = (opened[i], close[i], ema9[i], ema20[i], vwap[i], low[i], high[i])
+        confirm = (opened[i + 1], close[i + 1])
+        if not _finite(*prior, *here, *confirm):
+            continue
+        long = (
+            ema9[i - 1] < ema20[i - 1]
+            and close[i - 1] < vwap[i - 1]
+            and close[i] > opened[i]
+            and close[i] > ema9[i]
+            and close[i] > ema20[i]
+            and close[i] > vwap[i]
+            and close[i + 1] > opened[i + 1]
+        )
+        short = (
+            ema9[i - 1] > ema20[i - 1]
+            and close[i - 1] > vwap[i - 1]
+            and close[i] < opened[i]
+            and close[i] < ema9[i]
+            and close[i] < ema20[i]
+            and close[i] < vwap[i]
+            and close[i + 1] < opened[i + 1]
+        )
+        if long == short:
+            continue
+        direction = "long" if long else "short"
+        stop = float(low[i]) - STOP_PAD if direction == "long" else float(high[i]) + STOP_PAD
+        swing = float(swing_high[i + 1] if direction == "long" else swing_low[i + 1])
+        found.append(
+            Signal(
+                symbol, "reversal", direction, index[i + 1], index[i + 2],
+                stop, float(ema20[i + 1]), swing, float(ema9[i + 1]),
+            )
+        )
     return found
 
 

@@ -21,12 +21,26 @@ Cache files live under data/cache and are safe to delete.
 from __future__ import annotations
 
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from webull_bot.calendar import is_trading_day, to_ny
 from webull_bot.data.base import DataProvider, normalize_frame
+
+NY = ZoneInfo("America/New_York")
+# Yahoo stamps an intraday bar with its open, not its close.
+_BAR_LENGTH = {
+    "60m": timedelta(hours=1),
+    "1h": timedelta(hours=1),
+    "15m": timedelta(minutes=15),
+    "5m": timedelta(minutes=5),
+    "1m": timedelta(minutes=1),
+}
+_HOURLY = {"60m", "1h"}
 
 _INTERVALS = {
     "1d": "1d",
@@ -86,8 +100,11 @@ class YFinanceProvider(DataProvider):
         last = pd.Timestamp(frame.index[-1]).tz_localize(None)
         start_ts = pd.Timestamp(start).tz_localize(None)
         end_ts = pd.Timestamp(end).tz_localize(None)
-        # A few days of slack so a weekend or a holiday does not refetch.
-        covers_end = last >= end_ts - pd.Timedelta(days=5)
+        # Daily files get a few days of slack so a weekend or a holiday does
+        # not refetch. Hourly files do not. A cache that ends at the prior
+        # close is not "today", and a bar that was still forming when the
+        # file was written is not a finished bar on the next cycle.
+        covers_end = _covers_end(path, interval, last, end_ts)
         covers_start = first <= start_ts + pd.Timedelta(days=7)
         # Names listed after `start` (META in 2012, for example) are a complete
         # download even though they begin late. A short lookback file is not.
@@ -142,6 +159,9 @@ class YFinanceProvider(DataProvider):
                     continue
                 if normal.empty:
                     continue
+                normal = _closed_hourly(normal, interval, _clock())
+                if normal.empty:
+                    continue
                 normal.to_csv(self._cache_path(symbol, interval))
                 frames[symbol] = normal
             time.sleep(0.4)
@@ -174,8 +194,82 @@ class YFinanceProvider(DataProvider):
             return None
         if normal.empty:
             return None
+        normal = _closed_hourly(normal, interval, _clock())
+        if normal.empty:
+            return None
         normal.to_csv(self._cache_path(symbol, interval))
         return normal
+
+
+def _clock() -> datetime:
+    return datetime.now(NY)
+
+
+def bar_end(start, interval: str = "60m") -> pd.Timestamp:
+    """When a left-labeled bar is finished. The 15:30 hourly bar ends at 16:00."""
+    stamp = pd.Timestamp(start)
+    if stamp.tzinfo is None:
+        stamp = stamp.tz_localize(NY)
+    else:
+        stamp = stamp.tz_convert(NY)
+    length = _BAR_LENGTH.get(interval, timedelta(hours=1))
+    session_close = stamp.normalize() + pd.Timedelta(hours=16)
+    return min(stamp + pd.Timedelta(seconds=length.total_seconds()), session_close)
+
+
+def latest_completed_bar_start(now: datetime, interval: str = "60m") -> pd.Timestamp | None:
+    """Open time of the newest regular-hours bar that has fully closed."""
+    local = to_ny(now)
+    length = _BAR_LENGTH.get(interval, timedelta(hours=1))
+    day = local.date()
+    for _ in range(12):
+        if is_trading_day(day):
+            cursor = datetime.combine(day, datetime.min.time(), tzinfo=NY).replace(hour=9, minute=30)
+            session_close = cursor.replace(hour=16, minute=0)
+            last_ok = None
+            while cursor < session_close:
+                end = min(cursor + length, session_close)
+                if end <= local:
+                    last_ok = cursor
+                else:
+                    break
+                cursor = cursor + length
+            if last_ok is not None:
+                return pd.Timestamp(last_ok)
+        day -= timedelta(days=1)
+    return None
+
+
+def _wall(stamp) -> pd.Timestamp:
+    clock = pd.Timestamp(stamp)
+    if clock.tzinfo is not None:
+        clock = clock.tz_convert(NY).tz_localize(None)
+    return clock
+
+
+def _covers_end(path: Path, interval: str, last: pd.Timestamp, end_ts: pd.Timestamp) -> bool:
+    if interval not in _HOURLY:
+        return last >= end_ts - pd.Timedelta(days=5)
+    today = _wall(_clock()).normalize()
+    if end_ts.normalize() < today:
+        return last >= end_ts - pd.Timedelta(days=5)
+    need = latest_completed_bar_start(_clock(), interval)
+    if need is None or last < _wall(need):
+        return False
+    # The file has to have been written after that bar closed. A 10:30 bar
+    # saved at 10:50 is still the forming hour, and the 11:35 cycle must
+    # not treat it as the finished bar.
+    written = datetime.fromtimestamp(path.stat().st_mtime, tz=NY)
+    return written >= bar_end(need, interval).to_pydatetime()
+
+
+def _closed_hourly(frame: pd.DataFrame, interval: str, now: datetime) -> pd.DataFrame:
+    """Drop the hour Yahoo has opened but not finished. Daily bars are unchanged."""
+    if interval not in _HOURLY or frame.empty:
+        return frame
+    now_ts = pd.Timestamp(to_ny(now))
+    keep = [bar_end(ts, interval) <= now_ts for ts in frame.index]
+    return frame.loc[keep]
 
 
 def _split_download(raw: pd.DataFrame, symbols: list[str]) -> dict[str, pd.DataFrame]:
