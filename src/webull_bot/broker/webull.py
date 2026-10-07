@@ -830,6 +830,37 @@ class WebullBroker(Broker):
         except Exception:
             return None
 
+    def option_zero_dte_quote(self, symbol: str, option_type: str, spot: float, as_of) -> Optional[dict]:
+        """Same-day expiry and the strike nearest spot. The 14 DTE chop quote is unchanged."""
+        if self._data is None:
+            return None
+        try:
+            from datetime import date as date_cls
+
+            from webull_bot.execution.option_quote import zero_dte_from_client
+
+            day = as_of if isinstance(as_of, date_cls) else date_cls.fromisoformat(str(as_of)[:10])
+            return zero_dte_from_client(self._data, symbol, option_type, float(spot), day)
+        except Exception:
+            return None
+
+    def option_contract_quote(self, option_symbol: str) -> Optional[dict]:
+        """Bid and ask for a contract this book already holds."""
+        if self._data is None or not option_symbol:
+            return None
+        try:
+            from webull_bot.execution.option_quote import snapshot_sides
+
+            ask, bid = snapshot_sides(self._data, option_symbol)
+            out: dict[str, float] = {}
+            if ask is not None and ask > 0:
+                out["ask"] = ask
+            if bid is not None and bid > 0:
+                out["bid"] = bid
+            return out or None
+        except Exception:
+            return None
+
     def place_option_order(self, payload: dict) -> dict:
         """One option payload. Sandbox forward test only. Live trading does not call this."""
         self._require_account()

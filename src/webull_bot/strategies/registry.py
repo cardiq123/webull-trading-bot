@@ -58,6 +58,11 @@ def strategy_by_name(name: str) -> Strategy:
             "chop_breakout_60m is not in the paper or live book. "
             "Run: python -m webull_bot forward-test chop_breakout_60m"
         )
+    if name == "vwap_band_15m":
+        raise KeyError(
+            "vwap_band_15m is not in the paper or live book. "
+            "Run: python -m webull_bot forward-test vwap_band_15m"
+        )
     for strategy in all_strategies():
         if strategy.name == name:
             return strategy

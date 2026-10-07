@@ -41,6 +41,11 @@ _BAR_LENGTH = {
     "1m": timedelta(minutes=1),
 }
 _HOURLY = {"60m", "1h"}
+# Requests that end today must include the newest finished bar, and a
+# download must not store the bar that is still forming. 60-minute bars
+# already worked this way. 15-minute and 5-minute bars use the same rule
+# so the VWAP forward test cannot trade on yesterday's file.
+_TIMELY = _HOURLY | {"15m", "5m"}
 
 _INTERVALS = {
     "1d": "1d",
@@ -101,9 +106,10 @@ class YFinanceProvider(DataProvider):
         start_ts = pd.Timestamp(start).tz_localize(None)
         end_ts = pd.Timestamp(end).tz_localize(None)
         # Daily files get a few days of slack so a weekend or a holiday does
-        # not refetch. Hourly files do not. A cache that ends at the prior
-        # close is not "today", and a bar that was still forming when the
-        # file was written is not a finished bar on the next cycle.
+        # not refetch. Hourly, 15-minute, and 5-minute files do not, when
+        # the request ends today. A cache that ends at the prior close is
+        # not "today", and a bar that was still forming when the file was
+        # written is not a finished bar on the next cycle.
         covers_end = _covers_end(path, interval, last, end_ts)
         covers_start = first <= start_ts + pd.Timedelta(days=7)
         # Names listed after `start` (META in 2012, for example) are a complete
@@ -248,7 +254,7 @@ def _wall(stamp) -> pd.Timestamp:
 
 
 def _covers_end(path: Path, interval: str, last: pd.Timestamp, end_ts: pd.Timestamp) -> bool:
-    if interval not in _HOURLY:
+    if interval not in _TIMELY:
         return last >= end_ts - pd.Timedelta(days=5)
     today = _wall(_clock()).normalize()
     if end_ts.normalize() < today:
@@ -264,8 +270,8 @@ def _covers_end(path: Path, interval: str, last: pd.Timestamp, end_ts: pd.Timest
 
 
 def _closed_hourly(frame: pd.DataFrame, interval: str, now: datetime) -> pd.DataFrame:
-    """Drop the hour Yahoo has opened but not finished. Daily bars are unchanged."""
-    if interval not in _HOURLY or frame.empty:
+    """Drop the bar Yahoo has opened but not finished. Daily bars are unchanged."""
+    if interval not in _TIMELY or frame.empty:
         return frame
     now_ts = pd.Timestamp(to_ny(now))
     keep = [bar_end(ts, interval) <= now_ts for ts in frame.index]
