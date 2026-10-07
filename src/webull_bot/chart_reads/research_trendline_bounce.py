@@ -382,6 +382,12 @@ def main() -> None:
         f"The confluence 200 EMA target finished at {_ending(by_name['confluence_ema200_0dte']['hold'], by_name['confluence_ema200_0dte']['train'])}. "
         f"The trendline alone, upper band, 0 DTE finished at {_ending(by_name['trendline_band_0dte']['hold'], by_name['trendline_band_0dte']['train'])}. "
         f"Support alone, upper band, 0 DTE finished at {_ending(by_name['support_band_0dte']['hold'], by_name['support_band_0dte']['train'])}. "
+        + (
+            "That row clears the holdout gate. "
+            if passes_gate(by_name["support_band_0dte"]["hold"])
+            else "That row misses the holdout gate. "
+        )
+        + "It stays off the live list. "
         f"The trendline alone with the 200 EMA finished at {_ending(by_name['trendline_ema200_0dte']['hold'], by_name['trendline_ema200_0dte']['train'])}. "
         f"Support alone with the 200 EMA finished at {_ending(by_name['support_ema200_0dte']['hold'], by_name['support_ema200_0dte']['train'])}. "
         + " ".join(random_bits)
