@@ -4601,3 +4601,129 @@ Not added to `config/optional_strategies.json` or `config/selected_strategies.js
 python3 -m webull_bot.chart_reads.research_ema_reject
 ```
 <!-- EMA_REJECT_END -->
+
+<!-- CANDLES_START -->
+## Candlestick patterns
+
+Backtests only. Nothing was sent to a broker. Live trading stays off. The sandbox forward test was not changed. The shape rules were written to `reports/candles_rules.json` and `docs/CANDLESTICK_PATTERNS.md` before any forward return was measured. No pattern was added to the live list.
+
+SPY is Dukascopy 1-minute bids resampled to 5 and 15 minutes, 2017-02-16 through 2026-10-06, 2,416 sessions, 0 days missing, 187,540 five-minute bars, 62,531 fifteen-minute bars. Volume is a bid-tick count. Prices are bids. Dukascopy publishes QQQUSUSD, but this cache has 833 day files, short of the 2017+ file. Yahoo 5-minute and 15-minute rows are about 60 days. They are not in the false-discovery family. Daily bars are Yahoo adjusted prices from 2016-01-01 through 2026-10-06 for NVDA, AAPL, UNH, MSFT, AMZN, META, GOOGL, JPM, AMD, TSLA, AVGO, COST, V, MA, LLY, XOM, SPY, QQQ. The pooled daily book weights each signal equally. A 1% NVDA day counts the same as a 1% SPY day. The list is a 2026 snapshot, so names that failed earlier are absent.
+
+Each pattern is entered at the next bar's open and closed at the close 1, 3, or 6 bars later. On 5-minute and 15-minute bars the entry and the exit have to be in the same session as the signal, so a late-day pattern with no room is skipped. Costs are one share on the repo schedule: 5 bps slippage and 1 bp half-spread on each side, plus the 2026 SEC and FINRA sell fees. That is about 12 bps before the regulatory fee, so a one-bar scalp has to clear that friction. The random baseline is one seed-17 draw of the same number of holdout-eligible bars, in the pattern's direction. Neutral patterns are measured both ways and cannot be labeled an edge.
+
+The false-discovery family is every directional pattern, on SPY 5-minute, SPY 15-minute, SPY daily, and the pooled liquid daily basket, at 1, 3, and 6 bars, with the context filter off and on. A cell needs 30 holdout trades to enter that test. This run tested 411 cells. The Benjamini-Hochberg q line is 0.10. The independent expected-max t bar is 2.82. Patterns overlap, so the tests are not independent. Treating them as independent raises that bar, which makes a pass harder, not easier. An edge also needs 300 holdout trades, a positive training mean, a positive holdout mean, a holdout mean and hit rate above the seed-17 draw, and, for the pooled basket, a positive SPY daily mean in both windows. The basket is the 2026 liquid list and is survivorship-biased. QQQ intraday is not in the family. Per-name daily rows are in `reports/candles.json` and are not the family.
+
+No cell cleared the frozen edge rule. On 5-minute SPY, no directional cell with 300 trades had a positive after-cost mean. The best t-stat on that book is still negative: three white soldiers, 3 bars, context on, 74 trades, about -8 bp. Fifteen-minute SPY's best cell (three outside up, 6 bars, context on, 65 trades) is about +3 bp and the training mean is negative. SPY daily's best cell (bullish harami, 6 bars, context off, 34 trades) is about +13 bp and sits under the seed-17 random mean. The ranks below are led by the pooled daily basket, which is a 2026 snapshot. The first row, a dragonfly doji held 6 days, is +97 bp against a random +140 bp, so it did not beat a random hold, and it has 227 trades. The closest large cell is the hammer, 6 bars, context off: 450 trades, +58 bp against a random +53 bp, hit rate 58.4% against 57.8%, training mean also positive, t 2.71 against the 2.82 bar, q 0.70. That is not an edge. A positive t on a short sample is not a pass.
+
+### Highest holdout t-stats in the family
+
+Ranked by the holdout t-stat among cells with at least 30 trades. A high rank with a failed reason is not an edge.
+
+| Pattern | Book | Bars | Context | Trades | Mean | Hit | t | Random mean | q | Why it stands here |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|
+| Dragonfly doji | LIQUID_1d | 6 | off | 227 | 97.3 bp | 62.6% | 3.05 | 140.5 bp | 0.47 | fewer than 300 holdout trades |
+| Hammer | LIQUID_1d | 6 | off | 450 | 58.1 bp | 58.4% | 2.71 | 53.2 bp | 0.70 | Benjamini-Hochberg q is above 0.10 |
+| Inverted hammer | LIQUID_1d | 6 | off | 359 | 64.1 bp | 54.9% | 2.27 | 25.7 bp | 1.00 | Benjamini-Hochberg q is above 0.10 |
+| Three inside up | LIQUID_1d | 3 | on | 46 | 138.4 bp | 63.0% | 2.27 | -16.1 bp | 1.00 | fewer than 300 holdout trades |
+| Dragonfly doji | LIQUID_1d | 6 | on | 37 | 151.0 bp | 62.2% | 2.15 | -11.3 bp | 1.00 | fewer than 300 holdout trades |
+| Three outside up | LIQUID_1d | 1 | on | 32 | 71.0 bp | 68.8% | 2.10 | -41.5 bp | 1.00 | fewer than 300 holdout trades |
+| Inverted hammer | LIQUID_1d | 3 | off | 361 | 40.8 bp | 53.2% | 2.10 | 45.1 bp | 1.00 | holdout mean does not beat the seed-17 draw |
+| Bullish marubozu | LIQUID_1d | 6 | on | 38 | 102.1 bp | 68.4% | 1.98 | -6.0 bp | 1.00 | fewer than 300 holdout trades |
+| Dragonfly doji | LIQUID_1d | 3 | off | 228 | 42.6 bp | 61.4% | 1.96 | 59.5 bp | 1.00 | fewer than 300 holdout trades |
+| Tweezer bottom | LIQUID_1d | 6 | off | 227 | 62.5 bp | 55.5% | 1.95 | 140.5 bp | 1.00 | fewer than 300 holdout trades |
+| Bullish marubozu | LIQUID_1d | 3 | on | 38 | 66.3 bp | 71.1% | 1.91 | -31.6 bp | 1.00 | fewer than 300 holdout trades |
+| Bearish harami | LIQUID_1d | 6 | on | 108 | 73.1 bp | 57.4% | 1.54 | -20.0 bp | 1.00 | fewer than 300 holdout trades |
+| Hammer | LIQUID_1d | 6 | on | 79 | 65.3 bp | 62.0% | 1.50 | -66.5 bp | 1.00 | fewer than 300 holdout trades |
+| Three white soldiers | LIQUID_1d | 6 | off | 52 | 67.8 bp | 67.3% | 1.41 | -3.4 bp | 1.00 | fewer than 300 holdout trades |
+| Tweezer bottom | LIQUID_1d | 3 | off | 227 | 30.0 bp | 49.3% | 1.38 | 47.8 bp | 1.00 | fewer than 300 holdout trades |
+
+### How often the shapes print on SPY
+
+Raw rows are every completion. Traded rows are the ones with a same-session 1-bar exit in the holdout. A gap pattern can print and still have almost no trades.
+
+| Pattern | 5-minute raw | 5-minute traded, context off | 5-minute traded, context on | Daily raw | Daily traded, context off |
+|---|---:|---:|---:|---:|---:|
+| Doji | 25413 | 12697 | 9274 | 432 | 179 |
+| Long-legged doji | 4102 | 2112 | 1693 | 50 | 22 |
+| Dragonfly doji | 2044 | 1045 | 210 | 30 | 14 |
+| Gravestone doji | 1750 | 820 | 201 | 16 | 10 |
+| Hammer | 4339 | 2151 | 527 | 64 | 22 |
+| Hanging man | 1624 | 833 | 622 | 33 | 10 |
+| Inverted hammer | 3609 | 1644 | 468 | 24 | 9 |
+| Shooting star | 1371 | 595 | 379 | 11 | 4 |
+| Spinning top | 14463 | 7392 | 5581 | 174 | 76 |
+| Bullish marubozu | 2065 | 857 | 191 | 34 | 16 |
+| Bearish marubozu | 1643 | 621 | 123 | 11 | 4 |
+| Bullish engulfing | 4134 | 2052 | 654 | 28 | 18 |
+| Bearish engulfing | 3974 | 2044 | 638 | 41 | 20 |
+| Bullish harami | 7080 | 3578 | 704 | 78 | 34 |
+| Bearish harami | 7205 | 3549 | 713 | 66 | 29 |
+| Bullish harami cross | 1464 | 729 | 129 | 39 | 15 |
+| Bearish harami cross | 1743 | 853 | 163 | 48 | 22 |
+| Piercing line | 174 | 74 | 24 | 15 | 3 |
+| Dark cloud cover | 169 | 85 | 21 | 12 | 6 |
+| Tweezer bottom | 2428 | 1276 | 250 | 34 | 15 |
+| Tweezer top | 2796 | 1382 | 307 | 34 | 12 |
+| Bullish kicker | 92 | 43 | 18 | 1 | 1 |
+| Bearish kicker | 55 | 29 | 15 | 2 | 1 |
+| Morning star | 13 | 5 | 1 | 4 | 2 |
+| Evening star | 12 | 4 | 2 | 5 | 2 |
+| Morning doji star | 4 | 3 | 1 | 2 | 1 |
+| Evening doji star | 5 | 3 | 2 | 2 | 0 |
+| Three white soldiers | 675 | 286 | 76 | 7 | 2 |
+| Three black crows | 561 | 246 | 55 | 1 | 1 |
+| Three inside up | 1218 | 619 | 196 | 20 | 6 |
+| Three inside down | 1226 | 574 | 167 | 24 | 15 |
+| Three outside up | 1952 | 983 | 330 | 11 | 7 |
+| Three outside down | 1871 | 961 | 310 | 12 | 6 |
+| Bullish abandoned baby | 0 | 0 | 0 | 0 | 0 |
+| Bearish abandoned baby | 0 | 0 | 0 | 0 | 0 |
+| Rising three methods | 10 | 3 | 1 | 0 | 0 |
+| Falling three methods | 15 | 4 | 1 | 0 | 0 |
+| Upside tasuki gap | 39 | 17 | 6 | 6 | 3 |
+| Downside tasuki gap | 28 | 11 | 4 | 1 | 1 |
+
+### Optional confirmation on the published VWAP and EMA books
+
+One filter was registered for each setup, before this score. The EMA book (VWAP confluence, rejection stop, swing target) and the VWAP 2 SD reversal keep a signal only when a reversal pattern of the same direction completes on the signal bar. The VWAP 2 SD extension keeps a signal only when a continuation pattern of the same direction completes on that bar. Context off is the shape. Context on also requires that pattern's trend and location. Shares stay long only. The 0 DTE books still take both directions. The unfiltered endings below are the published ones. They were not resimulated. A filter improves a book only when the holdout has at least 20 trades, ending equity is higher, profit factor is not lower, and max drawdown is not worse by more than 5 percentage points. Clearing that line does not add the book to the live list. It still has to pass the numeric gate, and this study does not promote it.
+
+| Setup | Stake | Context | Trades | PF | Max DD | Ending | Published trades | Published PF | Published DD | Published ending | Improves | Gate |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| ema shares | $1,000 | off | 18 | 0.09 | -2.6% | $974 | 101 | 0.11 | -12.1% | $879 | no | no |
+| ema shares | $5,000 | off | 18 | 0.09 | -2.6% | $4,870 | 101 | 0.11 | -12.1% | $4,396 | no | no |
+| ema 0dte | $1,000 | off | 30 | 0.49 | -34.0% | $716 | 242 | 0.65 | -95.8% | $75 | no | no |
+| ema 0dte | $5,000 | off | 30 | 0.49 | -6.8% | $4,716 | 283 | 0.64 | -26.1% | $3,725 | no | no |
+| ema shares | $1,000 | on | 0 | n/a | 0.0% | $1,000 | 101 | 0.11 | -12.1% | $879 | no | no |
+| ema shares | $5,000 | on | 0 | n/a | 0.0% | $5,000 | 101 | 0.11 | -12.1% | $4,396 | no | no |
+| ema 0dte | $1,000 | on | 3 | 0.00 | -7.6% | $924 | 242 | 0.65 | -95.8% | $75 | no | no |
+| ema 0dte | $5,000 | on | 3 | 0.00 | -1.5% | $4,924 | 283 | 0.64 | -26.1% | $3,725 | no | no |
+| vwap_reversal shares | $1,000 | off | 457 | 0.13 | -47.5% | $525 | 908 | 0.11 | -70.3% | $297 | yes | no |
+| vwap_reversal shares | $5,000 | off | 457 | 0.13 | -47.5% | $2,624 | 908 | 0.11 | -70.3% | $1,487 | yes | no |
+| vwap_reversal 0dte | $1,000 | off | 1121 | 0.95 | -99.3% | $20 | 396 | 0.87 | -99.9% | $2 | yes | no |
+| vwap_reversal 0dte | $5,000 | off | 1173 | 0.92 | -49.9% | $3,464 | 396 | 0.87 | -99.9% | $13 | yes | no |
+| vwap_reversal shares | $1,000 | on | 222 | 0.10 | -28.7% | $713 | 908 | 0.11 | -70.3% | $297 | no | no |
+| vwap_reversal shares | $5,000 | on | 222 | 0.10 | -28.7% | $3,566 | 908 | 0.11 | -70.3% | $1,487 | no | no |
+| vwap_reversal 0dte | $1,000 | on | 462 | 0.88 | -98.9% | $22 | 396 | 0.87 | -99.9% | $2 | yes | no |
+| vwap_reversal 0dte | $5,000 | on | 496 | 0.89 | -36.6% | $4,018 | 396 | 0.87 | -99.9% | $13 | yes | no |
+| vwap_extension shares | $1,000 | off | 72 | 0.63 | -5.4% | $964 | 812 | 0.39 | -60.8% | $393 | yes | no |
+| vwap_extension shares | $5,000 | off | 72 | 0.63 | -5.4% | $4,820 | 812 | 0.39 | -60.8% | $1,963 | yes | no |
+| vwap_extension 0dte | $1,000 | off | 121 | 2.21 | -14.1% | $4,488 | 2355 | 1.55 | -16.2% | $32,844 | no | no |
+| vwap_extension 0dte | $5,000 | off | 121 | 2.21 | -5.0% | $8,488 | 2355 | 1.55 | -16.2% | $36,844 | no | no |
+| vwap_extension shares | $1,000 | on | 26 | 0.69 | -2.6% | $989 | 812 | 0.39 | -60.8% | $393 | yes | no |
+| vwap_extension shares | $5,000 | on | 26 | 0.69 | -2.6% | $4,946 | 812 | 0.39 | -60.8% | $1,963 | yes | no |
+| vwap_extension 0dte | $1,000 | on | 45 | 1.49 | -15.8% | $1,630 | 2355 | 1.55 | -16.2% | $32,844 | no | no |
+| vwap_extension 0dte | $5,000 | on | 45 | 1.49 | -5.1% | $5,630 | 2355 | 1.55 | -16.2% | $36,844 | no | no |
+
+A yes in the last columns is the frozen comparison, not a profit. Every yes book still finished below its starting stake. The published 2 SD continuation 0 DTE book, the one that had cleared the gate at $32,844 from $1,000 and $36,844 from $5,000, fell to $4,488 (121 trades, profit factor 2.21, context off) and $1,630 (45 trades, profit factor 1.49, context on). Both miss the trade count and the gate. The share filters lost less than the published share losses: reversal shares finished at $525 and $2,624 instead of $297 and $1,487, and extension shares finished at $964 and $4,820 instead of $393 and $1,963. Profit factors are 0.13 and 0.63. They miss the gate. The EMA location filter left 0 share trades and 3 option trades. A filter that only loses less on fewer than 20 trades is not an improvement. None of these books was added to the live list.
+
+Training accounts, from the same filtered signal list, are in `reports/candles.json`. The published training accounts are the ones already in the VWAP and EMA sections above. They were not replaced.
+
+The drawing of the shapes is `reports/candlestick_patterns.png`. The guide is `docs/CANDLESTICK_PATTERNS.md`.
+
+Not added to `config/optional_strategies.json` or `config/selected_strategies.json`. The default book is still dual momentum.
+
+```
+python3 -m webull_bot.chart_reads.research_candles
+```
+<!-- CANDLES_END -->
+

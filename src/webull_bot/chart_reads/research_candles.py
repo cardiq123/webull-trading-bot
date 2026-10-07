@@ -702,18 +702,15 @@ def _filter_sentence(rows: list[dict]) -> str:
     improved = [row for row in rows if row["improves"]]
     if not improved:
         return (
-            "No filtered book improved its published holdout on the frozen line. "
-            "A filter that only loses less money on fewer than 20 trades is not an improvement."
+            "No filtered book cleared the frozen comparison. "
+            "A filter that only loses less money on fewer than 20 trades is not an improvement. "
+            "None was added to the live list."
         )
-    bits = []
-    for row in improved:
-        hold = row["holdout"]
-        gate = "and it clears the numeric gate" if hold["passes_gate"] else "and it does not clear the numeric gate"
-        bits.append(
-            f"{row['setup']} {row['kind']} at ${row['stake']:,} with context {row['context']} "
-            f"finished at {_money(hold['ending_equity'])} ({hold['trades']} trades, profit factor {_pf(hold['profit_factor'])}) {gate}"
-        )
-    return "Filtered books that beat the published holdout on the frozen line: " + "; ".join(bits) + ". None was added to the live list."
+    return (
+        "A yes in that comparison is a smaller loss than the published book, not a profit, unless the ending is above the stake and the numeric gate is cleared. "
+        "The published continuation 0 DTE book is the cell to read first: a filter that cuts its ending does not replace it. "
+        "None of these books was added to the live list."
+    )
 
 
 def _readme_bits(payload: dict) -> str:
