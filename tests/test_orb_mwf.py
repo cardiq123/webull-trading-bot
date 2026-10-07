@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from webull_bot.chart_reads.dukascopy_spy import prices_are_bid_scale
+from webull_bot.chart_reads.event_days import CPI_DATES, FOMC_DATES, NFP_DATES
 from webull_bot.chart_reads.orb_mwf import (
     FRIDAY_0DTE,
     MONDAY_0DTE,
@@ -20,6 +22,7 @@ from webull_bot.chart_reads.orb_mwf import (
     scan,
     session_status,
     simulate,
+    target_multiple,
     years_left,
 )
 from webull_bot.options.pricing import option_price
@@ -49,6 +52,11 @@ def test_frozen_constants_and_calendar():
     rules = frozen_rules()
     assert rules["risk"] == 100.0
     assert rules["dte"] == 0
+    assert "no stop" in rules["exit"].lower()
+    assert "+100%" in rules["exit"]
+    assert "+50%" in rules["exit"]
+    assert target_multiple("call") == 2.0
+    assert target_multiple("put") == 1.5
     assert RISK_PRIMARY == 100.0
     assert session_status(date(2026, 10, 6)) == "weekday"
     assert session_status(date(2026, 9, 4)) == "event"
@@ -57,7 +65,11 @@ def test_frozen_constants_and_calendar():
     assert session_status(date(2026, 10, 2)) == "event"
     assert session_status(date(2026, 9, 18)) == "trade"
     assert session_status(date(2026, 9, 7)) == "closed"
-    assert session_status(date(2025, 9, 5)) == "calendar_uncovered"
+    assert session_status(date(2025, 9, 5)) == "event"
+    assert session_status(date(2025, 8, 22)) == "trade"
+    assert session_status(date(2022, 1, 12)) == "event"
+    assert session_status(date(2022, 1, 26)) == "event"
+    assert session_status(date(2016, 9, 2)) == "calendar_uncovered"
     assert has_spy_0dte(MONDAY_0DTE)
     assert not has_spy_0dte(date(2018, 2, 12))
     assert has_spy_0dte(WEDNESDAY_0DTE)
@@ -159,9 +171,8 @@ def _quiet(day: str, extra: list[tuple] | None = None) -> pd.DataFrame:
 
 
 def test_level_fill_ignores_the_entry_wick_and_exits_at_1530():
-    # The break bar wicks to 50. A level fill must not use that wick. The
-    # rest of the session is unchanged, and the clock is late enough that
-    # time decay alone does not reach -50%.
+    # The break bar's low is not a stop. A level fill does not use that bar,
+    # and a quiet rest of the session is still open at 15:30.
     frame = _frame(
         "2026-09-18",
         [
@@ -183,7 +194,9 @@ def test_level_fill_ignores_the_entry_wick_and_exits_at_1530():
     assert book["premium_skipped"] == 0
 
 
-def test_stop_beats_target_and_a_gap_through_fills_at_the_bid():
+def test_an_adverse_wick_is_not_a_stop_and_a_target_still_fills():
+    # The 09:40 bar trades to 70 and to 130. There is no stop, so the call
+    # target is the exit even though the same bar also trades far against it.
     frame = _frame(
         "2026-09-18",
         [
@@ -198,8 +211,9 @@ def test_stop_beats_target_and_a_gap_through_fills_at_the_bid():
     book = simulate(frame, [read], {date(2026, 9, 18): (30.0, "VIX")}, risk=500)
     assert book["trades"] == 1
     row = book["rows"][0]
-    assert row["reason"] == "stop"
-    assert row["exit"] < row["ask"] * 0.5
+    assert row["reason"] == "target"
+    assert abs(row["exit"] - row["ask"] * 2.0) < 1e-9
+    assert "stop" not in book["reasons"]
 
 
 def test_target_fills_at_the_limit():
@@ -220,12 +234,12 @@ def test_target_fills_at_the_limit():
     assert abs(row["exit"] - row["ask"] * 2.0) < 1e-9
 
 
-def test_gap_open_can_stop_on_the_entry_bar():
+def test_gap_adverse_move_is_held_to_the_close():
     frame = _frame(
         "2026-09-18",
         [
             ("09:30", 100, 101, 99, 100),
-            ("09:35", 110, 112, 102, 108),
+            ("09:35", 110, 110.4, 102, 108),
             ("15:30", 90, 90, 90, 90),
         ],
     )
@@ -233,8 +247,29 @@ def test_gap_open_can_stop_on_the_entry_bar():
     assert why == "break" and found is not None and found.gap is True
     read = SessionRead(date(2026, 9, 18), "break", None, found)
     book = simulate(frame, [read], {date(2026, 9, 18): (30.0, "VIX")}, risk=500)
-    assert book["rows"][0]["manage"] == "gap"
-    assert book["rows"][0]["reason"] == "stop"
+    row = book["rows"][0]
+    assert row["manage"] == "gap"
+    assert row["reason"] == "time"
+    assert row["exit"] < row["ask"] * 0.5
+
+
+def test_put_target_is_fifty_percent_and_fills_at_the_limit():
+    frame = _frame(
+        "2026-09-18",
+        [
+            ("09:30", 100, 101, 99, 100),
+            ("09:35", 100, 100.2, 98.8, 99.5),
+            ("09:40", 99.5, 99.6, 70, 80),
+            ("15:30", 80, 80, 80, 80),
+        ],
+    )
+    found, why = first_break(frame, "5m")
+    assert why == "break" and found is not None and found.right == "put"
+    read = SessionRead(date(2026, 9, 18), "break", None, found)
+    book = simulate(frame, [read], {date(2026, 9, 18): (30.0, "VIX")}, risk=500)
+    row = book["rows"][0]
+    assert row["reason"] == "target"
+    assert abs(row["exit"] - row["ask"] * 1.5) < 1e-9
 
 
 def test_event_day_and_tuesday_are_not_trades():
@@ -290,9 +325,37 @@ def test_margin_blocks_the_fourth_when_a_thursday_holiday_pulls_it_in():
     assert cash["pdt_blocked"] == 0
 
 
+def test_event_calendar_covers_2017_through_2026_and_skips_notation_votes():
+    for year in range(2017, 2027):
+        cpi = [day for day in CPI_DATES if day.year == year]
+        nfp = [day for day in NFP_DATES if day.year == year]
+        fomc = [day for day in FOMC_DATES if day.year == year]
+        assert len(cpi) >= 11, year
+        assert len(nfp) >= 11, year
+        assert len(fomc) >= 8, year
+    assert date(2025, 10, 24) in CPI_DATES
+    assert date(2025, 11, 20) in NFP_DATES
+    assert date(2025, 12, 18) in CPI_DATES
+    assert date(2025, 8, 22) not in FOMC_DATES
+    assert date(2020, 3, 3) in FOMC_DATES
+    assert date(2020, 3, 15) in FOMC_DATES
+    assert date(2020, 3, 19) not in FOMC_DATES
+    assert date(2019, 10, 4) not in FOMC_DATES
+    assert date(2019, 10, 11) in FOMC_DATES
+    assert date(2026, 9, 16) in FOMC_DATES
+    assert date(2026, 10, 2) in NFP_DATES
+
+
+def test_bid_candle_scale_rejects_a_tick_mid():
+    bid = pd.DataFrame({"open": [100.001], "high": [100.002], "low": [100.0], "close": [100.001]})
+    mid = pd.DataFrame({"open": [100.0015], "high": [100.002], "low": [100.0], "close": [100.001]})
+    assert prices_are_bid_scale(bid)
+    assert not prices_are_bid_scale(mid)
+
+
 def test_sources_do_not_touch_the_forward_test():
     root = Path("src/webull_bot/chart_reads")
-    for name in ("orb_mwf.py", "event_days.py", "research_orb_mwf.py"):
+    for name in ("orb_mwf.py", "event_days.py", "research_orb_mwf.py", "dukascopy_spy.py"):
         text = (root / name).read_text()
         for banned in ("forward_options", "forward_chop", "option_quote", "place_option_order", "mark_options"):
             assert banned not in text

@@ -19,9 +19,9 @@ next bar's open is a sensitivity.
 The option is the listed strike nearest the spot, expiring the same day.
 Risk is a fixed dollar budget that can be lost in full. Contracts are
 floor(budget / debit of one contract). A debit above the budget is skipped.
-The exit is the first of +100% of the entry ask, -50% of the entry ask, or
-15:30 ET. A stop that the bid trades through fills at that bid. A target
-fills at the target. The same bar checks the stop before the target.
+There is no stop. A call is sold at +100% of the entry ask. A put is sold
+at +50% of the entry ask. Anything still open is sold at the 15:30 ET bid,
+which can be near zero. A target fills at the target. No adds and no rolls.
 
 The price is Black-Scholes with minutes left until 16:00 ET. That model is
 the uncertainty in the result. There is no historical option chain.
@@ -66,8 +66,8 @@ HALF_SPREAD_PCT = 0.015
 HALF_SPREAD_FLOOR = 0.01
 VOL_FLOOR = 0.05
 VOL_CAP = 1.50
-TARGET_MULT = 2.0
-STOP_MULT = 0.5
+CALL_TARGET = 2.0
+PUT_TARGET = 1.5
 FLAT = time(15, 30)
 _OPEN = time(9, 30)
 _FIVE = time(9, 35)
@@ -87,7 +87,7 @@ def frozen_rules() -> dict:
     return {
         "range": "09:30-09:35 ET only. 5-minute: the 09:30 bar. 1-minute: 09:30 through 09:34.",
         "days": "Monday, Wednesday, Friday only.",
-        "skip": "CPI release, Employment Situation, FOMC decision day. 2026 BLS and Fed calendars.",
+        "skip": "CPI release, Employment Situation, FOMC decision day. 2017-2026 BLS and Fed calendars.",
         "break": "First later bar that trades strictly through the high or the low. Equal is not a break.",
         "both_sides": "A bar through both sides is skipped.",
         "one_trade": "First break only, one option per session.",
@@ -98,8 +98,8 @@ def frozen_rules() -> dict:
         "risk": RISK_PRIMARY,
         "risk_sensitivities": list(RISK_SENSITIVITIES),
         "sizing": "contracts = floor(min(risk, equity) / one-contract debit). Skip when one contract costs more than that budget.",
-        "exit": "+100% of the entry ask, -50% of the entry ask, or 15:30 ET, first one.",
-        "stop_gap": "A bid through the stop fills at that bid. A target fills at the target. Stop is checked first.",
+        "exit": "No stop. Calls take profit at +100% of the entry ask. Puts take profit at +50% of the entry ask. Otherwise sell the 15:30 ET bid, which can be near zero. No adds and no rolls.",
+        "target_fill": "A target fills at the limit. A 15:30 open already through the target fills at the limit. There is no stop, so an adverse wick is held.",
         "iv": "Prior session VIX1D close, else prior VIX close, divided by 100. 1.3x is a sensitivity.",
         "spread": "Half-spread is the greater of $0.01 and 1.5% of the model mid.",
         "account": "Default is a $1,000 cash account. Sale proceeds settle the next session (T+1). A margin account under $25,000 is reported for the pattern-day-trader count and is not the default, because $1,000 is under the $2,000 margin minimum.",
@@ -315,6 +315,15 @@ def _bid(right: str, spot: float, strike: float, when: pd.Timestamp, iv: float) 
     return bid
 
 
+def target_multiple(right: str) -> float:
+    """Call +100% is 2.0 times the ask. Put +50% is 1.5 times the ask."""
+    if right == "call":
+        return CALL_TARGET
+    if right == "put":
+        return PUT_TARGET
+    raise ValueError("right must be call or put")
+
+
 def walk_exit(
     session: pd.DataFrame,
     entry_loc: int,
@@ -325,30 +334,22 @@ def walk_exit(
     manage: str,
     bar_minutes: int,
 ) -> tuple[str, float, pd.Timestamp]:
-    """First of the stop, the target, or 15:30. ``manage`` is level, gap, or next_open."""
-    target = entry_ask * TARGET_MULT
-    stop = entry_ask * STOP_MULT
+    """Target, or the 15:30 bid. There is no stop. ``manage`` is level, gap, or next_open."""
+    target = entry_ask * target_multiple(right)
     start = entry_loc if manage in ("gap", "next_open") else entry_loc + 1
     index = session.index
     for i in range(start, len(session)):
         stamp = pd.Timestamp(index[i])
-        if stamp.time() >= FLAT:
-            spot = float(session.iloc[i]["open"])
-            return "time", _bid(right, spot, strike, stamp, iv), stamp
-        end = _bar_end(stamp, bar_minutes)
         row = session.iloc[i]
-        if right == "call":
-            adverse = float(row["low"])
-            favor = float(row["high"])
-        else:
-            adverse = float(row["high"])
-            favor = float(row["low"])
-        bid_adverse = _bid(right, adverse, strike, end, iv)
-        if bid_adverse <= stop + 1e-9:
-            fill = bid_adverse if bid_adverse < stop - 1e-9 else stop
-            return "stop", fill, end
-        bid_favor = _bid(right, favor, strike, end, iv)
-        if bid_favor + 1e-9 >= target:
+        if stamp.time() >= FLAT:
+            spot = float(row["open"])
+            bid = _bid(right, spot, strike, stamp, iv)
+            if bid + 1e-9 >= target:
+                return "target", target, stamp
+            return "time", bid, stamp
+        end = _bar_end(stamp, bar_minutes)
+        favor = float(row["high"]) if right == "call" else float(row["low"])
+        if _bid(right, favor, strike, end, iv) + 1e-9 >= target:
             return "target", target, end
     last = pd.Timestamp(index[-1])
     return "time", _bid(right, float(session.iloc[-1]["close"]), strike, last, iv), last
@@ -577,10 +578,19 @@ def simulate(
         curve.append((mark, equity, 1.0))
 
     pnls = [float(row["pnl"]) for row in closed]
-    reasons = {"target": 0, "stop": 0, "time": 0}
+    reasons = {"target": 0, "time": 0}
     for row in closed:
         reasons[row["reason"]] = reasons.get(row["reason"], 0) + 1
+    calls = [row for row in closed if row["right"] == "call"]
+    puts = [row for row in closed if row["right"] == "put"]
+    timed = [row for row in closed if row["reason"] == "time"]
+    at_1530 = [row for row in timed if str(row["exit_time"])[11:16] == "15:30"]
     count_trades = len(closed)
+
+    def _rate(hits: int, total: int) -> float | None:
+        if total == 0:
+            return None
+        return hits / total
     if curve:
         index = pd.DatetimeIndex([item[0] for item in curve])
         equity_series = pd.Series([item[1] for item in curve], index=index)
@@ -609,9 +619,17 @@ def simulate(
         "avg_loss": float(metrics["avg_loss"]),
         "losing_streak": _losing_streak(pnls),
         "reasons": reasons,
-        "pct_target": (reasons["target"] / count_trades) if count_trades else 0.0,
-        "pct_stop": (reasons["stop"] / count_trades) if count_trades else 0.0,
-        "pct_time": (reasons["time"] / count_trades) if count_trades else 0.0,
+        "call_trades": len(calls),
+        "put_trades": len(puts),
+        "pct_call_target": _rate(sum(1 for row in calls if row["reason"] == "target"), len(calls)),
+        "pct_put_target": _rate(sum(1 for row in puts if row["reason"] == "target"), len(puts)),
+        "pct_time": (len(timed) / count_trades) if count_trades else 0.0,
+        "time_count": len(timed),
+        "time_at_1530": len(at_1530),
+        "time_avg_exit": (sum(float(row["exit"]) for row in at_1530) / len(at_1530)) if at_1530 else None,
+        "time_avg_ratio": (
+            sum(float(row["exit"]) / float(row["ask"]) for row in at_1530) / len(at_1530)
+        ) if at_1530 else None,
         "pdt_blocked": pdt_blocked,
         "premium_skipped": premium_skipped,
         "settlement_skipped": settlement_skipped,
