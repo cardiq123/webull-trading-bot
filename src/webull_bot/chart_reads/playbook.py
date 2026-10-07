@@ -1,23 +1,24 @@
-"""One combined SPY 0 DTE playbook. Backtests only. Does not place an order.
+"""One combined SPY option playbook. Backtests only. Does not place an order.
 
 The grid below is the whole search. It was written before the walk-forward
-score. A cell is a book, a daily cap, an exit, the two-close 9/20 rule, and a
-late-day cutoff. The score picks the cell that holds up next to its neighbors
-on each training window. It does not pick the single best training Sharpe.
+score. A cell is a book, a daily cap, an exit, the two-close 9/20 rule, a
+late-day cutoff, and an option contract. The score picks the cell that holds
+up next to its neighbors on each training window. It does not pick the single
+best training Sharpe.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from webull_bot.calendar import next_trading_day
-from webull_bot.chart_reads.band_exit import _bid, _half_spread, _option_mid, opposite_band
+from webull_bot.chart_reads.band_exit import DIVIDEND, RATE, _half_spread, opposite_band
 from webull_bot.chart_reads.detect import session_bands
 from webull_bot.chart_reads.ema_reclaim import Setup, find_setups
 from webull_bot.chart_reads.ema_reject import swing_targets
@@ -36,7 +37,7 @@ from webull_bot.chart_reads.vwap_band import (
 from webull_bot.chart_reads.wick import find_wicks
 from webull_bot.mtf_vwap.detect import rth
 from webull_bot.options.fees import CONTRACT_MULTIPLIER, option_leg_fees
-from webull_bot.options.pricing import listed_strike, norm_cdf
+from webull_bot.options.pricing import listed_strike, norm_cdf, option_price
 
 NY = "America/New_York"
 FLAT_5M = time(15, 30)
@@ -104,18 +105,39 @@ CUTOFF_NEIGHBORS = {
     time(15, 0): (None, time(15, 15)),
     time(15, 15): (time(15, 0),),
 }
-# 4 books x 2 caps x 8 exits x 4 stack roles x 3 cutoffs.
-GRID_SIZE = 768
-SIMPLE_CELL = ("trend", 3, "1r", "off", None)
+# 0 DTE is flat the same day. 1, 3, and 7 DTE are each scored flat and overnight.
+CONTRACTS = (
+    (0, "flat"),
+    (1, "flat"),
+    (1, "overnight"),
+    (3, "flat"),
+    (3, "overnight"),
+    (7, "flat"),
+    (7, "overnight"),
+)
+CONTRACT_NEIGHBORS = {
+    (0, "flat"): ((1, "flat"),),
+    (1, "flat"): ((0, "flat"), (3, "flat"), (1, "overnight")),
+    (1, "overnight"): ((1, "flat"), (3, "overnight")),
+    (3, "flat"): ((1, "flat"), (7, "flat"), (3, "overnight")),
+    (3, "overnight"): ((3, "flat"), (1, "overnight"), (7, "overnight")),
+    (7, "flat"): ((3, "flat"), (7, "overnight")),
+    (7, "overnight"): ((7, "flat"), (3, "overnight")),
+}
+# 4 books x 2 caps x 8 exits x 4 stack roles x 3 cutoffs x 7 contracts.
+GRID_SIZE = 5376
+SIMPLE_CELL = ("trend", 3, "1r", "off", None, 0, "flat")
+ANCHOR_CELL = ("trend", 3, "1r", "off", None)
 
 
 def frozen_rules() -> dict:
     """Written down before the result is scored. The score does not edit this."""
     return {
-        "name": "spy_0dte_playbook",
+        "name": "spy_playbook",
         "clock": (
             "Signals keep the clock of the setup that found them. Exits are walked on 5-minute bars. "
-            "The 2 SD continuation flats at 15:45 ET. Every 5-minute setup flats at 15:30 ET. No overnight hold."
+            "A flat contract sells at 15:45 ET for the 2 SD continuation and at 15:30 ET for every 5-minute setup, even when the option still has days left. "
+            "An overnight contract keeps the same stop and target across later sessions and flats at that same clock on the expiration session."
         ),
         "setups": {
             "vwap": "15-minute 2 SD extension, the published continuation. Fill is the next 15-minute open. Stop is one cent beyond the signal bar.",
@@ -189,10 +211,31 @@ def frozen_rules() -> dict:
             "ema20": "Stop is a close through the 5-minute 20 EMA. A gap through it fills at the open. The target is the opposite 2 SD band, and a tag during the bar fills before that close.",
         },
         "exit_families": {key: list(value) for key, value in EXIT_FAMILY.items()},
-        "grid": "4 books, caps 3 and 5, 8 exits, 4 roles for the two-close rule, 3 late-day cutoffs. 768 cells. Nothing is added after the score.",
+        "contracts": [f"{dte}dte-{hold}" for dte, hold in CONTRACTS],
+        "expiry": (
+            "0 DTE expires the entry session. 1, 3, and 7 DTE expire that many trading sessions later, "
+            "so a Friday 1 DTE expires Monday. Flat sells the same session. Overnight holds through the close and flats on the expiration session. "
+            "0 DTE has no overnight cell. Black-Scholes time is the clock time until 16:00 ET on that expiration session. "
+            "0 DTE and 1 DTE use the prior VIX1D print when it exists, otherwise the prior VIX. "
+            "3 DTE and 7 DTE use the prior VIX only. Vol is clipped to 5%-150%."
+        ),
+        "expiry_anchor": (
+            "The train-versus-holdout expiry table holds the book, cap, exit, two-close role, and cutoff at the simple cell "
+            "(trend, cap 3, 1R, two-close off, no late cutoff) and changes only the contract. "
+            "Train is through 2021-12-31. Holdout starts 2022-01-01. This is not a second search. "
+            "A contract is robust when that anchor clears the published gate in both windows."
+        ),
+        "settlement": (
+            "One contract. Calls for longs, puts for shorts. The sale settles the next session (T+1). "
+            "While an overnight contract is open, the debit stays invested and is not a settled credit. "
+            "A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line, so same-day round trips "
+            "are limited to 3 in any 5 business days. This test is a cash account: it does not refuse the fourth day trade. "
+            "An overnight hold that closes on a later session is not a day trade."
+        ),
+        "grid": "4 books, caps 3 and 5, 8 exits, 4 roles for the two-close rule, 3 late-day cutoffs, 7 contracts. 5376 cells. Nothing is added after the score.",
         "grid_size": GRID_SIZE,
-        "account": "One at-the-money 0 DTE contract. Calls for longs, puts for shorts. Both directions. Sale settles the next session. Equity at or under $1 takes no new trade.",
-        "model": "Black-Scholes, rate 2%, dividend 0, prior-session VIX1D or else prior VIX, clipped to 5%-150%. Half-spread is the greater of $0.01 and 1.5% of the mid.",
+        "account": "One at-the-money contract, 0, 1, 3, or 7 DTE, flat or overnight as the cell says. Calls for longs, puts for shorts. Both directions. Sale settles the next session. Equity at or under $1 takes no new trade.",
+        "model": "Black-Scholes, rate 2%, dividend 0. 0 DTE and 1 DTE use prior-session VIX1D, or prior VIX when that print is missing. 3 DTE and 7 DTE use prior VIX. Vol is clipped to 5%-150%. Half-spread is the greater of $0.01 and 1.5% of the mid.",
         "walk_forward": (
             "Train is the three calendar years before the test year. Test is the next calendar year. "
             "Tests are 2020, 2021, 2022, 2023, 2024, 2025, and 2026 through 2026-10-06. "
@@ -205,8 +248,9 @@ def frozen_rules() -> dict:
             "Neighbors are the other cap, the other exits in its family, the books listed in book_neighbors, "
             "the stack roles that change one job, and the adjacent cutoff. "
             "Ties go to the simpler cell: fewer setups, then trend before turn before all before confirmed, then the smaller cap, "
-            "then the earlier exit, then the two-close rule off, then no late cutoff. "
-            "If no cell is eligible, the fold uses trend, cap 3, exit 1R, the two-close rule off, and no late cutoff, and is marked as a fallback."
+            "then the earlier exit, then the two-close rule off, then no late cutoff, then the shorter expiry, then flat before overnight. "
+            "Contract neighbors are the adjacent expiry at the same hold and, for 1, 3, and 7 DTE, the other hold. "
+            "If no cell is eligible, the fold uses trend, cap 3, exit 1R, the two-close rule off, no late cutoff, and 0 DTE flat, and is marked as a fallback."
         ),
         "headline": (
             "The stitched equity trades each test year with that year's train pick only. "
@@ -214,7 +258,7 @@ def frozen_rules() -> dict:
             "The last train ends 2025-12-31, so 2026 is not an input to the rule that would be traded next."
         ),
         "correction": (
-            "Deflated Sharpe uses the stitched daily returns and 768 trials. "
+            "Deflated Sharpe uses the stitched daily returns and 5376 trials. "
             "The probability has to be at least 0.95 on the walk-forward stitch and on the single majority rule replayed across every test day."
         ),
         "gate": "The published gate on the stitched test segments: 300 trades, profit factor at least 1.10, Sharpe at least 0.40, max drawdown no worse than -30%.",
@@ -231,39 +275,53 @@ def frozen_rules() -> dict:
     }
 
 
+def unpack_cell(cell: tuple) -> tuple:
+    """Five fields are the old 0 DTE flat cell. Seven fields include the contract."""
+    if len(cell) == 5:
+        book, cap, exit_name, stack, cutoff = cell
+        return book, cap, exit_name, stack, cutoff, 0, "flat"
+    if len(cell) != 7:
+        raise ValueError(f"cell must have 5 or 7 fields, got {len(cell)}")
+    book, cap, exit_name, stack, cutoff, dte, hold = cell
+    return book, cap, exit_name, stack, cutoff, int(dte), hold
+
+
 def cells() -> tuple:
-    """The 768 cells, in the frozen order."""
+    """The 5376 cells, in the frozen order."""
     return tuple(
-        (book, cap, exit_name, stack, cutoff)
+        (book, cap, exit_name, stack, cutoff, dte, hold)
         for book in BOOKS
         for cap in CAPS
         for exit_name in EXITS
         for stack in STACKS
         for cutoff in CUTOFFS
+        for dte, hold in CONTRACTS
     )
 
 
 def neighbors(cell: tuple) -> tuple:
-    """One change of cap, exit family, book, two-close role, or cutoff. The cell itself is not included."""
-    book, cap, exit_name, stack, cutoff = cell
+    """One change of cap, exit family, book, two-close role, cutoff, or contract. The cell itself is not included."""
+    book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
     found = []
     other_cap = 5 if cap == 3 else 3
-    found.append((book, other_cap, exit_name, stack, cutoff))
+    found.append((book, other_cap, exit_name, stack, cutoff, dte, hold))
     for other_exit in EXIT_FAMILY[exit_name]:
         if other_exit != exit_name:
-            found.append((book, cap, other_exit, stack, cutoff))
+            found.append((book, cap, other_exit, stack, cutoff, dte, hold))
     for other_book in BOOK_NEIGHBORS[book]:
-        found.append((other_book, cap, exit_name, stack, cutoff))
+        found.append((other_book, cap, exit_name, stack, cutoff, dte, hold))
     for other_stack in STACK_NEIGHBORS[stack]:
-        found.append((book, cap, exit_name, other_stack, cutoff))
+        found.append((book, cap, exit_name, other_stack, cutoff, dte, hold))
     for other_cutoff in CUTOFF_NEIGHBORS[cutoff]:
-        found.append((book, cap, exit_name, stack, other_cutoff))
+        found.append((book, cap, exit_name, stack, other_cutoff, dte, hold))
+    for other_dte, other_hold in CONTRACT_NEIGHBORS[(dte, hold)]:
+        found.append((book, cap, exit_name, stack, cutoff, other_dte, other_hold))
     return tuple(dict.fromkeys(found))
 
 
 def simplicity_rank(cell: tuple) -> tuple:
     """Lower is the simpler cell. Used only to break a tie."""
-    book, cap, exit_name, stack, cutoff = cell
+    book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
     cutoff_rank = {None: 0, time(15, 15): 1, time(15, 0): 2}[cutoff]
     return (
         len(BOOK_SETUPS[book]),
@@ -272,23 +330,29 @@ def simplicity_rank(cell: tuple) -> tuple:
         EXITS.index(exit_name),
         STACKS.index(stack),
         cutoff_rank,
+        (0, 1, 3, 7).index(int(dte)),
+        0 if hold == "flat" else 1,
     )
 
 
 def cell_setups(cell: tuple) -> frozenset:
     """Book members, plus the two-close trigger when that role is on."""
-    book, _cap, _exit_name, stack, _cutoff = cell
+    book, _cap, _exit_name, stack, _cutoff, _dte, _hold = unpack_cell(cell)
     setups = set(BOOK_SETUPS[book])
     if stack in ("confirm", "both"):
         setups.add("stack2")
     return frozenset(setups)
 
 
-def path_key(exit_name: str, stack: str):
-    """The priced path. Exit and both use the walk that also honors the two-close exit."""
-    if stack in ("exit", "both"):
-        return (exit_name, "stack")
-    return exit_name
+def path_key(exit_name: str, stack: str, dte: int = 0, hold: str = "flat"):
+    """The priced path. Exit and both use the walk that also honors the two-close exit.
+
+    0 DTE flat keeps the original key so a same-day book still finds its path.
+    """
+    stacked = stack in ("exit", "both")
+    if int(dte) == 0 and hold == "flat":
+        return (exit_name, "stack") if stacked else exit_name
+    return (exit_name, "stack" if stacked else "off", int(dte), hold)
 
 
 @dataclass(frozen=True)
@@ -620,17 +684,84 @@ def stack_pair(prep, index: int, direction: str) -> bool:
     return closes_on_side(prep, prior, direction) and closes_on_side(prep, index, direction)
 
 
-def exit_underlying(prep, play: Play, exit_name: str, iv: Optional[float], stack_exit: bool = False) -> Optional[Exit]:
+def expiry_session(entry: date, dte: int) -> date:
+    """The session the contract expires. 0 is the entry session. Later counts are trading days, so Friday + 1 is Monday."""
+    cursor = entry
+    for _ in range(int(dte)):
+        cursor = next_trading_day(cursor)
+    return cursor
+
+
+def years_until(when: pd.Timestamp, expiry_day: date) -> float:
+    """Clock time until 16:00 ET on the expiration session. Matches the 0 DTE year fraction."""
+    clock = pd.Timestamp(when)
+    if clock.tzinfo is None:
+        clock = clock.tz_localize(NY)
+    else:
+        clock = clock.tz_convert(NY)
+    expiry = pd.Timestamp(datetime.combine(expiry_day, time(16, 0))).tz_localize(NY)
+    minutes = max(1.0, (expiry - clock).total_seconds() / 60.0)
+    return minutes / (365.0 * 24.0 * 60.0)
+
+
+def _mid_until(right: str, spot: float, strike: float, when: pd.Timestamp, iv: float, expiry_day: date) -> float:
+    if spot <= 0 or strike <= 0 or iv <= 0:
+        return 0.0
+    return float(option_price(right, spot, strike, years_until(when, expiry_day), iv, RATE, DIVIDEND))
+
+
+def _bid_until(right: str, spot: float, strike: float, when: pd.Timestamp, iv: float, expiry_day: date) -> float:
+    mid = _mid_until(right, spot, strike, when, iv, expiry_day)
+    return max(0.0, mid - _half_spread(mid))
+
+
+def iv_for_expiry(day: date, dte: int, short_points: dict, long_points: dict) -> Optional[float]:
+    """0 and 1 DTE prefer VIX1D. 3 and 7 DTE use VIX. A missing VIX1D print falls back to VIX."""
+    if int(dte) <= 1:
+        value = _iv_on(day, short_points)
+        if value is None:
+            value = _iv_on(day, long_points)
+        return value
+    return _iv_on(day, long_points)
+
+
+def _end_of_session(prep, fill_i: int, session: date) -> int:
+    """First index after ``session``. Missing sessions stop at the last bar that is still in the tape."""
+    count = len(prep.dates)
+    index = fill_i
+    while index < count and prep.dates[index] < session:
+        index += 1
+    if index >= count or prep.dates[index] != session:
+        return index
+    return _session_end(prep.dates, index)
+
+
+def exit_underlying(
+    prep,
+    play: Play,
+    exit_name: str,
+    iv: Optional[float],
+    stack_exit: bool = False,
+    dte: int = 0,
+    hold: str = "flat",
+) -> Optional[Exit]:
     """Walk one exit. The stop is filled before the target when both trade."""
     if exit_name not in EXITS:
         raise ValueError(f"unknown exit {exit_name}")
+    if hold not in ("flat", "overnight"):
+        raise ValueError(f"unknown hold {hold}")
     fill_i = play.fill_i
     if fill_i < 0 or fill_i >= len(prep.close):
         return None
     fill = float(prep.open[fill_i])
     if not _stop_beyond(play.direction, play.stop, fill):
         return None
-    end = _session_end(prep.dates, fill_i)
+    dte = int(dte)
+    if dte == 0:
+        hold = "flat"
+    price_expiry = expiry_session(play.day, dte)
+    flat_day = play.day if hold == "flat" else price_expiry
+    end = _session_end(prep.dates, fill_i) if hold == "flat" else _end_of_session(prep, fill_i, flat_day)
     last_spot = fill
     last_time = prep.index[fill_i]
     multiple = 1.0 if exit_name == "1r" else 2.0 if exit_name == "2r" else None
@@ -645,7 +776,7 @@ def exit_underlying(prep, play: Play, exit_name: str, iv: Optional[float], stack
         if iv is None:
             return None
         strike = listed_strike(fill, fill)
-        entry_mid = _option_mid(right, fill, strike, play.fill_time, iv, 0)
+        entry_mid = _mid_until(right, fill, strike, play.fill_time, iv, price_expiry)
         entry_ask = entry_mid + _half_spread(entry_mid)
         if entry_ask <= 0:
             return None
@@ -655,7 +786,7 @@ def exit_underlying(prep, play: Play, exit_name: str, iv: Optional[float], stack
         low = float(prep.low[j])
         closed = float(prep.close[j])
         stamp = prep.index[j]
-        if prep.times[j] >= play.flat:
+        if prep.dates[j] == flat_day and prep.times[j] >= play.flat:
             return Exit("flat", opened, stamp, None)
         if exit_name == "ema20":
             level = float(prep.ema20[j])
@@ -672,9 +803,9 @@ def exit_underlying(prep, play: Play, exit_name: str, iv: Optional[float], stack
             if premium_multiple is not None:
                 if stopped is not None:
                     return Exit("stop", stopped, stamp, None)
-                open_bid = _bid(right, opened, strike, stamp, iv, 0)
+                open_bid = _bid_until(right, opened, strike, stamp, iv, price_expiry)
                 extreme = high if play.direction == "long" else low
-                extreme_bid = _bid(right, extreme, strike, stamp, iv, 0)
+                extreme_bid = _bid_until(right, extreme, strike, stamp, iv, price_expiry)
                 if open_bid >= premium_multiple * entry_ask:
                     return Exit(exit_name, opened, stamp, open_bid)
                 if extreme_bid >= premium_multiple * entry_ask:
@@ -725,33 +856,51 @@ def _close_through(direction: str, closed: float, level: float) -> bool:
     return closed > level
 
 
-def price_play(prep, play: Play, iv: Optional[float], exits: tuple[str, ...] = EXITS) -> Optional[Ticket]:
-    """Price every requested exit. Missing IV drops the play."""
-    if iv is None or play.fill_i >= len(prep.close):
+def price_play(
+    prep,
+    play: Play,
+    iv: Optional[float],
+    exits: tuple[str, ...] = EXITS,
+    iv_long: Optional[float] = None,
+) -> Optional[Ticket]:
+    """Price every requested exit on each contract. ``iv`` is the 0-1 DTE vol. ``iv_long`` is the 3-7 DTE vol.
+
+    Omitting ``iv_long`` prices only the 0 DTE flat contract, which is the same-day book.
+    """
+    if play.fill_i >= len(prep.close):
         return None
     fill = float(prep.open[play.fill_i])
     if not _stop_beyond(play.direction, play.stop, fill):
         return None
+    specs = ((0, "flat", iv),) if iv_long is None else tuple(
+        (dte, hold, iv if dte <= 1 else iv_long) for dte, hold in CONTRACTS
+    )
     right = "call" if play.direction == "long" else "put"
     strike = listed_strike(fill, fill)
-    entry_mid = _option_mid(right, fill, strike, play.fill_time, iv, 0)
-    entry_ask = entry_mid + _half_spread(entry_mid)
-    debit = entry_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, entry_ask, sell=False)
-    if debit <= 0:
-        return None
     paths = {}
-    for exit_name in exits:
-        for stack_exit in (False, True):
-            outcome = exit_underlying(prep, play, exit_name, iv, stack_exit)
-            if outcome is None:
-                continue
-            if outcome.premium is None:
-                exit_bid = _bid(right, outcome.spot, strike, outcome.when, iv, 0)
-            else:
-                exit_bid = float(outcome.premium)
-            credit = exit_bid * CONTRACT_MULTIPLIER - option_leg_fees(1, exit_bid, sell=True)
-            key = (exit_name, "stack") if stack_exit else exit_name
-            paths[key] = Path(outcome.when, debit, credit, credit - debit, outcome.reason)
+    for dte, hold, vol in specs:
+        if vol is None and dte <= 1:
+            vol = iv_long
+        if vol is None:
+            continue
+        expiry = expiry_session(play.day, dte)
+        entry_mid = _mid_until(right, fill, strike, play.fill_time, vol, expiry)
+        entry_ask = entry_mid + _half_spread(entry_mid)
+        debit = entry_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, entry_ask, sell=False)
+        if debit <= 0:
+            continue
+        for exit_name in exits:
+            for stack_exit in (False, True):
+                outcome = exit_underlying(prep, play, exit_name, vol, stack_exit, dte=dte, hold=hold)
+                if outcome is None:
+                    continue
+                if outcome.premium is None:
+                    exit_bid = _bid_until(right, outcome.spot, strike, outcome.when, vol, expiry)
+                else:
+                    exit_bid = float(outcome.premium)
+                credit = exit_bid * CONTRACT_MULTIPLIER - option_leg_fees(1, exit_bid, sell=True)
+                key = path_key(exit_name, "exit" if stack_exit else "off", dte, hold)
+                paths[key] = Path(outcome.when, debit, credit, credit - debit, outcome.reason)
     if not paths:
         return None
     return Ticket(play.setup, play.day, play.fill_time, play.priority, paths, play.stack_ok)
@@ -920,17 +1069,27 @@ def _five_frame(prep) -> pd.DataFrame:
     )
 
 
-def build_tickets(prep, frame_15: pd.DataFrame, iv_points: dict, exits: tuple[str, ...] = EXITS) -> tuple[list[Ticket], dict]:
-    """Plays priced with the prior-session vol print. Days without a print are counted and dropped."""
+def build_tickets(
+    prep,
+    frame_15: pd.DataFrame,
+    iv_points: dict,
+    exits: tuple[str, ...] = EXITS,
+    iv_long: Optional[dict] = None,
+) -> tuple[list[Ticket], dict]:
+    """Plays priced with the prior-session vol print. Days without a print are counted and dropped.
+
+    ``iv_points`` is the 0-1 DTE map (VIX1D, else VIX). ``iv_long`` is the VIX map used for 3 and 7 DTE.
+    """
     plays, notes = build_plays(prep, frame_15)
     tickets = []
     missing_iv = 0
     for play in plays:
-        iv = _iv_on(play.day, iv_points)
-        if iv is None:
+        iv = iv_for_expiry(play.day, 0, iv_points, iv_long or {})
+        vol_long = None if iv_long is None else iv_for_expiry(play.day, 3, iv_points, iv_long)
+        if iv is None and vol_long is None:
             missing_iv += 1
             continue
-        ticket = price_play(prep, play, iv, exits)
+        ticket = price_play(prep, play, iv, exits, iv_long=vol_long)
         if ticket is not None:
             tickets.append(ticket)
     notes["missing_iv"] = missing_iv
@@ -949,8 +1108,8 @@ def index_tickets(tickets: list[Ticket]) -> dict[date, list[Ticket]]:
 
 def run_cell(indexed: dict, days: list[date], cell: tuple, stake: float) -> dict:
     """One frozen cell. Cash carries across ``days`` and nowhere else."""
-    _book, cap, exit_name, stack, cutoff = cell
-    plan = {day: (cell_setups(cell), cap, exit_name, stack, cutoff) for day in days}
+    _book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
+    plan = {day: (cell_setups(cell), cap, exit_name, stack, cutoff, dte, hold) for day in days}
     return run_plan(indexed, days, plan, stake)
 
 
@@ -967,17 +1126,37 @@ def _fill_clock(stamp: pd.Timestamp) -> time:
     return clock.time()
 
 
+def _plan_args(slot: tuple) -> tuple:
+    if len(slot) == 5:
+        setups, cap, exit_name, stack, cutoff = slot
+        return setups, cap, exit_name, stack, cutoff, 0, "flat"
+    setups, cap, exit_name, stack, cutoff, dte, hold = slot
+    return setups, cap, exit_name, stack, cutoff, int(dte), hold
+
+
+def _marked_equity(settled: float, unsettled: list, carries: list) -> float:
+    """Settled cash, unsettled sale proceeds, and the debit still invested in an open overnight contract."""
+    return settled + sum(amount for _when, amount in unsettled) + sum(debit for _day, debit, _credit, _when in carries)
+
+
 def run_plan(indexed: dict, days: list[date], plan: dict, stake: float) -> dict:
-    """``plan[day]`` is ``(setups, cap, exit, stack, cutoff)``. Days are marked even when no trade is taken."""
+    """``plan[day]`` is ``(setups, cap, exit, stack, cutoff)`` or the same plus ``(dte, hold)``.
+
+    Days are marked even when no trade is taken. A same-day sale settles the next session.
+    An overnight sale settles the session after the exit, and the debit stays invested until then.
+    """
     settled = float(stake)
     unsettled: list[tuple[date, float]] = []
+    carries: list[tuple[date, float, float, pd.Timestamp]] = []
     equity = float(stake)
     stopped = False
     curve_days = []
     curve_values = []
     pnls: list[float] = []
     trade_days: list[date] = []
+    spans: list[tuple[date, date]] = []
     skips = {"overlap": 0, "cap": 0, "premium": 0, "bust": 0, "exit": 0, "cutoff": 0, "stack": 0}
+    busy = None
     for day in days:
         still = []
         for available_on, amount in unsettled:
@@ -986,12 +1165,27 @@ def run_plan(indexed: dict, days: list[date], plan: dict, stake: float) -> dict:
             else:
                 still.append((available_on, amount))
         unsettled = still
-        equity = settled + sum(amount for _when, amount in unsettled)
+        held = []
+        released = None
+        for exit_day, debit, credit, exit_time in carries:
+            if exit_day <= day:
+                unsettled.append((next_trading_day(exit_day), credit))
+                if exit_day == day:
+                    released = exit_time
+            else:
+                held.append((exit_day, debit, credit, exit_time))
+        carries = held
+        if carries:
+            busy = max(item[3] for item in carries)
+        elif released is not None:
+            busy = released
+        else:
+            busy = None
+        equity = _marked_equity(settled, unsettled, carries)
         slot = plan.get(day)
         taken = 0
-        busy = None
         if slot is not None and not stopped:
-            setups, cap, exit_name, stack, cutoff = slot
+            setups, cap, exit_name, stack, cutoff, dte, hold = _plan_args(slot)
             for ticket in indexed.get(day, []):
                 if ticket.setup not in setups:
                     continue
@@ -1010,18 +1204,23 @@ def run_plan(indexed: dict, days: list[date], plan: dict, stake: float) -> dict:
                 if busy is not None and ticket.fill_time <= busy:
                     skips["overlap"] += 1
                     continue
-                path = ticket.paths.get(path_key(exit_name, stack))
+                path = ticket.paths.get(path_key(exit_name, stack, dte, hold))
                 if path is None:
                     skips["exit"] += 1
                     continue
                 if path.debit > settled + 1e-9:
                     skips["premium"] += 1
                     continue
+                exit_day = _day(path.exit_time)
                 settled -= path.debit
-                unsettled.append((next_trading_day(day), path.credit))
-                equity = settled + sum(amount for _when, amount in unsettled)
+                if exit_day <= day:
+                    unsettled.append((next_trading_day(exit_day), path.credit))
+                else:
+                    carries.append((exit_day, path.debit, path.credit, path.exit_time))
+                equity = _marked_equity(settled, unsettled, carries)
                 pnls.append(path.pnl)
                 trade_days.append(day)
+                spans.append((day, exit_day))
                 taken += 1
                 busy = path.exit_time
                 if equity <= 1.0:
@@ -1035,8 +1234,41 @@ def run_plan(indexed: dict, days: list[date], plan: dict, stake: float) -> dict:
         "metrics": stats,
         "pnls": pnls,
         "trade_days": trade_days,
+        "spans": spans,
         "skips": skips,
         "stopped": stopped,
+    }
+
+
+def day_trade_stats(spans: list[tuple[date, date]], sessions: list[date]) -> dict:
+    """Same-day round trips versus the 3-in-5 pattern-day-trader count. The account does not enforce it."""
+    counts: dict[date, int] = {}
+    day_trades = 0
+    overnight = 0
+    for entry, exit_day in spans:
+        if exit_day <= entry:
+            day_trades += 1
+            counts[entry] = counts.get(entry, 0) + 1
+        else:
+            overnight += 1
+    worst = 0
+    exceed = 0
+    windows = 0
+    for index, _day in enumerate(sessions):
+        window = sessions[max(0, index - 4): index + 1]
+        if len(window) < 5:
+            continue
+        windows += 1
+        total = sum(counts.get(item, 0) for item in window)
+        worst = max(worst, total)
+        if total > 3:
+            exceed += 1
+    return {
+        "day_trades": day_trades,
+        "overnight_holds": overnight,
+        "worst_day_trades_in_5_sessions": worst,
+        "windows_over_3": exceed,
+        "windows": windows,
     }
 
 
@@ -1209,7 +1441,7 @@ def promote_decision(
 
 def rule_sheet(cell: tuple, *, promoted: bool, fallback: bool) -> str:
     """Plain English for the cell the folds agreed on."""
-    book, cap, exit_name, stack, cutoff = cell
+    book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
     book_text = {
         "trend": "the 2 SD VWAP continuation, the filtered 9 EMA wick, and the trendline-plus-support bounce",
         "turn": "the 9 EMA reclaim (strictest variant on a shared fill), the green 20 EMA re-entry, and the trend-exhaustion shelf break",
@@ -1236,6 +1468,27 @@ def rule_sheet(cell: tuple, *, promoted: bool, fallback: bool) -> str:
         cutoff_text = "There is no extra late-day cutoff. A fill is still refused at the setup's own flat."
     else:
         cutoff_text = f"No new entry fills after {cutoff.strftime('%H:%M')} ET. A fill at exactly that time is still taken."
+    if dte == 0:
+        expiry_text = (
+            "The contract is at the money and expires the same day. "
+            "The continuation is flat at 15:45. The 5-minute setups are flat at 15:30."
+        )
+    elif hold == "flat":
+        expiry_text = (
+            f"The contract is at the money and expires {dte} trading sessions later, but it is sold the same day. "
+            "The continuation is flat at 15:45. The 5-minute setups are flat at 15:30."
+        )
+    else:
+        expiry_text = (
+            f"The contract is at the money and expires {dte} trading sessions later. "
+            "It is held overnight. The same stop and target stay in force, and it is sold at the flat clock on the expiration session. "
+            "A Friday 1 DTE contract expires Monday."
+        )
+    account_text = (
+        "A sale settles the next session. A $1,000 or $5,000 margin account is under the $25,000 pattern-day-trader line, "
+        "so same-day round trips are limited to three in any five business days. This test is a cash account and does not apply that cap. "
+        "An overnight hold that closes on a later session is not a day trade. The debit stays invested until the exit."
+    )
     status = (
         "This is a separate sandbox forward book. The older books were not changed."
         if promoted
@@ -1247,12 +1500,11 @@ def rule_sheet(cell: tuple, *, promoted: bool, fallback: bool) -> str:
         else "The folds picked this cell because it held up next to its neighbors, not because it had the highest training Sharpe."
     )
     return (
-        f"One SPY position, at the money, expiring the same day. At most {cap} entries a day. "
+        f"One SPY position. At most {cap} entries a day. "
         f"The entries are {book_text}. "
-        f"{exit_text} {stack_text} {cutoff_text} "
-        "The continuation is flat at 15:45. The 5-minute setups are flat at 15:30. "
+        f"{exit_text} {stack_text} {cutoff_text} {expiry_text} "
         "A new signal while a trade is open is skipped. A contract that costs more than settled cash is skipped. "
-        f"{screen} {status}"
+        f"{account_text} {screen} {status}"
     )
 
 

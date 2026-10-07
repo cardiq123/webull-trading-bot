@@ -8,6 +8,7 @@ import pandas as pd
 
 from webull_bot.chart_reads.ema_reclaim import Prepared
 from webull_bot.chart_reads.playbook import (
+    CONTRACTS,
     CUTOFFS,
     GRID_SIZE,
     SIMPLE_CELL,
@@ -18,14 +19,17 @@ from webull_bot.chart_reads.playbook import (
     _stack_triggers,
     cells,
     exit_underlying,
+    expiry_session,
     folds,
     frozen_rules,
     index_tickets,
+    iv_for_expiry,
     neighbors,
     run_cell,
     run_plan,
     select_cell,
     stack_pair,
+    years_until,
 )
 
 NY = "America/New_York"
@@ -103,26 +107,38 @@ def _ticket(setup, clock, pnl, stack_ok=False, priority=0) -> Ticket:
     return Ticket(setup, DAY, fill, priority, paths, stack_ok)
 
 
-def test_grid_is_frozen_at_768_cells():
-    assert frozen_rules()["grid_size"] == GRID_SIZE == 768
-    assert len(cells()) == 768
-    assert len(set(cells())) == 768
+def test_grid_is_frozen_at_5376_cells():
+    assert frozen_rules()["grid_size"] == GRID_SIZE == 5376
+    assert len(cells()) == 5376
+    assert len(set(cells())) == 5376
     assert STACKS == ("off", "exit", "confirm", "both")
     assert CUTOFFS == (None, time(15, 0), time(15, 15))
-    assert SIMPLE_CELL == ("trend", 3, "1r", "off", None)
+    assert CONTRACTS == (
+        (0, "flat"),
+        (1, "flat"),
+        (1, "overnight"),
+        (3, "flat"),
+        (3, "overnight"),
+        (7, "flat"),
+        (7, "overnight"),
+    )
+    assert SIMPLE_CELL == ("trend", 3, "1r", "off", None, 0, "flat")
+    assert all(not (dte == 0 and hold == "overnight") for *_head, dte, hold in cells())
     universe = set(cells())
     for cell in (
         cells()[0],
-        ("all", 5, "ema20", "both", time(15, 15)),
-        ("confirmed", 3, "1r", "exit", time(15, 0)),
-        ("turn", 5, "band", "confirm", None),
+        ("all", 5, "ema20", "both", time(15, 15), 7, "overnight"),
+        ("confirmed", 3, "1r", "exit", time(15, 0), 0, "flat"),
+        ("turn", 5, "band", "confirm", None, 3, "flat"),
     ):
         assert cell in universe
         for neighbor in neighbors(cell):
             assert neighbor in universe
             assert neighbor != cell
-        assert ("trend", 3, "1r", "exit", None) in neighbors(("trend", 3, "1r", "off", None))
-        assert ("trend", 3, "1r", "off", time(15, 0)) in neighbors(("trend", 3, "1r", "off", None))
+    assert ("trend", 3, "1r", "exit", None, 0, "flat") in neighbors(SIMPLE_CELL)
+    assert ("trend", 3, "1r", "off", time(15, 0), 0, "flat") in neighbors(SIMPLE_CELL)
+    assert ("trend", 3, "1r", "off", None, 1, "flat") in neighbors(SIMPLE_CELL)
+    assert ("trend", 3, "1r", "off", None, 1, "overnight") not in neighbors(SIMPLE_CELL)
 
 
 def test_folds_do_not_overlap_their_own_test():
@@ -138,7 +154,7 @@ def test_folds_do_not_overlap_their_own_test():
 
 def test_selection_prefers_the_stable_neighborhood():
     table = {cell: _metrics(0.2) for cell in cells()}
-    table[("all", 5, "prem100", "both", time(15, 0))] = _metrics(5.0)
+    table[("all", 5, "prem100", "both", time(15, 0), 7, "overnight")] = _metrics(5.0)
     for cell in (SIMPLE_CELL, *neighbors(SIMPLE_CELL)):
         table[cell] = _metrics(0.9)
     picked, eligible = select_cell(table)
@@ -273,6 +289,73 @@ def test_cap_drops_the_later_trade_and_overlap_does_not_use_a_slot():
     assert result["skips"]["cap"] == 1
     assert result["skips"]["overlap"] == 1
     assert result["pnls"] == [10.0, 10.0, 10.0]
+
+
+def test_friday_1dte_expires_monday_and_vol_follows_the_tenor():
+    friday = date(2026, 10, 2)
+    assert expiry_session(friday, 0) == friday
+    assert expiry_session(friday, 1) == date(2026, 10, 5)
+    assert expiry_session(date(2026, 10, 5), 3) == date(2026, 10, 8)
+    when = pd.Timestamp("2026-10-07 15:20", tz=NY)
+    from webull_bot.chart_reads.band_exit import _years
+
+    assert years_until(when, DAY) == _years(when, 0)
+    short = {DAY: (20.0, "VIX1D")}
+    longer = {DAY: (15.0, "VIX")}
+    assert iv_for_expiry(DAY, 0, short, longer) == 0.20
+    assert iv_for_expiry(DAY, 1, short, longer) == 0.20
+    assert iv_for_expiry(DAY, 3, short, longer) == 0.15
+    assert iv_for_expiry(DAY, 7, short, longer) == 0.15
+    assert iv_for_expiry(DAY, 1, {}, longer) == 0.15
+
+
+def test_overnight_holds_past_the_entry_close_and_flats_on_expiry():
+    stamps = pd.to_datetime(
+        [
+            "2026-10-05 15:20",
+            "2026-10-05 15:25",
+            "2026-10-06 09:30",
+            "2026-10-06 15:25",
+            "2026-10-06 15:30",
+        ]
+    ).tz_localize(NY)
+    close = [777.0, 777.1, 777.2, 777.3, 777.4]
+    emas = [776.0, 776.0, 776.0, 776.0, 776.0]
+    prep = _prep(stamps, close, emas, emas, open_=close)
+    play = Play("vwap", "long", date(2026, 10, 5), prep.index[0], prep.index[0], 0, 700.0, time(15, 30), float("nan"), 0, False)
+    held = exit_underlying(prep, play, "1r", None, dte=1, hold="overnight")
+    assert held.reason == "flat"
+    assert held.when == prep.index[4]
+    same_day = exit_underlying(prep, play, "1r", None, dte=1, hold="flat")
+    assert same_day.when == prep.index[1]
+    assert same_day.reason == "last"
+
+
+def test_overnight_credit_settles_the_session_after_the_exit():
+    from webull_bot.chart_reads.playbook import Path
+
+    monday = date(2026, 10, 5)
+    tuesday = date(2026, 10, 6)
+    fill = pd.Timestamp("2026-10-05 10:00", tz=NY)
+    exit_at = pd.Timestamp("2026-10-06 10:00", tz=NY)
+    path = Path(exit_at, 100.0, 150.0, 50.0, "target")
+    later = Path(pd.Timestamp("2026-10-06 11:00", tz=NY), 950.0, 960.0, 10.0, "target")
+    key = ("1r", "off", 1, "overnight")
+    indexed = index_tickets(
+        [
+            Ticket("vwap", monday, fill, 0, {key: path}, False),
+            Ticket("vwap", tuesday, pd.Timestamp("2026-10-06 11:00", tz=NY), 0, {key: later}, False),
+        ]
+    )
+    plan = {
+        monday: (frozenset({"vwap"}), 3, "1r", "off", None, 1, "overnight"),
+        tuesday: (frozenset({"vwap"}), 3, "1r", "off", None, 1, "overnight"),
+    }
+    result = run_plan(indexed, [monday, tuesday], plan, 1000.0)
+    assert result["metrics"]["trades"] == 1
+    assert result["skips"]["premium"] == 1
+    assert list(result["equity"]) == [1000.0, 1050.0]
+    assert result["spans"] == [(monday, tuesday)]
 
 
 def test_modules_do_not_import_the_broker():

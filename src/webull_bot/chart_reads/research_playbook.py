@@ -17,10 +17,13 @@ from webull_bot.chart_reads.ema_reclaim import prepare
 from webull_bot.chart_reads.ema_reject import SAMPLE_END, to_five_minute
 from webull_bot.chart_reads.orb_mwf import prior_iv
 from webull_bot.chart_reads.playbook import (
+    ANCHOR_CELL,
+    CONTRACTS,
     GRID_SIZE,
     BOOK_SETUPS,
     cell_setups,
     cells,
+    day_trade_stats,
     deflated_sharpe,
     folds,
     fold_results,
@@ -37,12 +40,13 @@ from webull_bot.chart_reads.playbook import (
     session_days,
     stability_score,
     strict_majority,
+    unpack_cell,
     worst_month,
     best_sharpe_cell,
     build_tickets,
     spy_hold,
 )
-from webull_bot.chart_reads.vwap_band import find_signals, simulate
+from webull_bot.chart_reads.vwap_band import HOLDOUT_START, TRAIN_END, find_signals, passes_gate, simulate
 from webull_bot.chart_reads.vwap_band_data import load_minutes, to_fifteen_minute
 from webull_bot.data.yfinance_provider import YFinanceProvider
 
@@ -81,7 +85,12 @@ def _pf(value) -> str:
     return f"{float(value):.2f}"
 
 
-def _iv() -> dict:
+def _contract_name(dte: int, hold: str) -> str:
+    return f"{dte}dte-{hold}"
+
+
+def _iv_frame() -> tuple[dict, dict]:
+    """(VIX1D-else-VIX, VIX only). 0-1 DTE uses the first. 3-7 DTE uses the second."""
     provider = YFinanceProvider(cache_dir="data/cache/vwap_band/yahoo")
     daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", "2026-10-08", interval="1d")
     closes = {}
@@ -94,7 +103,9 @@ def _iv() -> dict:
             index = index.tz_convert("America/New_York").tz_localize(None)
         series.index = index
         closes[symbol.replace("^", "")] = series[~series.index.duplicated(keep="last")].sort_index()
-    return prior_iv(closes.get("VIX1D", pd.Series(dtype=float)), closes.get("VIX", pd.Series(dtype=float)))
+    vix = closes.get("VIX", pd.Series(dtype=float))
+    vix1d = closes.get("VIX1D", pd.Series(dtype=float))
+    return prior_iv(vix1d, vix), prior_iv(pd.Series(dtype=float), vix)
 
 
 def _clock(cutoff) -> str:
@@ -104,8 +115,11 @@ def _clock(cutoff) -> str:
 
 
 def _label(cell: tuple) -> str:
-    book, cap, exit_name, stack, cutoff = cell
-    return f"{book}, cap {cap}, {exit_name}, two-close {stack}, cutoff {_clock(cutoff)}"
+    book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
+    return (
+        f"{book}, cap {cap}, {exit_name}, two-close {stack}, cutoff {_clock(cutoff)}, "
+        f"{_contract_name(dte, hold)}"
+    )
 
 
 def _check() -> None:
@@ -116,6 +130,10 @@ def _check() -> None:
         raise SystemExit("two-close trigger was not frozen")
     if rules["cutoffs"] != ["none", "15:00", "15:15"]:
         raise SystemExit("late-day cutoff was not frozen")
+    if rules["contracts"] != [f"{dte}dte-{hold}" for dte, hold in CONTRACTS]:
+        raise SystemExit("expiry grid was not frozen")
+    if rules["grid_size"] != 5376:
+        raise SystemExit("expiry grid size was not frozen")
 
 
 def _train_table(indexed, days) -> dict:
@@ -179,6 +197,111 @@ def _write(lines: list[str]) -> None:
         readme.write_text(body.rstrip() + "\n\n" + readme_block)
 
 
+def _expiry_table(indexed, days) -> list[dict]:
+    """Train and holdout for the pre-declared anchor, one row per contract. Not a second search."""
+    train_days = [day for day in days if day <= TRAIN_END]
+    hold_days = [day for day in days if HOLDOUT_START <= day <= SAMPLE_END]
+    rows = []
+    for dte, hold in CONTRACTS:
+        name = _contract_name(dte, hold)
+        print(f"EXPIRY {name}", flush=True)
+        cell = (*ANCHOR_CELL, dte, hold)
+        packed = {"contract": name, "dte": dte, "hold": hold}
+        for label, stake, window in (
+            ("train_1000", 1000.0, train_days),
+            ("train_5000", 5000.0, train_days),
+            ("hold_1000", 1000.0, hold_days),
+            ("hold_5000", 5000.0, hold_days),
+        ):
+            result = run_cell(indexed, window, cell, stake)
+            brief = _metrics_brief(result["metrics"])
+            sessions = max(len(result["equity"]), 1)
+            trades = int(brief.get("trades") or 0)
+            brief["trades_per_day"] = trades / sessions
+            brief["pdt"] = day_trade_stats(result["spans"], window)
+            packed[label] = brief
+            packed[label + "_gate"] = bool(passes_gate(result["metrics"]))
+        packed["robust"] = bool(packed["train_1000_gate"] and packed["hold_1000_gate"])
+        rows.append(packed)
+    return rows
+
+
+def _best_expiry(rows: list[dict]) -> dict | None:
+    """Highest holdout Sharpe among contracts that clear both windows. None of them is still reported."""
+    if not rows:
+        return None
+
+    def sharpe(row: dict) -> float:
+        value = row["hold_1000"].get("sharpe")
+        if value is None or not np.isfinite(value):
+            return -1e9
+        return float(value)
+
+    robust = [row for row in rows if row["robust"]]
+    pool = robust or rows
+    return max(pool, key=sharpe)
+
+
+def _expiry_sentence(rows: list[dict], best: dict | None) -> str:
+    if best is None:
+        return "No expiry row was scored."
+    robust = [row["contract"] for row in rows if row["robust"]]
+    hold = best["hold_1000"]
+    train = best["train_1000"]
+    if robust:
+        which = (
+            f"{best['contract']} is the robust contract with the highest holdout Sharpe. "
+            f"Robust on both windows: {', '.join(robust)}."
+        )
+    else:
+        which = (
+            f"No contract clears the published gate on both the train window and the holdout. "
+            f"{best['contract']} has the highest holdout Sharpe on the anchor and is not a promotion."
+        )
+    pdt = hold.get("pdt") or {}
+    return (
+        "The expiry table holds every other choice at trend, cap 3, 1R, the two-close rule off, and no late cutoff. "
+        f"{which} "
+        f"On that anchor the $1,000 holdout finished at {_money(hold.get('ending_equity'))} "
+        f"({hold.get('trades', 0)} trades, {hold.get('trades_per_day', 0):.2f} a day, "
+        f"win {_pct(hold.get('win_rate'))} against break-even {_pct(hold.get('breakeven_win_rate'))}, "
+        f"profit factor {_pf(hold.get('profit_factor'))}, Sharpe {_num(hold.get('sharpe'))}, "
+        f"drawdown {_pct(hold.get('max_drawdown'))}). "
+        f"The same anchor in training finished at {_money(train.get('ending_equity'))}. "
+        f"From $5,000 the holdout finished at {_money(best['hold_5000'].get('ending_equity'))} "
+        f"and training at {_money(best['train_5000'].get('ending_equity'))}. "
+        f"Holdout same-day round trips {pdt.get('day_trades', 0)}, overnight holds {pdt.get('overnight_holds', 0)}, "
+        f"worst same-day count in any five sessions {pdt.get('worst_day_trades_in_5_sessions', 0)}, "
+        f"five-session windows over 3 day trades {pdt.get('windows_over_3', 0)} of {pdt.get('windows', 0)}. "
+        "A $1,000 or $5,000 margin account would be under the $25,000 pattern-day-trader line. "
+        "This test is a cash account: it does not refuse the fourth day trade, and a sale settles the next session. "
+        "An overnight hold that closes on a later session is not a day trade. The debit stays invested until that exit."
+    )
+
+
+def _expiry_lines(rows: list[dict]) -> list[str]:
+    lines = [
+        "Expiry comparison on the pre-declared anchor (trend, cap 3, 1R, two-close off, no late cutoff). "
+        "0 DTE and 1 DTE use prior VIX1D, or prior VIX when that print is missing. 3 DTE and 7 DTE use prior VIX. "
+        "Half-spread is the greater of $0.01 and 1.5% of the mid.",
+        "",
+        "| Contract | Window | Trades/day | Win | Break-even | PF | Sharpe | Max DD | $1k end | $5k end |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        for window, key, five_key in (("train", "train_1000", "train_5000"), ("holdout", "hold_1000", "hold_5000")):
+            metrics = row[key]
+            five = row[five_key]
+            lines.append(
+                f"| {row['contract']} | {window} | {metrics.get('trades_per_day', 0):.2f} | "
+                f"{_pct(metrics.get('win_rate'))} | {_pct(metrics.get('breakeven_win_rate'))} | "
+                f"{_pf(metrics.get('profit_factor'))} | {_num(metrics.get('sharpe'))} | "
+                f"{_pct(metrics.get('max_drawdown'))} | {_money(metrics.get('ending_equity'))} | "
+                f"{_money(five.get('ending_equity'))} |"
+            )
+    return lines
+
+
 def main() -> None:
     _check()
     print("LOAD", flush=True)
@@ -189,9 +312,9 @@ def main() -> None:
     fifteen = to_fifteen_minute(minutes)
     print(f"PREPARE sessions {info.get('sessions')} rows {len(five)}", flush=True)
     prep = prepare(five)
-    iv = _iv()
+    iv, iv_long = _iv_frame()
     print("TICKETS", flush=True)
-    tickets, notes = build_tickets(prep, fifteen, iv)
+    tickets, notes = build_tickets(prep, fifteen, iv, iv_long=iv_long)
     print(f"NOTES {notes}", flush=True)
     indexed = index_tickets(tickets)
     days = session_days(prep)
@@ -227,8 +350,8 @@ def main() -> None:
     for day in test_days:
         for fold, cell in zip(fold_list, picks):
             if fold.test_start <= day <= fold.test_end:
-                _book, cap, exit_name, stack, cutoff = cell
-                plan[day] = (cell_setups(cell), cap, exit_name, stack, cutoff)
+                _book, cap, exit_name, stack, cutoff, dte, hold = unpack_cell(cell)
+                plan[day] = (cell_setups(cell), cap, exit_name, stack, cutoff, dte, hold)
                 break
     print("STITCH", flush=True)
     adaptive_1 = run_plan(indexed, test_days, plan, 1000.0)
@@ -273,6 +396,9 @@ def main() -> None:
         {day: (frozenset({"random"}), None, "1r", "off", None) for day in test_days},
         1000.0,
     )
+    print("EXPIRY", flush=True)
+    expiry_rows = _expiry_table(indexed, days)
+    best = _best_expiry(expiry_rows)
     sheet = rule_sheet(modal, promoted=decision["promote"], fallback=not any(row["eligible"] for row in fold_rows))
     adaptive_pack = _pack(adaptive_1, 1000.0, fold_list)
     hold = adaptive_pack["metrics"]
@@ -285,7 +411,8 @@ def main() -> None:
     english = (
         f"Walk-forward from 2020 through {SAMPLE_END.isoformat()}, each year tuned on the prior three calendar years. "
         f"The grid is {GRID_SIZE} cells: four books, caps of 3 and 5, eight exits, the two-close 9/20 rule off or as an exit or as the put/call trigger or both, "
-        f"and a late cutoff of none, 15:00, or 15:15. "
+        f"a late cutoff of none, 15:00, or 15:15, and seven contracts: 0 DTE flat, plus 1, 3, and 7 DTE each flat and overnight. "
+        f"0 DTE and 1 DTE use prior VIX1D, otherwise prior VIX. 3 DTE and 7 DTE use prior VIX. "
         f"The cell chosen most often is {_label(modal)} ({count} of {len(fold_list)} folds"
         f"{', a strict majority' if strict_majority(count, len(fold_list)) else ''}). "
         f"The stitched $1,000 account, using only each year's own pick, finished at {_money(hold.get('ending_equity'))} "
@@ -302,11 +429,11 @@ def main() -> None:
         f"and {_money(vwap_5['metrics'].get('ending_equity'))} from $5,000. "
         f"SPY bought at the first test open finished at {_money(spy_1.get('ending_equity'))} and {_money(spy_5.get('ending_equity'))}. "
         f"Seed 17 random 1R entries finished at {_money(random_book['metrics'].get('ending_equity'))}. "
-        f"{promoted} {sheet}"
+        f"{promoted} {_expiry_sentence(expiry_rows, best)} {sheet}"
     )
     lines = [
         MARK_START,
-        "### Combined SPY 0 DTE playbook",
+        "### Combined SPY playbook",
         "",
         "Backtests only. Nothing was sent to a broker. Live trading stays off. "
         + english,
@@ -319,6 +446,8 @@ def main() -> None:
             f"| {row['fold']} | {row['cell']} | {'yes' if row['eligible'] else 'fallback'} | {_money(row['train'].get('ending_equity'))} |"
         )
     lines += [
+        "",
+        *_expiry_lines(expiry_rows),
         "",
         sheet,
         "",
@@ -349,6 +478,8 @@ def main() -> None:
         "spy_1000": _metrics_brief(spy_1),
         "spy_5000": _metrics_brief(spy_5),
         "random_1000": _metrics_brief(random_book["metrics"]),
+        "expiry": expiry_rows,
+        "expiry_best": None if best is None else best["contract"],
         "books": {name: sorted(value) for name, value in BOOK_SETUPS.items()},
     }
     RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -565,7 +565,7 @@ def _forward_test(config, args) -> int:
         local = now.astimezone(ZoneInfo("America/New_York"))
         print(
             f"forward-test idle at {local.isoformat()}. "
-            "Outside the 10:35-15:35 ET window. No orders."
+            "Outside the 10:35-15:45 ET window. No orders."
         )
         return 0
     broker = None
