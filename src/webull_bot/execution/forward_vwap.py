@@ -14,8 +14,13 @@ from completed 15-minute bars, including the bar that just closed when the
 next 15-minute bar is not in the file yet. The backtest fill is still that
 next open, and the stop and 1R target stay on that modeled fill. The order
 goes in on the first cycle after the signal bar closes when the current
-price is still strictly between the stop and that target. A stop or target
-that printed before the order is not a skip. Exits walk only 5-minute bars
+price is still strictly between the stop and that target, and only when
+that cycle is still within ``VWAP_MAX_ENTRY_DELAY_MIN`` minutes of the
+signal bar's close (default 10). A later cycle journals the signal as
+expired, late, and does not enter. A position already open keeps its
+stop, its target, and the 15:45 exit. The report marks that fill as an
+off-plan late entry. A stop or target that printed before the order is
+not a skip. Exits walk only 5-minute bars
 that start at or after the actual entry. The journal records the modeled
 next open and the actual entry. A 5-minute bar can still close the trade
 before the 15-minute bar that contains both levels.
@@ -42,6 +47,7 @@ from __future__ import annotations
 
 import contextvars
 import math
+import os
 from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -82,6 +88,8 @@ _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
 STAKE = 1_000.0
+# A cycle later than this after the signal bar closes does not enter.
+DEFAULT_MAX_ENTRY_DELAY_MIN = 10.0
 # Written down so a reader can see the scored book did not skip these days.
 SKIPS_EVENT_DAYS = False
 
@@ -97,6 +105,49 @@ def _symbol() -> str:
 
 def _activate(book: str) -> contextvars.Token:
     return _ACTIVE.set(book if book in BOOKS else NAME)
+
+
+def max_entry_delay_minutes() -> float:
+    """Minutes after the signal bar closes that an entry is still allowed.
+
+    ``VWAP_MAX_ENTRY_DELAY_MIN`` overrides the default. A blank or unusable
+    value keeps the default. Both VWAP books read the same cap.
+    """
+    raw = os.environ.get("VWAP_MAX_ENTRY_DELAY_MIN", "").strip()
+    if not raw:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    try:
+        minutes = float(raw)
+    except ValueError:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    if not math.isfinite(minutes) or minutes < 0:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    return minutes
+
+
+def _as_ny(stamp) -> pd.Timestamp:
+    clock = pd.Timestamp(stamp)
+    if clock.tzinfo is None:
+        return clock.tz_localize(NY)
+    return clock.tz_convert(NY)
+
+
+def _entry_deadline(signal_time) -> pd.Timestamp:
+    return bar_end(signal_time, "15m") + pd.Timedelta(minutes=max_entry_delay_minutes())
+
+
+def _entry_is_late(signal_time, when) -> bool:
+    """True when ``when`` is after the signal bar close plus the entry cap."""
+    if signal_time is None or when is None:
+        return False
+    return _as_ny(when) > _entry_deadline(signal_time)
+
+
+def _off_plan_late(row: dict) -> bool:
+    """A fill already in the journal that arrived after the entry cap."""
+    if not isinstance(row, dict):
+        return False
+    return _entry_is_late(row.get("signal_time"), row.get("entry_time"))
 
 
 def in_forward_window(moment: datetime) -> bool:
@@ -396,6 +447,10 @@ def _report_text(journal: Journal) -> str:
         "A 5-minute bar can exit before the 15-minute bar that holds both the stop and the target.",
         "CPI, NFP, and FOMC days are not skipped.",
         f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
+        (
+            f"A new entry has to be within {max_entry_delay_minutes():g} minutes of the signal bar close. "
+            "A position already open still exits at the stop, the target, or 15:45."
+        ),
         "Signals",
     ]
     signals = state.get("signals") or []
@@ -440,9 +495,14 @@ def _report_text(journal: Journal) -> str:
     if not positions:
         lines.append("(none)")
     for row in positions:
+        note = " off-plan late entry" if _off_plan_late(row) else ""
         lines.append(
             f"- {row.get('right')} strike {row.get('strike')} expiry {row.get('expiry')} "
-            f"stop {row.get('stop')} target {row.get('target')}"
+            f"stop {row.get('stop')} target {row.get('target')}{note}"
+        )
+    if any(_off_plan_late(row) for row in list(signals) + list(positions)):
+        lines.append(
+            "Off-plan late entry. The stop, the target, and the 15:45 flat still manage that position."
         )
     lines.append(f"Realized P&L on the model mirror ${realized:.2f}.")
     lines.append("")
@@ -468,6 +528,10 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
         ),
         "CPI, NFP, and FOMC days are not skipped. The scored backtest does not skip them.",
         f"Window {local.isoformat()}. Cash mirror ${STAKE:,.0f}. One position.",
+        (
+            f"Entry only through {max_entry_delay_minutes():g} minutes after the signal bar closes. "
+            "A later cycle journals the signal as expired, late."
+        ),
     ]
     if dry_run:
         lines.append(
@@ -511,9 +575,10 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
             kept.append(position)
+            note = " Off-plan late entry." if _off_plan_late(position) else ""
             lines.append(
                 f"Open {position.get('right')} from {position.get('entry_time') or position.get('fill_time')} "
-                f"stop {float(position.get('stop')):.2f} target {float(position.get('target')):.2f}. Still open."
+                f"stop {float(position.get('stop')):.2f} target {float(position.get('target')):.2f}. Still open.{note}"
             )
             continue
         reason, underlying, when = outcome
@@ -982,8 +1047,16 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
 
     The stop and the 1R target stay on the modeled next open. The order uses
     the current price, and only when that price is still strictly between them.
-    Bars between the modeled fill and this cycle are not an exit.
+    The cycle also has to fall within the entry cap after the signal bar
+    closes. Bars between the modeled fill and this cycle are not an exit.
+    A position that is already open is not decided here.
     """
+    if _entry_is_late(signal.signal_time, now_ts):
+        row = _skip(signal, "expired", "expired, late")
+        row["reason"] = "expired, late"
+        row["entry_deadline"] = _entry_deadline(signal.signal_time).isoformat()
+        row["seen_at"] = _as_ny(now_ts).isoformat()
+        return row
     if now_ts.time() >= FLAT:
         return _skip(signal, "flat", "the 15:45 flat has already passed")
     modeled = _print_open(bars15, signal.fill_time, now_ts)
@@ -1365,6 +1438,8 @@ def _event_line(event: dict) -> str:
         body += " still open"
     if event.get("iv_source"):
         body += f" volatility {event['iv_source']}"
+    if _off_plan_late(event):
+        body += " off-plan late entry"
     return body
 
 

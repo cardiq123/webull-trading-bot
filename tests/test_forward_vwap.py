@@ -489,6 +489,104 @@ def test_a_late_cycle_enters_inside_the_bracket_and_ignores_the_earlier_stop(tmp
     assert journal.forward_load(NAME)["positions"] == []
 
 
+def test_a_cycle_after_the_entry_cap_journals_expired_late(tmp_path, monkeypatch):
+    """The 11:30 bar closes at 11:45. 12:27 is the same miss as the 10:00 signal."""
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    broker = Broker()
+    for book in (NAME, QQQ_NAME):
+        journal = Journal(tmp_path / f"{book}.sqlite")
+        lines = run_cycle(
+            journal=journal,
+            bars15=_long_day(),
+            bars5=_five(),
+            now=_at("12:27"),
+            iv_points=IV,
+            broker=broker,
+            book=book,
+        )
+        text = "\n".join(lines)
+        assert "expired, late" in text
+        assert broker.orders == []
+        saved = journal.forward_load(book)
+        assert saved["positions"] == []
+        assert saved["signals"][0]["skip"] == "expired"
+        assert saved["signals"][0]["detail"] == "expired, late"
+        assert saved["signals"][0]["reason"] == "expired, late"
+        again = run_cycle(
+            journal=journal,
+            bars15=_long_day(),
+            bars5=_five(),
+            now=_at("12:32"),
+            iv_points=IV,
+            broker=broker,
+            book=book,
+        )
+        assert any("already journaled" in line for line in again)
+    assert broker.orders == []
+
+
+def test_the_entry_cap_is_inclusive_and_configurable(tmp_path, monkeypatch):
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    on_time = Journal(tmp_path / "on-time.sqlite")
+    broker = Broker()
+    _cycle(on_time, _long_day(), _five(), "11:55", broker=broker)
+    assert len(broker.orders) == 1
+    assert broker.orders[0]["side"] == "BUY"
+
+    monkeypatch.setenv("VWAP_MAX_ENTRY_DELAY_MIN", "0")
+    tight = Journal(tmp_path / "tight.sqlite")
+    tight_broker = Broker()
+    lines = _cycle(tight, _long_day(), _five(), "11:50", broker=tight_broker)
+    assert "expired, late" in "\n".join(lines)
+    assert tight_broker.orders == []
+
+    monkeypatch.setenv("VWAP_MAX_ENTRY_DELAY_MIN", "180")
+    wide = Journal(tmp_path / "wide.sqlite")
+    wide_broker = Broker()
+    _cycle(wide, _long_day(), _five(), "12:27", broker=wide_broker)
+    assert len(wide_broker.orders) == 1
+    assert wide_broker.orders[0]["side"] == "BUY"
+    assert "12:27" in journal_entry_time(wide)
+
+
+def test_an_open_late_entry_still_exits_and_is_flagged(tmp_path, monkeypatch):
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    journal = Journal(tmp_path / "open-late.sqlite")
+    broker = Broker()
+    _cycle(journal, _long_day(), _five(), "11:50", broker=broker)
+    state = journal.forward_load(NAME)
+    position = state["positions"][0]
+    stop = position["stop"]
+    target = position["target"]
+    position["signal_time"] = _at("10:00").isoformat()
+    position["entry_time"] = _at("12:27").isoformat()
+    for row in state["signals"]:
+        row["signal_time"] = position["signal_time"]
+        row["entry_time"] = position["entry_time"]
+    journal.forward_save(NAME, state)
+
+    held = _cycle(journal, _long_day(), _five(), "12:32", broker=broker)
+    assert any("Still open." in line and "Off-plan late entry." in line for line in held)
+    assert len(broker.orders) == 1
+    kept = journal.forward_load(NAME)["positions"][0]
+    assert kept["stop"] == stop
+    assert kept["target"] == target
+
+    stopped = _five(special={"12:30": (130.0, 130.4, 90.0, 100.0, 1000.0)})
+    lines = _cycle(journal, _long_day(), stopped, "12:35", broker=broker)
+    assert any("reason stop" in line for line in lines)
+    assert broker.orders[-1]["side"] == "SELL"
+    assert journal.forward_load(NAME)["positions"] == []
+    report = report_text(journal)
+    assert "off-plan late entry" in report
+    assert "The stop, the target, and the 15:45 flat still manage that position." in report
+
+
+def journal_entry_time(journal: Journal) -> str:
+    state = journal.forward_load(NAME)
+    return str(state["positions"][0]["entry_time"])
+
+
 def test_a_price_through_the_stop_is_skipped_once(tmp_path):
     journal = Journal(tmp_path / "out.sqlite")
     broker = Broker()
