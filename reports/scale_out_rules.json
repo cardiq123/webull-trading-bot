@@ -1,0 +1,31 @@
+{
+  "contracts": 3,
+  "primary_stake": 2500.0,
+  "stakes": [
+    1000.0,
+    2500.0,
+    5000.0
+  ],
+  "flat": "15:45 ET, at that bar's open. No overnight hold.",
+  "band": "The profit-side session VWAP 2 SD band known from the prior bar. The first bar of the session has no band. A zero-width band is ignored.",
+  "before_band": "The entry's underlying stop closes all contracts. If the stop and the band are both in one bar, the stop fills.",
+  "scale": "Sell 2 of 3 contracts when the underlying touches that band. If the fill open is already through the band, those 2 sell at the open. The runner is managed on later bars, and also on the same bar when the scale filled at the open.",
+  "runner_stops": {
+    "scale_prem10": "Model mid at or below 90% of the entry mid.",
+    "scale_be": "Model mid back at the entry mid.",
+    "scale_full10": "Combined premium P&L at or below -10% of the 3-contract debit, fees included."
+  },
+  "runner_target": "Model mid at or above 150% of the entry mid. A stop and a target in one bar fill the stop.",
+  "comparisons": {
+    "all_band": "Sell all 3 at the band.",
+    "r1": "Sell all 3 at 1R, the fill-to-stop distance.",
+    "pct50": "Sell all 3 when the mid is up 50%. The underlying stop still applies."
+  },
+  "fill": "A level touched inside the bar fills at that premium. A gap through fills at the open.",
+  "cash": "Skip the trade when the 3-contract ask does not fit in settled cash. One lot is not a substitute. Settlement is the next session.",
+  "open_support_entry": "both_prior_day_ema20_level_r1",
+  "vwap_entry": "extension, 2 SD, 15-minute, both directions, one position at a time, 0 DTE.",
+  "tendency": "No trade. A $2,500 start does not relax the mean-reversion bar, and the holdout is not opened.",
+  "trials": "18 exit books on the $2,500 account. The $1,000 and $5,000 columns reuse the same legs and are not extra trials.",
+  "promotion": "This comparison does not add a sandbox book."
+}
