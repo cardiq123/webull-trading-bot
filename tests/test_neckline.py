@@ -309,6 +309,7 @@ def test_sources_do_not_touch_the_forward_books():
         "forward_options",
         "forward_chop",
         "forward_vwap",
+        "forward_trapdoor",
         "place_option_order",
         "live_trading_enabled",
         "option_quote",

@@ -17,6 +17,7 @@ from webull_bot.execution.forward_vwap import (
     QQQ_NAME,
     SKIPS_EVENT_DAYS,
     data_problems,
+    empty_state,
     in_forward_window,
     _event_line,
     plan_day,
@@ -624,4 +625,18 @@ def test_the_replay_records_the_modeled_open_beside_the_actual_entry():
     assert events[0]["entry"] == pytest.approx(130.0)
     assert "11:45" in events[0]["fill_time"]
     assert "11:45" in events[0]["entry_time"]
+
+
+def test_five_opens_across_the_forward_books_block_another_vwap_entry(tmp_path):
+    journal = Journal(tmp_path / "cap.sqlite")
+    state = empty_state()
+    state["signals"] = [
+        {"id": f"seed-{i}", "status": "closed", "entry_time": f"{DAY}T10:0{i}:00"}
+        for i in range(5)
+    ]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+    lines = _cycle(journal, _long_day(), _five(), "11:50", broker=broker)
+    assert any("already opened 5 trades today" in line for line in lines)
+    assert broker.orders == []
 

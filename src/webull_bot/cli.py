@@ -79,13 +79,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     forward = sub.add_parser(
         "forward-test",
-        help="One sandbox cycle. Pass chop_breakout_60m, or one or both VWAP books. Live trading stays off. --dry-run does not connect.",
+        help=(
+            "One sandbox cycle. Pass chop_breakout_60m, or any of vwap_band_15m, "
+            "vwap_band_15m_qqq, and neckline_trapdoor_qqq. Live trading stays off. "
+            "--dry-run does not connect."
+        ),
     )
     _add_config(forward)
     forward.add_argument(
         "strategy",
         nargs="+",
-        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"],
+        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"],
     )
     forward.add_argument(
         "--dry-run",
@@ -104,7 +108,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config(forward_report)
     forward_report.add_argument(
-        "strategy", choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"]
+        "strategy",
+        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"],
     )
 
     return parser
@@ -144,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"}
+FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"}
 
 
 def refuse_if_forward_only(names: list[str]) -> None:
@@ -572,21 +577,24 @@ def _forward_names(args) -> list[str]:
 def _forward_test(config, args) -> int:
     """One sandbox cycle. Dry-run does not connect. A real cycle is sandbox-only."""
     names = _forward_names(args)
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS
 
     vwap = [name for name in names if name in BOOKS]
+    trap = [name for name in names if name == TRAP_NAME]
     chop = [name for name in names if name == "chop_breakout_60m"]
-    if vwap and chop:
+    if chop and (vwap or trap):
         raise SystemExit(
             "Run chop_breakout_60m on its own command. "
-            "The two VWAP books share one command: "
-            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq"
+            "The VWAP books and QQQ Trapdoor share one command: "
+            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq neckline_trapdoor_qqq"
         )
-    if vwap:
-        return _forward_vwap(config, args, vwap)
+    if vwap or trap:
+        return _forward_vwap(config, args, vwap, trap)
     if len(chop) != 1:
         raise SystemExit(
-            "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, vwap_band_15m_qqq"
+            "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, "
+            "vwap_band_15m_qqq, neckline_trapdoor_qqq"
         )
     args.strategy = chop[0]
     from zoneinfo import ZoneInfo
@@ -640,16 +648,24 @@ def _forward_test(config, args) -> int:
     return 0
 
 
-def _forward_vwap(config, args, books: list[str] | None = None) -> int:
-    """One 5-minute cycle of each frozen 2 SD continuation. Sandbox only."""
+def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] | None = None) -> int:
+    """One cycle of each named VWAP book, then QQQ Trapdoor. Sandbox only."""
     from webull_bot.chart_reads.orb_mwf import prior_iv
     from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS, in_forward_window, run_cycle
     from webull_bot.journal.store import Journal
 
-    names = list(books) if books else [name for name in _forward_names(args) if name in BOOKS]
-    if not names:
-        raise SystemExit("No VWAP forward book was named.")
+    if books is None:
+        names = [name for name in _forward_names(args) if name in BOOKS]
+    else:
+        names = list(books)
+    if trap is None:
+        trap_names = [name for name in _forward_names(args) if name == TRAP_NAME]
+    else:
+        trap_names = list(trap)
+    if not names and not trap_names:
+        raise SystemExit("No VWAP or trapdoor forward book was named.")
     now = _forward_now(args)
     if not in_forward_window(now):
         from zoneinfo import ZoneInfo
@@ -680,8 +696,9 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     end_s = (end + timedelta(days=1)).isoformat()
     symbols = [BOOKS[name] for name in names]
-    bars15 = provider.history(symbols, start.isoformat(), end_s, "15m")
-    bars5 = provider.history(symbols, start.isoformat(), end_s, "5m")
+    five_symbols = list(dict.fromkeys([*symbols, *(["QQQ"] if trap_names else [])]))
+    bars15 = provider.history(symbols, start.isoformat(), end_s, "15m") if symbols else {}
+    bars5 = provider.history(five_symbols, start.isoformat(), end_s, "5m")
     daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", end_s, "1d")
     closes = {}
     for symbol, frame in daily.items():
@@ -707,13 +724,35 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
             book=name,
         )
         blocks.append("\n".join(lines))
+    if trap_names:
+        from webull_bot.execution.forward_trapdoor import run_cycle as trap_cycle
+
+        five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+        lines = trap_cycle(
+            journal=journal,
+            bars5=five if five is not None else pd.DataFrame(),
+            now=now,
+            iv_points=points,
+            iv_closes=closes,
+            broker=broker,
+            dry_run=bool(args.dry_run),
+        )
+        blocks.append("\n".join(lines))
     print("\n\n".join(blocks))
     return 0
 
 
 def _forward_report(config, args) -> int:
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS
 
+    if args.strategy == TRAP_NAME:
+        from webull_bot.execution.forward_trapdoor import report_text as trap_report
+        from webull_bot.journal.store import Journal
+
+        journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        print(trap_report(journal), end="")
+        return 0
     if args.strategy in BOOKS:
         from webull_bot.execution.forward_vwap import report_text as vwap_report
         from webull_bot.journal.store import Journal

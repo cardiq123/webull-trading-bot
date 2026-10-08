@@ -84,6 +84,9 @@ BOOKS = {
     NAME: "SPY",
     QQQ_NAME: "QQQ",
 }
+# New entries across the sandbox forward books, including QQQ Trapdoor.
+COMBINED_ENTRY_CAP = 5
+ENTRY_BOOKS = (NAME, QQQ_NAME, "neckline_trapdoor_qqq")
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
@@ -105,6 +108,40 @@ def _symbol() -> str:
 
 def _activate(book: str) -> contextvars.Token:
     return _ACTIVE.set(book if book in BOOKS else NAME)
+
+
+def opened_on(state: dict | None, day: date) -> int:
+    """Filled entries whose actual entry time falls on ``day``. Skips do not count."""
+    if not isinstance(state, dict):
+        return 0
+    count = 0
+    for row in state.get("signals") or []:
+        if not isinstance(row, dict) or row.get("status") not in {"open", "closed"}:
+            continue
+        if str(row.get("entry_time") or "")[:10] == day.isoformat():
+            count += 1
+    return count
+
+
+def combined_entries(journal, day: date, book: str, state: dict) -> int:
+    """Entries already opened today on this book plus the other forward journals.
+
+    The in-memory state is the current book, so a fill that has not been
+    saved yet is still counted. The other books are whatever the journal
+    last saved.
+    """
+    total = opened_on(state, day)
+    if journal is None:
+        return total
+    for name in ENTRY_BOOKS:
+        if name == book:
+            continue
+        try:
+            saved = journal.forward_load(name)
+        except Exception:
+            saved = None
+        total += opened_on(saved, day)
+    return total
 
 
 def max_entry_delay_minutes() -> float:
@@ -606,6 +643,12 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
             continue
         if state.get("stopped") or float(state.get("settled") or 0.0) <= 1.0:
             row = _skip(signal, "bust", "equity is at or under $1")
+            state["signals"].append(row)
+            lines.append("Skip " + _event_line(row))
+            journal.forward_save(_book(), state)
+            continue
+        if combined_entries(journal, now_ts.date(), _book(), state) >= COMBINED_ENTRY_CAP:
+            row = _skip(signal, "cap", "the forward books already opened 5 trades today")
             state["signals"].append(row)
             lines.append("Skip " + _event_line(row))
             journal.forward_save(_book(), state)

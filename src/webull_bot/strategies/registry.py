@@ -58,7 +58,7 @@ def strategy_by_name(name: str) -> Strategy:
             "chop_breakout_60m is not in the paper or live book. "
             "Run: python -m webull_bot forward-test chop_breakout_60m"
         )
-    if name in {"vwap_band_15m", "vwap_band_15m_qqq"}:
+    if name in {"vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"}:
         raise KeyError(
             f"{name} is not in the paper or live book. "
             f"Run: python -m webull_bot forward-test {name}"
