@@ -457,6 +457,9 @@ Example charts of what the detectors mark as a rising trendline and a wedge are 
   16 trades; VWAP ETF Sharpe -4.84, 149 trades). A sample that short is
   never eligible, and these runs would have failed on the numbers anyway.
 
+<!-- NECKLINE_START -->
+**Neckline break: does not join the book.** A 5-minute double bottom on Dukascopy SPY and QQQ, train 2017-2023 and holdout 2024-01-01 through 2026-10-06, fresh $2,500. The confirmed entry is the next open after a close above the neckline and both the 9 and 20 EMA. The quick scalp is a separate long, counted in the same family of 68 cells: buy the red pullback after the 9 EMA reclaim, stop under that bar, target the neckline or 2R, flat at 15:45. SPY 0 DTE scalp-to-neckline holdout ended $496 on 1176 trades, profit factor 0.78, win 21.3%. The confirmed 1R 0 DTE book ended $5,919 on 626 trades, profit factor 1.22, win 39.9%. Cleared the gate and was not promoted: QQQ_confirmed_short_r1_0dte. The chart is `reports/neckline_equity.png`. Nothing was sent to a broker. Full table in [RESULTS.md](RESULTS.md).
+<!-- NECKLINE_END -->
 Full tables, including the stock diagnostics, are in [RESULTS.md](RESULTS.md).
 Charts are under `reports/`.
 <!-- RESULTS_END -->
