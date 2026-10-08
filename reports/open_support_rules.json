@@ -1,0 +1,71 @@
+{
+  "train": [
+    "2018-01-01",
+    "2026-07-06"
+  ],
+  "holdout": [
+    "2026-07-07",
+    "2026-10-06"
+  ],
+  "gate_symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "context_symbols": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "TSLA",
+    "PLTR",
+    "MSTR",
+    "HOOD",
+    "MU",
+    "AMD",
+    "AVGO",
+    "INTC"
+  ],
+  "levels": [
+    "prior_day",
+    "swing3",
+    "swing5",
+    "swing10"
+  ],
+  "trends": [
+    "ema20",
+    "ema50",
+    "structure"
+  ],
+  "stops": [
+    "level",
+    "candle"
+  ],
+  "exits": [
+    "r1",
+    "r2",
+    "prior_close",
+    "vwap",
+    "eod"
+  ],
+  "cells": 141,
+  "cap": 3,
+  "gate": {
+    "min_trades": 80,
+    "profit_factor": 1.1,
+    "sharpe": 0.4,
+    "max_drawdown": -0.3,
+    "fdr_q": 0.1,
+    "deflated_sharpe": 0.95
+  },
+  "entry": "First 5-minute bar is 09:30-09:35. Fill is the 09:35 open.",
+  "flat": "15:55 bar close, or the last bar of a short session.",
+  "random": {
+    "seed": 17,
+    "matched_count": true,
+    "matched_hold": true
+  }
+}

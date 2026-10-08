@@ -245,6 +245,11 @@ def _intc_chart(path: Path) -> str:
     intra = daily_from_intraday(five)
     merged = daily.copy()
     merged["vwap"] = intra["vwap"]
+    # The daily file stops at the last completed session. The chart day can still
+    # use that prior bar. Its own high and low are left empty so they cannot confirm a swing.
+    if chart_day not in set(merged.index):
+        merged.loc[chart_day] = {column: float("nan") for column in merged.columns}
+        merged = merged.sort_index()
     views = build_views("INTC", five, daily=merged)
     view = next((item for item in views if item.day == chart_day), None)
     cell = CATALOG_BY_ID[HEADLINE_ID]
@@ -257,6 +262,9 @@ def _intc_chart(path: Path) -> str:
     axes[0].set_ylabel("Close")
     if not session.empty:
         axes[1].plot(range(len(session)), session["close"].to_numpy(dtype=float), color="#1f4b99")
+        if view is not None and np.isfinite(view.support["prior_day"]):
+            axes[1].axhline(view.support["prior_day"], color="#a33b20", linestyle="--", label="prior-day low")
+            axes[1].legend(loc="best")
         axes[1].set_title(f"INTC 5-minute close, {chart_day.isoformat()}")
         axes[1].set_ylabel("Close")
     note = "the headline rule did not fire"
@@ -264,7 +272,7 @@ def _intc_chart(path: Path) -> str:
         note = f"headline rule fired {signal['side']} at {signal['fill']:.2f}, stop {signal['stop']:.2f}"
     elif view is not None:
         note = (
-            f"open {view.first_open:.2f}, first close {view.first_close:.2f}, "
+            f"the headline rule did not fire. Open {view.first_open:.2f}, first close {view.first_close:.2f}, "
             f"prior low {view.support['prior_day']:.2f}, 20 EMA trend {view.trend['ema20']}"
         )
     partial = ""
@@ -321,11 +329,27 @@ def _render(search: dict, holdout: dict, benchmarks: dict, options: dict, contex
     if survivors:
         lines.append("Training survivors:")
     else:
-        lines.append("There is no training survivor.")
+        lines.append(
+            "There is no training survivor. Every cell that traded finished the $1,000 book below the start. "
+            "Two long-only cells never traded: after a gap above the prior high, the prior close and the prior VWAP sit on the wrong side of the fill, so those targets are skipped."
+        )
     lines.append("")
+    headline = cells.get(HEADLINE_ID)
+    if headline is not None:
+        metrics = headline["train"]
+        lines.append(
+            f"Paul's wording, frozen as `{HEADLINE_ID}`: prior-day low, daily 20 EMA, stop at that low, 1R target. "
+            f"Training took {metrics['trades']} trades ({headline['long_trades']} long, {headline['short_trades']} short), "
+            f"win rate {_pct(metrics['win_rate'])} against a break-even {_pct(metrics.get('breakeven_win_rate'))}, "
+            f"profit factor {_pf(metrics)}, Sharpe {_num(metrics['sharpe'])}, max drawdown {_pct(metrics['max_drawdown'])}, "
+            f"$1,000 ends {_money(metrics['ending_equity'])}, $5,000 ends {_money(headline['train_5k']['ending_equity'])}. "
+            f"q is {float(headline['q']):.3f}, deflated Sharpe is {_num(headline.get('dsr'))}, and the matched random Sharpe is {_num(headline['random_sharpe'])}."
+        )
+        lines.append("")
     header = "| Strategy | Trades | Win | Break-even | PF | Sharpe | Max DD | $1,000 | $5,000 | q | DSR | Random |"
     rule = "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
-    show = survivors or sorted(search["cells"], key=lambda row: -float(row["train"]["sharpe"]))[:8]
+    traded = [row for row in search["cells"] if int(row["train"]["trades"]) > 0]
+    show = survivors or sorted(traded, key=lambda row: -float(row["train"]["sharpe"]))[:8]
     lines.extend([header, rule])
     for row in show:
         metrics = row["train"]
@@ -361,10 +385,12 @@ def _render(search: dict, holdout: dict, benchmarks: dict, options: dict, contex
         lines.append(f"The short Yahoo book did not run: {context['error']}.")
     elif context.get("metrics_1k"):
         metrics = context["metrics_1k"]
+        five = context["metrics_5k"]
         lines.append(
-            f"Yahoo 5-minute book for the other names, `{context['id']}` only, inside the holdout: "
-            f"{metrics['trades']} trades, profit factor {_pf(metrics)}, Sharpe {_num(metrics['sharpe'])}, "
-            f"$1,000 ends {_money(metrics['ending_equity'])}, $5,000 ends {_money(context['metrics_5k']['ending_equity'])}. "
+            f"Yahoo 5-minute book for the other names, `{context['id']}` only, through 2026-10-06: "
+            f"the $1,000 account took {metrics['trades']} trades and ended {_money(metrics['ending_equity'])}. "
+            f"The $5,000 account took {five['trades']} trades, profit factor {_pf(five)}, Sharpe {_num(five['sharpe'])}, "
+            f"and ended {_money(five['ending_equity'])}. A wide stop often does not fit one share in $1,000. "
             "This sample cannot pass."
         )
         lines.append("")
