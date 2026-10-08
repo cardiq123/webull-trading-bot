@@ -167,3 +167,58 @@ def test_download_does_not_store_the_open_hour(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 45, tzinfo=NY))
     closed = _closed_hourly(frame, "60m", yfinance_provider._clock())
     assert list(closed.index.strftime("%H:%M")) == ["09:30"]
+
+
+def test_an_empty_download_retries_and_uses_the_cached_file(tmp_path: Path, monkeypatch):
+    path = tmp_path / "SPY_15m.csv"
+    _hourly_cache(
+        path,
+        [("2026-10-06 15:30:00-04:00", 100.0)],
+        datetime(2026, 10, 6, 16, 5, tzinfo=NY),
+    )
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 20, tzinfo=NY))
+    calls = {"n": 0}
+
+    def empty_download(*_args, **_kwargs):
+        calls["n"] += 1
+        return pd.DataFrame()
+
+    monkeypatch.setattr("yfinance.download", empty_download, raising=False)
+    import yfinance
+
+    monkeypatch.setattr(yfinance, "download", empty_download)
+    monkeypatch.setattr(yfinance_provider.time, "sleep", lambda _seconds: None)
+    provider = YFinanceProvider(tmp_path)
+    frames = provider.history(["SPY", "QQQ"], "2026-10-06", "2026-10-08", "15m")
+    assert "SPY" in frames
+    assert float(frames["SPY"]["close"].iloc[-1]) == 100.0
+    assert "QQQ" not in frames
+    assert calls["n"] >= 3
+
+
+def test_a_raising_download_does_not_abort_the_other_symbol(tmp_path: Path, monkeypatch):
+    path = tmp_path / "QQQ_5m.csv"
+    _hourly_cache(
+        path,
+        [("2026-10-06 15:30:00-04:00", 400.0)],
+        datetime(2026, 10, 6, 16, 5, tzinfo=NY),
+    )
+    fresh = pd.DataFrame(
+        {"open": [101.0], "high": [102.0], "low": [100.0], "close": [101.5], "volume": [10]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-10-07 09:45", tz=NY)]),
+    )
+
+    def download(*_args, **kwargs):
+        tickers = kwargs.get("tickers")
+        if tickers == "QQQ":
+            raise RuntimeError("possibly delisted")
+        return fresh
+
+    import yfinance
+
+    monkeypatch.setattr(yfinance, "download", download)
+    monkeypatch.setattr(yfinance_provider.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(yfinance_provider, "_clock", lambda: datetime(2026, 10, 7, 10, 20, tzinfo=NY))
+    frames = YFinanceProvider(tmp_path).history(["SPY", "QQQ"], "2026-10-07", "2026-10-08", "5m")
+    assert float(frames["SPY"]["close"].iloc[-1]) == 101.5
+    assert float(frames["QQQ"]["close"].iloc[-1]) == 400.0

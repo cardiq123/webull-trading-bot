@@ -14,9 +14,11 @@ from webull_bot.cli import build_parser, refuse_if_forward_only
 from webull_bot.config import load_config
 from webull_bot.execution.forward_vwap import (
     NAME,
+    QQQ_NAME,
     SKIPS_EVENT_DAYS,
     data_problems,
     in_forward_window,
+    _event_line,
     plan_day,
     report_text,
     run_cycle,
@@ -149,10 +151,18 @@ def test_window_and_the_book_stays_off_the_live_list():
         refuse_if_forward_only(["dual_momentum", NAME])
     parser = build_parser()
     args = parser.parse_args(["forward-test", NAME, "--dry-run", "--now", f"{DAY}T11:50:00"])
-    assert args.strategy == NAME
+    assert args.strategy == [NAME]
     assert args.dry_run is True
+    both = parser.parse_args(["forward-test", NAME, QQQ_NAME, "--dry-run"])
+    assert both.strategy == [NAME, QQQ_NAME]
     report = parser.parse_args(["forward-report", NAME])
     assert report.strategy == NAME
+    qqq_report = parser.parse_args(["forward-report", QQQ_NAME])
+    assert qqq_report.strategy == QQQ_NAME
+    with pytest.raises(KeyError, match="not in the paper or live book"):
+        strategy_by_name(QQQ_NAME)
+    with pytest.raises(SystemExit, match="forward-test vwap_band_15m vwap_band_15m_qqq"):
+        refuse_if_forward_only([NAME, QQQ_NAME])
     source = inspect.getsource(WebullBroker.option_atm_quote)
     assert "FORWARD_DTE" in source
     assert "FORWARD_DTE" not in inspect.getsource(WebullBroker.option_zero_dte_quote)
@@ -226,9 +236,43 @@ def test_flat_uses_the_1545_open():
 def test_one_position_iv_premium_and_the_short():
     two = plan_day(bars15=_two_day(), bars5=_five(), now=_at("13:00"), iv_points=IV)
     assert two[0]["status"] == "open"
+    assert two[0]["iv_source"] == "VIX1D prior close"
+    assert "VIX1D prior close" in _event_line(two[0])
     assert two[1]["skip"] == "overlap"
-    missing = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={})
+    missing = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={})
     assert missing[0]["skip"] == "iv"
+    cached = pd.Series([18.0], index=pd.to_datetime(["2024-01-02"]))
+    from_cache = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={"^VIX1D": cached}
+    )
+    assert from_cache[0]["status"] == "open"
+    assert from_cache[0]["iv_source"] == "cached VIX1D"
+    vix_cache = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={"^VIX": cached}
+    )
+    assert vix_cache[0]["iv_source"] == "cached VIX"
+    vix_prior = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points={date(2024, 1, 3): (19.0, "VIX")},
+        iv_closes={"^VIX1D": cached},
+    )
+    assert vix_prior[0]["iv_source"] == "VIX prior close"
+    quoted = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={}, broker=Broker()
+    )
+    assert quoted[0]["status"] == "open"
+    assert quoted[0]["iv_source"] == "sandbox option quote"
+    preferred = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        iv_closes={"^VIX": cached},
+        broker=Broker(),
+    )
+    assert preferred[0]["iv_source"] == "VIX1D prior close"
     poor = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, settled=10.0)
     assert poor[0]["skip"] == "premium"
     short = plan_day(bars15=_short_day(), bars5=_five(late=(70.0, 70.4, 69.6, 70.1, 1000.0)), now=_at("11:50"), iv_points=IV)
@@ -310,6 +354,56 @@ def test_a_rejected_order_does_not_print_the_exception(tmp_path, monkeypatch):
     assert broker.orders == []
 
 
+def test_qqq_book_keeps_its_own_journal(tmp_path):
+    journal = Journal(tmp_path / "both.sqlite")
+    broker = Broker()
+    qqq = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_NAME,
+    )
+    text = "\n".join(qqq)
+    assert "vwap_band_15m_qqq" in text
+    assert "0 DTE QQQ" in text
+    assert broker.orders[-1]["symbol"] == "QQQ"
+    assert broker.orders[-1]["quantity"] == "1"
+    saved = journal.forward_load(QQQ_NAME)
+    assert saved["book"] == QQQ_NAME
+    assert saved["positions"][0]["id"].startswith("QQQ|")
+    assert journal.forward_load(NAME) is None
+    spy = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=NAME,
+    )
+    assert any("0 DTE SPY" in line for line in spy)
+    assert journal.forward_load(NAME)["positions"]
+    assert journal.forward_load(QQQ_NAME)["positions"]
+    assert [order["symbol"] for order in broker.orders] == ["QQQ", "SPY"]
+    report = report_text(journal, book=QQQ_NAME)
+    assert report.splitlines()[0].startswith("vwap_band_15m_qqq ")
+    assert "QQQ" in report
+    stale = data_problems(pd.DataFrame(), pd.DataFrame(), _at("11:50"), book=QQQ_NAME)
+    assert stale[0].startswith("QQQ ")
+    refused = run_cycle(
+        journal=journal,
+        bars15=pd.DataFrame(),
+        bars5=pd.DataFrame(),
+        now=_at("11:50"),
+        dry_run=True,
+        book=QQQ_NAME,
+    )
+    assert any(line.startswith("Refusing to trade vwap_band_15m_qqq") and "QQQ 15-minute" in line for line in refused)
+
+
 def test_cli_dry_run_does_not_connect(monkeypatch):
     import webull_bot.broker.webull as broker_mod
     import webull_bot.data.yfinance_provider as provider_mod
@@ -319,16 +413,18 @@ def test_cli_dry_run_does_not_connect(monkeypatch):
         raise AssertionError("dry-run connected")
 
     monkeypatch.setattr(broker_mod, "WebullBroker", boom)
+    asked = []
 
     class Provider:
         def __init__(self, *_args, **_kwargs):
             pass
 
         def history(self, symbols, start, end, interval="1d"):
+            asked.append((tuple(symbols), interval))
             if interval == "15m":
-                return {"SPY": _long_day()}
+                return {symbol: _long_day() for symbol in symbols}
             if interval == "5m":
-                return {"SPY": _five()}
+                return {symbol: _five() for symbol in symbols}
             index = pd.to_datetime(["2024-01-02", "2024-01-03"])
             frame = pd.DataFrame({"close": [18.0, 19.0]}, index=index)
             return {"^VIX": frame, "^VIX1D": frame.copy()}
@@ -349,10 +445,15 @@ def test_cli_dry_run_does_not_connect(monkeypatch):
     monkeypatch.setattr(store_mod, "Journal", Memory)
     from webull_bot.cli import _forward_vwap
 
-    args = SimpleNamespace(strategy=NAME, dry_run=True, now=f"{DAY}T11:50:00", config="config/default.yaml")
-    assert _forward_vwap(load_config("config/default.yaml"), args) == 0
+    args = SimpleNamespace(
+        strategy=[NAME, QQQ_NAME], dry_run=True, now=f"{DAY}T11:50:00", config="config/default.yaml"
+    )
+    assert _forward_vwap(load_config("config/default.yaml"), args, [NAME, QQQ_NAME]) == 0
     assert saved == []
-    live = SimpleNamespace(strategy=NAME, dry_run=False, now=f"{DAY}T11:50:00", config="config/default.yaml")
+    assert ("SPY", "QQQ") in {tuple(sorted(symbols)) for symbols, _interval in asked} or any(
+        set(symbols) >= {"SPY", "QQQ"} and interval == "15m" for symbols, interval in asked
+    )
+    live = SimpleNamespace(strategy=[NAME, QQQ_NAME], dry_run=False, now=f"{DAY}T11:50:00", config="config/default.yaml")
     monkeypatch.delenv("WEBULL_ENV", raising=False)
     with pytest.raises(SystemExit, match="WEBULL_ENV=sandbox"):
         _forward_vwap(load_config("config/default.yaml"), live)
