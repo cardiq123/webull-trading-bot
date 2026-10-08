@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
         "forward-test",
         help=(
             "One sandbox cycle. Pass chop_breakout_60m, or any of vwap_band_15m, "
-            "vwap_band_15m_qqq, and neckline_trapdoor_qqq. Live trading stays off. "
+            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, and neckline_trapdoor_qqq. Live trading stays off. "
             "--dry-run does not connect."
         ),
     )
@@ -89,7 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
     forward.add_argument(
         "strategy",
         nargs="+",
-        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"],
+        choices=[
+            "chop_breakout_60m",
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "neckline_trapdoor_qqq",
+        ],
     )
     forward.add_argument(
         "--dry-run",
@@ -109,7 +115,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config(forward_report)
     forward_report.add_argument(
         "strategy",
-        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"],
+        choices=[
+            "chop_breakout_60m",
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "neckline_trapdoor_qqq",
+        ],
     )
 
     return parser
@@ -149,7 +161,13 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq", "neckline_trapdoor_qqq"}
+FORWARD_ONLY = {
+    "chop_breakout_60m",
+    "vwap_band_15m",
+    "vwap_band_15m_qqq",
+    "vwap_band_15m_qqq_aggr",
+    "neckline_trapdoor_qqq",
+}
 
 
 def refuse_if_forward_only(names: list[str]) -> None:
@@ -587,14 +605,14 @@ def _forward_test(config, args) -> int:
         raise SystemExit(
             "Run chop_breakout_60m on its own command. "
             "The VWAP books and QQQ Trapdoor share one command: "
-            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq neckline_trapdoor_qqq"
+            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq_aggr neckline_trapdoor_qqq"
         )
     if vwap or trap:
         return _forward_vwap(config, args, vwap, trap)
     if len(chop) != 1:
         raise SystemExit(
             "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, "
-            "vwap_band_15m_qqq, neckline_trapdoor_qqq"
+            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, neckline_trapdoor_qqq"
         )
     args.strategy = chop[0]
     from zoneinfo import ZoneInfo

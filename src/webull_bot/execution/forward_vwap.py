@@ -5,9 +5,13 @@ The rules are the frozen extension book in ``vwap_band``: session VWAP, a
 stop one cent beyond the signal bar, a 1R target, and a flat at the 15:45
 open. One at-the-money 0 DTE contract. ``vwap_band_15m`` trades SPY.
 ``vwap_band_15m_qqq`` trades QQQ with the same rules and its own journal
-key. One position per book. The cash mirror is the scored $1,000 book: the
-model debit has to fit settled cash, a sale settles the next session, and
-equity at or under $1 stops new entries.
+key. ``vwap_band_15m_qqq_aggr`` is QQQ Aggressive: the same QQQ signal,
+1R exits, entry expiry, and 15:45 flatten, with three at-the-money 0 DTE
+contracts and a fresh $2,500 cash mirror. The ticket is three contracts
+or it is skipped and journaled. It is never cut down and never sized
+above three. One position per book. The one-contract books use the scored
+$1,000 mirror: the model debit has to fit settled cash, a sale settles
+the next session, and equity at or under $1 stops new entries.
 
 The cycle is every 5 minutes from 09:50 through 15:50 ET. Signals come
 from completed 15-minute bars, including the bar that just closed when the
@@ -38,9 +42,12 @@ stop unmanaged for the rest of the quarter hour.
 CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
 
-``--dry-run`` replays the session from a fresh $1,000 and does not connect
-or write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
-trading stays off.
+``--dry-run`` replays the session from a fresh cash mirror ($1,000 on the
+one-contract books, $2,500 on QQQ Aggressive) and does not connect or
+write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
+trading stays off. The runner names ``vwap_band_15m``,
+``vwap_band_15m_qqq_aggr``, and ``neckline_trapdoor_qqq``. The one-contract
+QQQ book stays available so its journal can still be read.
 """
 
 from __future__ import annotations
@@ -79,14 +86,33 @@ from webull_bot.options.pricing import listed_strike, option_price
 NY = ZoneInfo("America/New_York")
 NAME = "vwap_band_15m"
 QQQ_NAME = "vwap_band_15m_qqq"
+QQQ_AGGR_NAME = "vwap_band_15m_qqq_aggr"
 SYMBOL = "SPY"
 BOOKS = {
     NAME: "SPY",
     QQQ_NAME: "QQQ",
+    QQQ_AGGR_NAME: "QQQ",
+}
+DISPLAY = {
+    NAME: "SPY VWAP",
+    QQQ_NAME: "QQQ VWAP",
+    QQQ_AGGR_NAME: "QQQ Aggressive",
+}
+# One contract on the scored books. QQQ Aggressive is the fixed 3-lot cell.
+QUANTITIES = {
+    NAME: 1,
+    QQQ_NAME: 1,
+    QQQ_AGGR_NAME: 3,
+}
+STAKES = {
+    NAME: 1_000.0,
+    QQQ_NAME: 1_000.0,
+    QQQ_AGGR_NAME: 2_500.0,
 }
 # New entries across the sandbox forward books, including QQQ Trapdoor.
+# The one-contract QQQ journal still counts when the runner no longer calls it.
 COMBINED_ENTRY_CAP = 5
-ENTRY_BOOKS = (NAME, QQQ_NAME, "neckline_trapdoor_qqq")
+ENTRY_BOOKS = (NAME, QQQ_NAME, QQQ_AGGR_NAME, "neckline_trapdoor_qqq")
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
@@ -104,6 +130,40 @@ def _book() -> str:
 
 def _symbol() -> str:
     return BOOKS[_book()]
+
+
+def _display() -> str:
+    return DISPLAY.get(_book(), _book())
+
+
+def _stake() -> float:
+    return float(STAKES.get(_book(), STAKE))
+
+
+def _quantity() -> int:
+    """Fixed lot for the active book. QQQ Aggressive is 3 and is never larger."""
+    qty = int(QUANTITIES.get(_book(), 1))
+    return qty if qty > 0 else 1
+
+
+def _lot(row: dict | None = None) -> int:
+    """Contracts on this ticket, capped at the book's fixed lot."""
+    cap = _quantity()
+    if isinstance(row, dict) and row.get("qty") not in (None, ""):
+        try:
+            qty = int(row["qty"])
+        except (TypeError, ValueError):
+            qty = 0
+        if qty > 0:
+            return min(qty, cap)
+    return cap
+
+
+def _contract_phrase() -> str:
+    qty = _quantity()
+    word = {1: "One", 3: "Three"}.get(qty, str(qty))
+    noun = "contract" if qty == 1 else "contracts"
+    return f"{word} ATM 0 DTE {_symbol()} {noun}"
 
 
 def _activate(book: str) -> contextvars.Token:
@@ -197,8 +257,8 @@ def in_forward_window(moment: datetime) -> bool:
 def empty_state() -> dict[str, Any]:
     return {
         "book": _book(),
-        "stake": STAKE,
-        "settled": STAKE,
+        "stake": _stake(),
+        "settled": _stake(),
         "unsettled": [],
         "stopped": False,
         "signals": [],
@@ -307,7 +367,7 @@ def _run_cycle(
             iv_points=points,
             iv_closes=iv_closes,
             broker=broker,
-            settled=STAKE,
+            settled=_stake(),
             book=_book(),
         )
         lines.extend(_clock_lines(bars15, bars5, now))
@@ -343,12 +403,13 @@ def plan_day(
     iv_points: dict | None = None,
     iv_closes: dict | None = None,
     broker=None,
-    settled: float = STAKE,
+    settled: float | None = None,
     stopped: bool = False,
     book: str = NAME,
 ) -> list[dict]:
     token = _activate(book)
     try:
+        cash = _stake() if settled is None else float(settled)
         return _plan_day(
             bars15=bars15,
             bars5=bars5,
@@ -356,7 +417,7 @@ def plan_day(
             iv_points=iv_points,
             iv_closes=iv_closes,
             broker=broker,
-            settled=settled,
+            settled=cash,
             stopped=stopped,
         )
     finally:
@@ -478,12 +539,12 @@ def _report_text(journal: Journal) -> str:
     if not state.get("signals") and not state.get("orders") and not state.get("exits"):
         return f"No forward-test journal for {_book()} yet.\n"
     lines = [
-        f"{_book()} sandbox forward test. Live trading stays off.",
-        f"One ATM 0 DTE {_symbol()} contract. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
+        f"{_book()} ({_display()}) sandbox forward test. Live trading stays off.",
+        f"{_contract_phrase()}. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
         "The journal records the modeled next open and the actual entry. Exits start after the actual entry.",
         "A 5-minute bar can exit before the 15-minute bar that holds both the stop and the target.",
         "CPI, NFP, and FOMC days are not skipped.",
-        f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
+        f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${_stake():,.0f} start.",
         (
             f"A new entry has to be within {max_entry_delay_minutes():g} minutes of the signal bar close. "
             "A position already open still exits at the stop, the target, or 15:45."
@@ -548,9 +609,9 @@ def _report_text(journal: Journal) -> str:
 
 def _header(local: datetime, dry_run: bool) -> list[str]:
     lines = [
-        f"Forward test {_book()}. Sandbox paper only. Live trading stays off.",
+        f"Forward test {_display()} ({_book()}). Sandbox paper only. Live trading stays off.",
         (
-            f"One ATM 0 DTE {_symbol()} contract. Session VWAP, a 15-minute close outside the 2 SD band, "
+            f"{_contract_phrase()}. Session VWAP, a 15-minute close outside the 2 SD band, "
             "1R target and stop measured from the modeled next open, order on the first cycle after that bar "
             "when the price is still between them, flat at the 15:45 open."
         ),
@@ -564,7 +625,14 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
             "The backtest fills the stop on that 15-minute bar."
         ),
         "CPI, NFP, and FOMC days are not skipped. The scored backtest does not skip them.",
-        f"Window {local.isoformat()}. Cash mirror ${STAKE:,.0f}. One position.",
+        (
+            f"Window {local.isoformat()}. Cash mirror ${_stake():,.0f}. One position. "
+            + (
+                "1 contract."
+                if _quantity() == 1
+                else f"{_quantity()} contracts. A smaller lot is not bought, and the size does not go above {_quantity()}."
+            )
+        ),
         (
             f"Entry only through {max_entry_delay_minutes():g} minutes after the signal bar closes. "
             "A later cycle journals the signal as expired, late."
@@ -572,7 +640,7 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
     ]
     if dry_run:
         lines.append(
-            "Dry run replays each 5-minute cycle from a fresh $1,000 and does not connect or write the journal."
+            f"Dry run replays each 5-minute cycle from a fresh ${_stake():,.0f} and does not connect or write the journal."
         )
     return lines
 
@@ -701,12 +769,13 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             expiry = str(quote["expiry"])[:10]
         option_symbol = str(quote.get("option_symbol") or "")
     limit = _buy_limit(limit_basis)
+    qty = _lot(built)
     if existing is None:
         order = {
             "key": key,
             "id": new_client_order_id(),
             "side": "BUY",
-            "qty": "1",
+            "qty": str(qty),
             "symbol": _symbol(),
             "right": built["option_type"],
             "limit": f"{limit:.2f}",
@@ -729,7 +798,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         client_order_id=order["id"],
         symbol=_symbol(),
         side="BUY",
-        quantity=1,
+        quantity=qty,
         strike_price=strike,
         option_expire_date=expiry,
         option_type=built["option_type"],
@@ -758,6 +827,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         "stop": built["stop"],
         "target": built["target"],
         "model_ask": model_ask,
+        "qty": qty,
         "model_debit": built["model_debit"],
         "sandbox_ask": sandbox_ask,
         "price_source": source,
@@ -774,7 +844,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         {
             "time": built["entry_time"],
             "side": "BUY",
-            "qty": "1",
+            "qty": str(qty),
             "right": built["right"],
             "price": f"{limit:.2f}",
             "underlying": built["entry"],
@@ -788,7 +858,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     lines.append(
         "Signal "
         + _event_line(built)
-        + f" Order BUY 1 {built['right']} limit {limit:.2f} ({source}). "
+        + f" Order BUY {qty} {built['right']} limit {limit:.2f} ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
     journal.forward_save(_book(), state)
@@ -800,6 +870,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     if existing and existing.get("status") in {"intent", "submitted"}:
         lines.append(f"Exit {position.get('right')} already journaled. Not sent again.")
         return existing.get("status") == "submitted"
+    qty = _lot(position)
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
@@ -809,7 +880,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             "key": key,
             "id": new_client_order_id(),
             "side": "SELL",
-            "qty": "1",
+            "qty": str(qty),
             "symbol": _symbol(),
             "right": position.get("option_type"),
             "limit": f"{limit:.2f}",
@@ -833,7 +904,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         client_order_id=order["id"],
         symbol=_symbol(),
         side="SELL",
-        quantity=1,
+        quantity=qty,
         strike_price=float(position["strike"]),
         option_expire_date=str(position["expiry"])[:10],
         option_type=str(position["option_type"]),
@@ -845,7 +916,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         journal.forward_save(_book(), state)
         return False
     order["status"] = "submitted"
-    credit = _credit(model_bid)
+    credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(position.get("model_debit") or 0.0)
     pnl = credit - debit
     when_iso = pd.Timestamp(when).isoformat()
@@ -866,7 +937,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         {
             "time": when_iso,
             "side": "SELL",
-            "qty": "1",
+            "qty": str(qty),
             "right": position.get("right"),
             "price": f"{limit:.2f}",
             "underlying": float(underlying),
@@ -889,7 +960,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     lines.append(
         f"Exit {position.get('right')} reason {reason} underlying {float(underlying):.2f} "
         f"at {_clock(when)}. Model bid {model_bid:.4f}. "
-        f"Order SELL 1 limit {limit:.2f} ({source}). "
+        f"Order SELL {qty} limit {limit:.2f} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
     journal.forward_save(_book(), state)
@@ -1153,9 +1224,14 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
     strike = listed_strike(spot, spot)
     entry_mid = _option_mid(right, spot, strike, now_ts, iv, 0)
     model_ask = entry_mid + _half_spread(entry_mid)
-    debit = model_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, model_ask, sell=False)
+    qty = _quantity()
+    debit = model_ask * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, model_ask, sell=False)
     if debit <= 0 or debit > settled + 1e-9:
-        row = _skip(signal, "premium", "the model debit does not fit settled cash")
+        detail = "the model debit does not fit settled cash"
+        if qty != 1:
+            detail = f"the model debit for {qty} contracts does not fit settled cash"
+        row = _skip(signal, "premium", detail)
+        row["qty"] = qty
         row["model_ask"] = model_ask
         row["model_debit"] = debit
         row["strike"] = strike
@@ -1182,6 +1258,7 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "expiry": day.isoformat(),
             "iv": iv,
             "iv_source": iv_source,
+            "qty": qty,
             "model_ask": model_ask,
             "model_bid": None,
             "model_debit": debit,
@@ -1200,7 +1277,8 @@ def _mark_exit(built: dict, reason: str, underlying: float, when) -> None:
     right = str(built["right"])
     exit_mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
     model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
-    credit = _credit(model_bid)
+    qty = _lot(built)
+    credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(built["model_debit"])
     built["status"] = "closed"
     built["reason"] = reason
@@ -1470,6 +1548,9 @@ def _event_line(event: dict) -> str:
         f"actual {_clock(entry_time)} {actual_txt} "
         f"stop {float(stop):.2f} target {float(target):.2f} model ask {ask_txt}"
     )
+    qty = event.get("qty")
+    if isinstance(qty, int) and qty > 0:
+        body += f" {qty} contract" + ("" if qty == 1 else "s")
     if event.get("status") == "closed":
         body += (
             f" closed {_clock(event.get('exit_time'))} reason {event.get('reason')} "

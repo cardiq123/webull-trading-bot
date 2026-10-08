@@ -13,9 +13,12 @@ from webull_bot.chart_reads.vwap_band import walk_exit
 from webull_bot.cli import build_parser, refuse_if_forward_only
 from webull_bot.config import load_config
 from webull_bot.execution.forward_vwap import (
+    ENTRY_BOOKS,
     NAME,
+    QQQ_AGGR_NAME,
     QQQ_NAME,
     SKIPS_EVENT_DAYS,
+    combined_entries,
     data_problems,
     empty_state,
     in_forward_window,
@@ -156,6 +159,12 @@ def test_window_and_the_book_stays_off_the_live_list():
     assert args.dry_run is True
     both = parser.parse_args(["forward-test", NAME, QQQ_NAME, "--dry-run"])
     assert both.strategy == [NAME, QQQ_NAME]
+    runner = parser.parse_args(
+        ["forward-test", NAME, QQQ_AGGR_NAME, "neckline_trapdoor_qqq", "--dry-run", "--now", f"{DAY}T11:50:00"]
+    )
+    assert runner.strategy == [NAME, QQQ_AGGR_NAME, "neckline_trapdoor_qqq"]
+    aggr_report = parser.parse_args(["forward-report", QQQ_AGGR_NAME])
+    assert aggr_report.strategy == QQQ_AGGR_NAME
     report = parser.parse_args(["forward-report", NAME])
     assert report.strategy == NAME
     qqq_report = parser.parse_args(["forward-report", QQQ_NAME])
@@ -639,4 +648,141 @@ def test_five_opens_across_the_forward_books_block_another_vwap_entry(tmp_path):
     lines = _cycle(journal, _long_day(), _five(), "11:50", broker=broker)
     assert any("already opened 5 trades today" in line for line in lines)
     assert broker.orders == []
+
+
+def test_qqq_aggressive_buys_three_contracts_and_keeps_its_own_mirror(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEBULL_APP_SECRET", "super-secret-value")
+    assert QQQ_AGGR_NAME == "vwap_band_15m_qqq_aggr"
+    assert QQQ_AGGR_NAME in ENTRY_BOOKS
+    with pytest.raises(KeyError, match="not in the paper or live book"):
+        strategy_by_name(QQQ_AGGR_NAME)
+    with pytest.raises(SystemExit, match="Live trading stays off"):
+        refuse_if_forward_only([QQQ_AGGR_NAME])
+    one = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_NAME)
+    three = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_NAME)
+    assert one[0]["status"] == "open" and three[0]["status"] == "open"
+    assert three[0]["stop"] == pytest.approx(one[0]["stop"])
+    assert three[0]["target"] == pytest.approx(one[0]["target"])
+    assert three[0]["direction"] == one[0]["direction"]
+    assert one[0]["qty"] == 1
+    assert three[0]["qty"] == 3
+    assert three[0]["model_debit"] == pytest.approx(one[0]["model_debit"] * 3)
+    rich = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, settled=1_000_000.0, book=QQQ_AGGR_NAME
+    )
+    assert rich[0]["qty"] == 3
+    short_cash = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        settled=one[0]["model_debit"] * 2,
+        book=QQQ_AGGR_NAME,
+    )
+    assert short_cash[0]["skip"] == "premium"
+    assert short_cash[0]["qty"] == 3
+    assert "3 contracts" in short_cash[0]["detail"]
+
+    journal = Journal(tmp_path / "aggr.sqlite")
+    journal.forward_save(QQQ_NAME, {"signals": [{"id": "keep-the-one-lot"}]})
+    broker = Broker()
+    lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_NAME,
+    )
+    text = "\n".join(lines)
+    assert "super-secret-value" not in text
+    assert "QQQ Aggressive" in text
+    assert "vwap_band_15m_qqq_aggr" in text
+    assert "$2,500" in text
+    assert "3 contracts" in text
+    assert len(broker.orders) == 1
+    assert broker.orders[0]["symbol"] == "QQQ"
+    assert broker.orders[0]["quantity"] == "3"
+    assert broker.orders[0]["legs"][0]["quantity"] == "3"
+    saved = journal.forward_load(QQQ_AGGR_NAME)
+    assert saved["book"] == QQQ_AGGR_NAME
+    assert saved["stake"] == 2500.0
+    assert saved["positions"][0]["qty"] == 3
+    assert journal.forward_load(QQQ_NAME) == {"signals": [{"id": "keep-the-one-lot"}]}
+    assert journal.forward_load(NAME) is None
+
+    later = {"12:00": (130.0, 170.0, 129.6, 165.0, 1000.0)}
+    closed = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(special=later),
+        now=_at("12:05"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_NAME,
+    )
+    assert any("Order SELL 3" in line for line in closed)
+    assert broker.orders[-1]["side"] == "SELL"
+    assert broker.orders[-1]["quantity"] == "3"
+    report = report_text(journal, book=QQQ_AGGR_NAME)
+    assert report.splitlines()[0].startswith("vwap_band_15m_qqq_aggr ")
+    assert "QQQ Aggressive" in report
+    assert "$2,500" in report
+
+
+def test_qqq_aggressive_journals_a_three_lot_it_cannot_afford(tmp_path):
+    journal = Journal(tmp_path / "poor.sqlite")
+    state = empty_state()
+    state["settled"] = 10.0
+    journal.forward_save(QQQ_AGGR_NAME, state)
+    broker = Broker()
+    lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_NAME,
+    )
+    assert broker.orders == []
+    assert any("3 contracts" in line for line in lines)
+    saved = journal.forward_load(QQQ_AGGR_NAME)
+    assert saved["signals"][0]["skip"] == "premium"
+    assert saved["signals"][0]["qty"] == 3
+    assert saved["positions"] == []
+
+
+def test_the_one_contract_qqq_journal_still_counts_toward_the_daily_cap(tmp_path):
+    journal = Journal(tmp_path / "shared-cap.sqlite")
+    journal.forward_save(
+        QQQ_NAME,
+        {
+            "signals": [
+                {"id": f"old-{i}", "status": "closed", "entry_time": f"{DAY}T10:0{i}:00"}
+                for i in range(4)
+            ]
+        },
+    )
+    journal.forward_save(
+        "neckline_trapdoor_qqq",
+        {"signals": [{"id": "trap", "status": "open", "entry_time": f"{DAY}T11:00:00"}]},
+    )
+    assert combined_entries(journal, date.fromisoformat(DAY), QQQ_AGGR_NAME, empty_state()) == 5
+    broker = Broker()
+    lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_NAME,
+    )
+    assert any("already opened 5 trades today" in line for line in lines)
+    assert broker.orders == []
+    saved = journal.forward_load(QQQ_AGGR_NAME)
+    assert saved["signals"][0]["skip"] == "cap"
+    assert journal.forward_load(QQQ_NAME)["signals"][0]["id"] == "old-0"
 
