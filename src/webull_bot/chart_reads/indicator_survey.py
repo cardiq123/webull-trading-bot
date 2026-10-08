@@ -1826,10 +1826,11 @@ def _option_book(trades: list[dict], preps: dict[str, Prepared], vix: dict[date,
         if debit <= 0 or not math.isfinite(debit) or not math.isfinite(credit):
             skipped += 1
             continue
-        qty = int(math.floor(settled / debit))
-        if qty < 1:
+        # One contract. Buying every contract the cash can hold spends the account on the first signal.
+        if debit > settled:
             skipped += 1
             continue
+        qty = 1
         settled -= debit * qty
         settled += credit * qty
         pnl += (credit - debit) * qty

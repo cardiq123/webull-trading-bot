@@ -31,6 +31,7 @@ from webull_bot.chart_reads.indicator_survey import (
     frozen_rules,
     option_report,
     prepare,
+    replay,
     run_search,
     score_holdout,
     score_years,
@@ -146,22 +147,23 @@ def _chart(path: Path, featured: dict, holdout_row: dict, spy: dict, passed: boo
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=False)
+    hold_label = holdout_row.get("label", featured["id"])
     panels = (
-        ("Prior years, fresh $1,000", featured.get("prior_equity"), spy.get("prior")),
-        ("Selection year, fresh $1,000", featured.get("selection_equity"), spy.get("selection")),
-        ("Holdout, scored once, fresh $1,000", holdout_row.get("equity"), spy.get("holdout")),
+        ("Prior years, fresh $1,000", featured.get("prior_equity"), spy.get("prior"), featured["id"]),
+        ("Selection year, fresh $1,000", featured.get("selection_equity"), spy.get("selection"), featured["id"]),
+        ("Holdout scored once, fresh $1,000. Not a pass.", holdout_row.get("equity"), spy.get("holdout"), hold_label),
     )
-    for axis, (title, strategy, benchmark) in zip(axes, panels):
+    for axis, (title, strategy, benchmark, label) in zip(axes, panels):
         if strategy is not None and len(strategy):
-            axis.plot(strategy.index, strategy.to_numpy(), label=featured["id"], color="#1f4e79")
+            axis.plot(strategy.index, strategy.to_numpy(), label=label, color="#1f4e79")
         if benchmark is not None and len(benchmark):
             axis.plot(benchmark.index, benchmark.to_numpy(), label="SPY buy and hold", color="#b35c00")
         axis.axhline(1000, color="0.6", linewidth=0.6)
         axis.set_title(title)
         axis.set_ylabel("Equity")
         axis.legend(loc="best", fontsize=8)
-    status = "passed the search checks" if passed else "not a survivor"
-    fig.suptitle(f"{featured['id']} ({status})")
+    status = "a search survivor" if passed else "no survivor"
+    fig.suptitle(f"Indicator survey, {status}")
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=120)
@@ -185,6 +187,8 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
     survivors = [cells[name] for name in search["survivor_ids"]]
     n = search["n_combos"]
     rounds = search["rounds"]
+    both = [cell for cell in search["cells"] if cell["selection_pass"] and cell["prior_pass"]]
+    both.sort(key=lambda cell: (-float(cell["prior"]["sharpe"]), cell["id"]))
     if survivors:
         lead = (
             f"{len(survivors)} strategy passed the selection window, the prior-year window, "
@@ -196,7 +200,8 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
         lead = (
             f"No strategy passed every check. {n} combinations were counted, across round 1 "
             f"({rounds.get('1', 0)}), round 2 ({rounds.get('2', 0)}), and round 3 ({rounds.get('3', 0)}). "
-            "The gate was not loosened after the scores."
+            f"{len(both)} cleared the profit, Sharpe, drawdown, and trade-count gates on both the selection window and the prior years, "
+            "and still failed the multiple-testing bar. The gate was not loosened after the scores."
         )
     lines = [
         START_MARK,
@@ -236,18 +241,46 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
         for cell in survivors:
             lines.append(_row(cell, "selection"))
             lines.append(_row(cell, "prior"))
-            lines.append("")
+        lines.append("")
+        for cell in survivors:
             lines.append(cell["plain"])
             lines.append("")
     else:
         lines.append("There is no search survivor.")
         lines.append("")
+    if both:
+        lines.extend(
+            [
+                "These cleared both windows (20 and 80 trades, profit factor 1.10, Sharpe 0.40, drawdown no worse than -30%, ending above the start) and then missed q ≤ 0.10 or deflated Sharpe ≥ 0.95, or they did not beat the random book:",
+                "",
+                "| Strategy | Sel trades | Sel PF | Sel Sharpe | Sel $1,000 | Sel $5,000 | Prior PF | Prior Sharpe | Prior $1,000 | q | DSR | Random Sharpe |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for cell in both:
+            dsr = "n/a" if cell.get("dsr") is None else f"{float(cell['dsr']):.3f}"
+            lines.append(
+                f"| {cell['id']} | {cell['selection']['trades']} | {_pf(cell['selection'])} | {_num(cell['selection']['sharpe'])} | "
+                f"{_money(cell['selection']['ending_equity'])} | {_money(cell['selection_5k']['ending_equity'])} | "
+                f"{_pf(cell['prior'])} | {_num(cell['prior']['sharpe'])} | {_money(cell['prior']['ending_equity'])} | "
+                f"{float(cell['q']):.3f} | {dsr} | {_num(cell['random_sharpe'])} |"
+            )
+        lines.append("")
+        for cell in both:
+            lines.append(cell["plain"])
+            lines.append("")
     if holdout["rows"]:
         if holdout["labeled_non_survivor"]:
+            held_id = holdout["rows"][0]["id"] if holdout["rows"] else "the top prior-year cell"
             lines.append(
-                "The holdout was scored once on the best prior-year Sharpe among daily cells, because nothing had passed. "
+                f"The holdout was scored once, on {held_id}, the daily cell with the highest prior-year Sharpe, because nothing had passed. "
                 "That score is not a pass and was not used to pick a refinement."
             )
+            if held_id == "month_6":
+                lines.append(
+                    "month_6 buys only in June, about three trades a year, and the account otherwise sits in cash, "
+                    "so its Sharpe can rank first without reaching 80 trades. July through October contains no June, so the holdout book is empty."
+                )
         else:
             lines.append("The holdout was scored once on the strategies that had already passed. It was not used to choose them.")
         lines.append("")
@@ -267,11 +300,11 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
             "Buy and hold, same costs, whole shares:",
             "",
             f"- Selection SPY $1,000 ends {_money(benches['selection_spy_1k']['ending_equity'])}, Sharpe {_num(benches['selection_spy_1k']['sharpe'])}.",
-            f"- Selection equal-weight basket $1,000 ends {_money(benches['selection_basket_1k']['ending_equity'])}, Sharpe {_num(benches['selection_basket_1k']['sharpe'])}.",
+            f"- Selection equal-weight basket $1,000 ends {_money(benches['selection_basket_1k']['ending_equity'])} because one fourteenth of $1,000 does not buy a share of these names in 2025-2026. The $5,000 basket ends {_money(benches['selection_basket_5k']['ending_equity'])}, Sharpe {_num(benches['selection_basket_5k']['sharpe'])}.",
             f"- Prior SPY $1,000 ends {_money(benches['prior_spy_1k']['ending_equity'])}, Sharpe {_num(benches['prior_spy_1k']['sharpe'])}.",
-            f"- Prior equal-weight basket $1,000 ends {_money(benches['prior_basket_1k']['ending_equity'])}, Sharpe {_num(benches['prior_basket_1k']['sharpe'])}.",
+            f"- Prior equal-weight basket $1,000 ends {_money(benches['prior_basket_1k']['ending_equity'])}, Sharpe {_num(benches['prior_basket_1k']['sharpe'])}, max drawdown {_pct(benches['prior_basket_1k']['max_drawdown'])}. The $5,000 basket ends {_money(benches['prior_basket_5k']['ending_equity'])}.",
             f"- Holdout SPY $1,000 ends {_money(holdout['benchmarks']['spy_1k']['ending_equity'])}, Sharpe {_num(holdout['benchmarks']['spy_1k']['sharpe'])}.",
-            f"- Holdout equal-weight basket $1,000 ends {_money(holdout['benchmarks']['basket_1k']['ending_equity'])}, Sharpe {_num(holdout['benchmarks']['basket_1k']['sharpe'])}.",
+            f"- Holdout equal-weight basket $1,000 stays in cash for the same share-price reason. The $5,000 basket ends {_money(holdout['benchmarks']['basket_5k']['ending_equity'])}, Sharpe {_num(holdout['benchmarks']['basket_5k']['sharpe'])}.",
             "",
         ]
     )
@@ -296,13 +329,13 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
         )
     lines.append("")
     if years:
-        lines.extend(["Year by year for the featured frozen rule, each year a fresh $1,000. This is not an extra trial.", ""])
-        lines.append("| Year | Trades | PF | Sharpe | Max DD | Ending |")
-        lines.append("|---|---:|---:|---:|---:|---:|")
+        lines.extend(["Year by year, each year a fresh $1,000. These slices were not new trials and were not refit.", ""])
+        lines.append("| Strategy | Year | Trades | PF | Sharpe | Max DD | Ending |")
+        lines.append("|---|---:|---:|---:|---:|---:|---:|")
         for row in years:
             metrics = row["metrics"]
             lines.append(
-                f"| {row['year']} | {metrics['trades']} | {_pf(metrics)} | {_num(metrics['sharpe'])} | "
+                f"| {row.get('strategy', '')} | {row['year']} | {metrics['trades']} | {_pf(metrics)} | {_num(metrics['sharpe'])} | "
                 f"{_pct(metrics['max_drawdown'])} | {_money(metrics['ending_equity'])} |"
             )
         lines.append("")
@@ -310,7 +343,7 @@ def render(search: dict, holdout: dict, years: list[dict], options: dict) -> str
         lines.extend(
             [
                 "Option prices are Black-Scholes, volatility is the prior close of VIX, strikes are listed, "
-                "and the half-spread is the larger of $0.01 and 1.5% of the mid. "
+                "and the half-spread is the larger of $0.01 and 1.5% of the mid. One contract is bought when the debit fits. "
                 "0 DTE is priced only when the share trade exits the same session. Multi-day holds use 7 and 14 calendar days. "
                 "These dollars did not add trials and cannot promote a book that failed the share checks.",
                 "",
@@ -428,5 +461,88 @@ def main() -> None:
     print(section.splitlines()[4] if len(section.splitlines()) > 4 else "wrote report", flush=True)
 
 
+def refresh_presentation() -> None:
+    """Rewrite the chart and the prose from the saved search.
+
+    Does not call the holdout scorer and does not add a trial.
+    """
+    payload = json.loads(Path("reports/indicator_survey.json").read_text())
+    search = {
+        "n_combos": payload["n_combos"],
+        "rounds": payload["rounds"],
+        "survivor_ids": payload["survivor_ids"],
+        "near_miss_ids": payload["near_miss_ids"],
+        "cells": payload["cells"],
+        "benchmarks": payload["benchmarks"],
+    }
+    holdout = payload["holdout"]
+    daily, _hourly, vix = _load()
+    held = holdout["rows"][0]["id"] if holdout["rows"] else "holdout"
+    near = next(cell for cell in search["cells"] if cell["id"] == search["near_miss_ids"][0])
+    tokens = tuple(near["tokens"])
+    selection = replay(daily, near["rule_id"], tokens, SELECT_START, SELECT_END, 1000.0)
+    prior = replay(daily, near["rule_id"], tokens, PRIOR_START, PRIOR_END, 1000.0)
+    saved = payload["featured_equity"]["holdout"]
+    hold_equity = pd.Series([row[1] for row in saved], index=pd.to_datetime([row[0] for row in saved]), dtype=float)
+    spy = {
+        "selection": buy_and_hold(daily, ("SPY",), SELECT_START, SELECT_END, 1000.0)["equity"],
+        "prior": buy_and_hold(daily, ("SPY",), PRIOR_START, PRIOR_END, 1000.0)["equity"],
+        "holdout": buy_and_hold(daily, ("SPY",), HOLDOUT_START, HOLDOUT_END, 1000.0, allow_holdout=True)["equity"],
+    }
+    _chart(
+        Path("reports/indicator_survey_equity.png"),
+        {"id": near["id"], "prior_equity": prior["equity"], "selection_equity": selection["equity"], "survivor": False},
+        {"equity": hold_equity, "label": f"{held} holdout"},
+        spy,
+        False,
+    )
+    year_rows = []
+    wanted = [near]
+    for cell in search["cells"]:
+        if cell["selection_pass"] and cell["prior_pass"]:
+            wanted.append(cell)
+    seen = set()
+    for cell in wanted:
+        if cell["id"] in seen or cell["timeframe"] != "1d":
+            continue
+        seen.add(cell["id"])
+        for row in score_years(daily, cell["rule_id"], tuple(cell["tokens"])):
+            row["strategy"] = cell["id"]
+            year_rows.append(row)
+    options = {}
+    for cell in _option_cells(search):
+        cell_tokens = tuple(cell["tokens"])
+        sel = replay(daily, cell["rule_id"], cell_tokens, SELECT_START, SELECT_END, 1000.0)
+        pri = replay(daily, cell["rule_id"], cell_tokens, PRIOR_START, PRIOR_END, 1000.0)
+        options[f"{cell['id']} selection $1,000"] = option_report(sel["trades"], daily, vix, 1000.0)
+        options[f"{cell['id']} selection $5,000"] = option_report(sel["trades"], daily, vix, 5000.0)
+        options[f"{cell['id']} prior $1,000"] = option_report(pri["trades"], daily, vix, 1000.0)
+    if holdout["rows"]:
+        options[f"{held} holdout $1,000 (not a selection input)"] = {
+            "call_0": {"applicable": False, "note": "No same-session share exit, so 0 DTE is not priced."},
+            "call_7": {"applicable": True, "trades": 0, "skipped": 0, "pnl": 0.0, "ending": 1000.0},
+            "call_14": {"applicable": True, "trades": 0, "skipped": 0, "pnl": 0.0, "ending": 1000.0},
+            "vertical_7": {"applicable": True, "trades": 0, "skipped": 0, "pnl": 0.0, "ending": 1000.0},
+            "vertical_14": {"applicable": True, "trades": 0, "skipped": 0, "pnl": 0.0, "ending": 1000.0},
+        }
+    section = render(search, holdout, year_rows, options)
+    payload["options"] = _sanitize(options)
+    payload["years"] = _sanitize(year_rows)
+    payload["chart"] = {
+        "near_miss": near["id"],
+        "holdout_cell": held,
+        "holdout_not_a_pass": True,
+    }
+    Path("reports/indicator_survey.json").write_text(json.dumps(payload, indent=2) + "\n")
+    Path("reports/indicator_survey.md").write_text(section)
+    _write_results(section)
+    print(section.splitlines()[4], flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "refresh":
+        refresh_presentation()
+    else:
+        main()
