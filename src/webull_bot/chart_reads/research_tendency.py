@@ -138,7 +138,11 @@ def _money(value) -> str:
 def _pct(value) -> str:
     if value is None or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
         return "n/a"
-    return f"{float(value):.1%}"
+    number = float(value)
+    # A 4 bp edge rounds to 0.0% at one decimal, which reads as no edge.
+    if abs(number) < 0.005:
+        return f"{number:.2%}"
+    return f"{number:.1%}"
 
 
 def _num(value) -> str:
@@ -148,14 +152,15 @@ def _num(value) -> str:
 
 
 def _best_row(rows: list[dict]) -> dict | None:
+    """Lowest q, then the largest edge over the random bars. A raw gain that loses to random is not the row."""
     if not rows:
         return None
     reverting = [row for row in rows if row["label"] == "mean-reverting"]
     if reverting:
-        return sorted(reverting, key=lambda row: (row["q"], -row["mean_signed"]))[0]
+        return sorted(reverting, key=lambda row: (row["q"], -(row["mean_signed"] - row["random_mean"])))[0]
     usable = [row for row in rows if row["n"] >= 30]
     pool = usable or rows
-    return sorted(pool, key=lambda row: (-row["mean_signed"], -row["n"]))[0]
+    return sorted(pool, key=lambda row: (row["q"], -(row["mean_signed"] - row["random_mean"]), -row["n"]))[0]
 
 
 def _chart_unh(path: Path, five: pd.DataFrame | None, daily: pd.DataFrame | None) -> str:
@@ -253,7 +258,7 @@ def _render(search: dict, books: list[dict], samples: list[dict], chart_note: st
         "Forward closes are 30 minutes, 60 minutes, the session close, the next session, and three and five sessions, where the bar size allows it. "
         "Each cell is compared with a seed-17 random bar at the same clock. "
         "Mean-reverting means at least 30 training events, q ≤ 0.10, a positive reversal edge, and a higher reversal rate than the random bars. "
-        "Trending is the mirror. The holdout, 2026-07-07 through 2026-10-06, was scored once and had to keep the sign.",
+        "Trending is the mirror. The holdout is 2026-07-07 through 2026-10-06. It is computed only for a cell that already cleared the training bar, and it has to keep the same sign.",
         "",
         "Daily bars cover the whole list. Intraday bars that can reach 2018 are Dukascopy SPY and QQQ bids. "
         "The other names have about 60 Yahoo 5-minute days inside the holdout. Those rows are a short sample and are not in the trial count.",
@@ -263,7 +268,14 @@ def _render(search: dict, books: list[dict], samples: list[dict], chart_note: st
     ]
     header = "| Stock | Frame | Event | Horizon | Train n | Reversal | Random | Edge | q | Holdout n | Holdout edge | Class |"
     rule = "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|"
-    lines.extend(["One row per stock, the strongest training cell:", "", header, rule])
+    lines.extend(
+        [
+            "One row per stock. The row is the lowest training q, then the largest edge over the random bars. It is not a pass.",
+            "",
+            header,
+            rule,
+        ]
+    )
     by_symbol: dict[str, list[dict]] = {}
     for row in cells:
         by_symbol.setdefault(row["symbol"], []).append(row)
@@ -290,7 +302,16 @@ def _render(search: dict, books: list[dict], samples: list[dict], chart_note: st
             lines.append(plain_personality(row))
             lines.append("")
     else:
-        lines.append("No cell cleared q ≤ 0.10.")
+        closest = sorted(cells, key=lambda row: (row["q"], -row["n"]))[:4]
+        lines.append("No cell cleared q ≤ 0.10. The holdout returns were not computed, because nothing had cleared training, and they were not used to rank the table.")
+        lines.append("")
+        lines.append("Closest training cells:")
+        lines.append("")
+        for row in closest:
+            lines.append(
+                f"- `{row['id']}`: n={row['n']}, reversal {_pct(row['reversal'])} versus random {_pct(row['random_reversal'])}, "
+                f"edge {_pct(row['mean_signed'])}, q={row['q']:.3f}."
+            )
         lines.append("")
     if books:
         lines.append("Trade template, only on mean-reverting cells: confirmation candle, stop beyond the extreme, target the mean, one position, at most three entries a day.")
