@@ -56,12 +56,31 @@ def _to_fifteen(five: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(pieces)
 
 
+def _survey_daily(symbol: str) -> pd.DataFrame | None:
+    path = Path(f"data/cache/survey/{symbol}_1d.csv")
+    if not path.exists():
+        return None
+    frame = pd.read_csv(path, parse_dates=["Date"]).set_index("Date").sort_index()
+    frame.index = pd.to_datetime(frame.index)
+    return frame[["open", "high", "low", "close", "volume"]]
+
+
 def _load_daily() -> dict[str, pd.DataFrame]:
     provider = YFinanceProvider(CACHE)
-    history = provider.history(list(SYMBOLS), "2016-01-01", "2026-10-09", interval="1d")
+    try:
+        history = provider.history(list(SYMBOLS), "2016-01-01", "2026-10-09", interval="1d")
+    except Exception as exc:
+        print(f"daily download failed {exc}", flush=True)
+        history = {}
     frames = {}
-    for symbol, frame in history.items():
+    for symbol in SYMBOLS:
+        frame = history.get(symbol) if history else None
+        if frame is None or frame.empty or len(frame) < 400:
+            frame = _survey_daily(symbol)
+            if frame is not None:
+                print(f"daily {symbol} from the existing cache", flush=True)
         if frame is None or frame.empty:
+            print(f"missing daily {symbol}", flush=True)
             continue
         frames[symbol] = frame.sort_index()
     return frames
