@@ -459,6 +459,8 @@ Example charts of what the detectors mark as a rising trendline and a wedge are 
 
 Full tables, including the stock diagnostics, are in [RESULTS.md](RESULTS.md).
 Charts are under `reports/`.
+
+**Indicator and pattern survey.** No strategy passed every check. 106 combinations were counted: 63 in round 1, 42 refinements in round 2, and 1 stack in round 3. Every cell is in the Benjamini-Hochberg count and the deflated Sharpe. Four books cleared the profit-factor, Sharpe, drawdown, and trade-count gates on both the selection window (2025-10-08 through 2026-07-06) and the frozen prior years (2018-01-01 through 2025-10-07). They still missed q ≤ 0.10 and deflated Sharpe ≥ 0.95. The closest, a MACD cross with a 1R target, has q 0.739 and deflated Sharpe 0.183. The holdout (2026-07-07 through 2026-10-06) was scored once, on the June-only month rule, and that window contains no June, so the book is empty. That score is not a pass. Yahoo 15-minute history sits inside the holdout and was not scored. Hourly history starts in October 2024, so those cells are counted and cannot pass the 2018 check. Nothing was added to the optional or selected lists. The default book is still dual momentum. The chart is `reports/indicator_survey_equity.png`. Full table in [RESULTS.md](RESULTS.md).
 <!-- RESULTS_END -->
 
 ## Layout
