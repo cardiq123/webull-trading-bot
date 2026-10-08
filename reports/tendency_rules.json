@@ -1,0 +1,63 @@
+{
+  "train": [
+    "2018-01-01",
+    "2026-07-06"
+  ],
+  "holdout": [
+    "2026-07-07",
+    "2026-10-06"
+  ],
+  "symbols": [
+    "UNH",
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "TSLA",
+    "PLTR",
+    "MSTR",
+    "HOOD",
+    "MU",
+    "AMD",
+    "AVGO",
+    "INTC",
+    "JPM",
+    "LLY",
+    "COST",
+    "XOM",
+    "NFLX"
+  ],
+  "intraday_gate": [
+    "SPY",
+    "QQQ"
+  ],
+  "fdr_q": 0.1,
+  "min_events": 30,
+  "events": {
+    "vwap": "Close outside a 2 SD band. Intraday band is the session VWAP. Daily band is the 20-day volume-weighted average.",
+    "rsi": "RSI(14) below 30 or above 70.",
+    "atr": "Intraday only. Close is at least 1.0 or 1.5 prior-day ATRs off the session high or low.",
+    "gap": "Open is at least 1 prior-day ATR through the prior close.",
+    "multi": "Daily only. Three-session move of at least 1.5 prior ATRs."
+  },
+  "horizons": {
+    "intraday": [
+      "m30",
+      "m60",
+      "eod",
+      "d1",
+      "d3",
+      "d5"
+    ],
+    "daily": [
+      "d1",
+      "d3",
+      "d5"
+    ]
+  },
+  "trade": "Next-bar confirmation, stop beyond the event extreme, target the mean, flat at the session close or after 3 daily bars."
+}
