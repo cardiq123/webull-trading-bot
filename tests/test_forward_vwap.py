@@ -14,9 +14,11 @@ from webull_bot.cli import build_parser, refuse_if_forward_only
 from webull_bot.config import load_config
 from webull_bot.execution.forward_vwap import (
     NAME,
+    QQQ_NAME,
     SKIPS_EVENT_DAYS,
     data_problems,
     in_forward_window,
+    _event_line,
     plan_day,
     report_text,
     run_cycle,
@@ -149,10 +151,18 @@ def test_window_and_the_book_stays_off_the_live_list():
         refuse_if_forward_only(["dual_momentum", NAME])
     parser = build_parser()
     args = parser.parse_args(["forward-test", NAME, "--dry-run", "--now", f"{DAY}T11:50:00"])
-    assert args.strategy == NAME
+    assert args.strategy == [NAME]
     assert args.dry_run is True
+    both = parser.parse_args(["forward-test", NAME, QQQ_NAME, "--dry-run"])
+    assert both.strategy == [NAME, QQQ_NAME]
     report = parser.parse_args(["forward-report", NAME])
     assert report.strategy == NAME
+    qqq_report = parser.parse_args(["forward-report", QQQ_NAME])
+    assert qqq_report.strategy == QQQ_NAME
+    with pytest.raises(KeyError, match="not in the paper or live book"):
+        strategy_by_name(QQQ_NAME)
+    with pytest.raises(SystemExit, match="forward-test vwap_band_15m vwap_band_15m_qqq"):
+        refuse_if_forward_only([NAME, QQQ_NAME])
     source = inspect.getsource(WebullBroker.option_atm_quote)
     assert "FORWARD_DTE" in source
     assert "FORWARD_DTE" not in inspect.getsource(WebullBroker.option_zero_dte_quote)
@@ -226,9 +236,43 @@ def test_flat_uses_the_1545_open():
 def test_one_position_iv_premium_and_the_short():
     two = plan_day(bars15=_two_day(), bars5=_five(), now=_at("13:00"), iv_points=IV)
     assert two[0]["status"] == "open"
+    assert two[0]["iv_source"] == "VIX1D prior close"
+    assert "VIX1D prior close" in _event_line(two[0])
     assert two[1]["skip"] == "overlap"
-    missing = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={})
+    missing = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={})
     assert missing[0]["skip"] == "iv"
+    cached = pd.Series([18.0], index=pd.to_datetime(["2024-01-02"]))
+    from_cache = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={"^VIX1D": cached}
+    )
+    assert from_cache[0]["status"] == "open"
+    assert from_cache[0]["iv_source"] == "cached VIX1D"
+    vix_cache = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={"^VIX": cached}
+    )
+    assert vix_cache[0]["iv_source"] == "cached VIX"
+    vix_prior = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points={date(2024, 1, 3): (19.0, "VIX")},
+        iv_closes={"^VIX1D": cached},
+    )
+    assert vix_prior[0]["iv_source"] == "VIX prior close"
+    quoted = plan_day(
+        bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points={}, iv_closes={}, broker=Broker()
+    )
+    assert quoted[0]["status"] == "open"
+    assert quoted[0]["iv_source"] == "sandbox option quote"
+    preferred = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        iv_closes={"^VIX": cached},
+        broker=Broker(),
+    )
+    assert preferred[0]["iv_source"] == "VIX1D prior close"
     poor = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, settled=10.0)
     assert poor[0]["skip"] == "premium"
     short = plan_day(bars15=_short_day(), bars5=_five(late=(70.0, 70.4, 69.6, 70.1, 1000.0)), now=_at("11:50"), iv_points=IV)
@@ -310,6 +354,56 @@ def test_a_rejected_order_does_not_print_the_exception(tmp_path, monkeypatch):
     assert broker.orders == []
 
 
+def test_qqq_book_keeps_its_own_journal(tmp_path):
+    journal = Journal(tmp_path / "both.sqlite")
+    broker = Broker()
+    qqq = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_NAME,
+    )
+    text = "\n".join(qqq)
+    assert "vwap_band_15m_qqq" in text
+    assert "0 DTE QQQ" in text
+    assert broker.orders[-1]["symbol"] == "QQQ"
+    assert broker.orders[-1]["quantity"] == "1"
+    saved = journal.forward_load(QQQ_NAME)
+    assert saved["book"] == QQQ_NAME
+    assert saved["positions"][0]["id"].startswith("QQQ|")
+    assert journal.forward_load(NAME) is None
+    spy = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=NAME,
+    )
+    assert any("0 DTE SPY" in line for line in spy)
+    assert journal.forward_load(NAME)["positions"]
+    assert journal.forward_load(QQQ_NAME)["positions"]
+    assert [order["symbol"] for order in broker.orders] == ["QQQ", "SPY"]
+    report = report_text(journal, book=QQQ_NAME)
+    assert report.splitlines()[0].startswith("vwap_band_15m_qqq ")
+    assert "QQQ" in report
+    stale = data_problems(pd.DataFrame(), pd.DataFrame(), _at("11:50"), book=QQQ_NAME)
+    assert stale[0].startswith("QQQ ")
+    refused = run_cycle(
+        journal=journal,
+        bars15=pd.DataFrame(),
+        bars5=pd.DataFrame(),
+        now=_at("11:50"),
+        dry_run=True,
+        book=QQQ_NAME,
+    )
+    assert any(line.startswith("Refusing to trade vwap_band_15m_qqq") and "QQQ 15-minute" in line for line in refused)
+
+
 def test_cli_dry_run_does_not_connect(monkeypatch):
     import webull_bot.broker.webull as broker_mod
     import webull_bot.data.yfinance_provider as provider_mod
@@ -319,16 +413,18 @@ def test_cli_dry_run_does_not_connect(monkeypatch):
         raise AssertionError("dry-run connected")
 
     monkeypatch.setattr(broker_mod, "WebullBroker", boom)
+    asked = []
 
     class Provider:
         def __init__(self, *_args, **_kwargs):
             pass
 
         def history(self, symbols, start, end, interval="1d"):
+            asked.append((tuple(symbols), interval))
             if interval == "15m":
-                return {"SPY": _long_day()}
+                return {symbol: _long_day() for symbol in symbols}
             if interval == "5m":
-                return {"SPY": _five()}
+                return {symbol: _five() for symbol in symbols}
             index = pd.to_datetime(["2024-01-02", "2024-01-03"])
             frame = pd.DataFrame({"close": [18.0, 19.0]}, index=index)
             return {"^VIX": frame, "^VIX1D": frame.copy()}
@@ -349,10 +445,15 @@ def test_cli_dry_run_does_not_connect(monkeypatch):
     monkeypatch.setattr(store_mod, "Journal", Memory)
     from webull_bot.cli import _forward_vwap
 
-    args = SimpleNamespace(strategy=NAME, dry_run=True, now=f"{DAY}T11:50:00", config="config/default.yaml")
-    assert _forward_vwap(load_config("config/default.yaml"), args) == 0
+    args = SimpleNamespace(
+        strategy=[NAME, QQQ_NAME], dry_run=True, now=f"{DAY}T11:50:00", config="config/default.yaml"
+    )
+    assert _forward_vwap(load_config("config/default.yaml"), args, [NAME, QQQ_NAME]) == 0
     assert saved == []
-    live = SimpleNamespace(strategy=NAME, dry_run=False, now=f"{DAY}T11:50:00", config="config/default.yaml")
+    assert ("SPY", "QQQ") in {tuple(sorted(symbols)) for symbols, _interval in asked} or any(
+        set(symbols) >= {"SPY", "QQQ"} and interval == "15m" for symbols, interval in asked
+    )
+    live = SimpleNamespace(strategy=[NAME, QQQ_NAME], dry_run=False, now=f"{DAY}T11:50:00", config="config/default.yaml")
     monkeypatch.delenv("WEBULL_ENV", raising=False)
     with pytest.raises(SystemExit, match="WEBULL_ENV=sandbox"):
         _forward_vwap(load_config("config/default.yaml"), live)
@@ -386,6 +487,104 @@ def test_a_late_cycle_enters_inside_the_bracket_and_ignores_the_earlier_stop(tmp
     assert any("reason target" in line for line in later)
     assert not any("reason stop" in line for line in later)
     assert journal.forward_load(NAME)["positions"] == []
+
+
+def test_a_cycle_after_the_entry_cap_journals_expired_late(tmp_path, monkeypatch):
+    """The 11:30 bar closes at 11:45. 12:27 is the same miss as the 10:00 signal."""
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    broker = Broker()
+    for book in (NAME, QQQ_NAME):
+        journal = Journal(tmp_path / f"{book}.sqlite")
+        lines = run_cycle(
+            journal=journal,
+            bars15=_long_day(),
+            bars5=_five(),
+            now=_at("12:27"),
+            iv_points=IV,
+            broker=broker,
+            book=book,
+        )
+        text = "\n".join(lines)
+        assert "expired, late" in text
+        assert broker.orders == []
+        saved = journal.forward_load(book)
+        assert saved["positions"] == []
+        assert saved["signals"][0]["skip"] == "expired"
+        assert saved["signals"][0]["detail"] == "expired, late"
+        assert saved["signals"][0]["reason"] == "expired, late"
+        again = run_cycle(
+            journal=journal,
+            bars15=_long_day(),
+            bars5=_five(),
+            now=_at("12:32"),
+            iv_points=IV,
+            broker=broker,
+            book=book,
+        )
+        assert any("already journaled" in line for line in again)
+    assert broker.orders == []
+
+
+def test_the_entry_cap_is_inclusive_and_configurable(tmp_path, monkeypatch):
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    on_time = Journal(tmp_path / "on-time.sqlite")
+    broker = Broker()
+    _cycle(on_time, _long_day(), _five(), "11:55", broker=broker)
+    assert len(broker.orders) == 1
+    assert broker.orders[0]["side"] == "BUY"
+
+    monkeypatch.setenv("VWAP_MAX_ENTRY_DELAY_MIN", "0")
+    tight = Journal(tmp_path / "tight.sqlite")
+    tight_broker = Broker()
+    lines = _cycle(tight, _long_day(), _five(), "11:50", broker=tight_broker)
+    assert "expired, late" in "\n".join(lines)
+    assert tight_broker.orders == []
+
+    monkeypatch.setenv("VWAP_MAX_ENTRY_DELAY_MIN", "180")
+    wide = Journal(tmp_path / "wide.sqlite")
+    wide_broker = Broker()
+    _cycle(wide, _long_day(), _five(), "12:27", broker=wide_broker)
+    assert len(wide_broker.orders) == 1
+    assert wide_broker.orders[0]["side"] == "BUY"
+    assert "12:27" in journal_entry_time(wide)
+
+
+def test_an_open_late_entry_still_exits_and_is_flagged(tmp_path, monkeypatch):
+    monkeypatch.delenv("VWAP_MAX_ENTRY_DELAY_MIN", raising=False)
+    journal = Journal(tmp_path / "open-late.sqlite")
+    broker = Broker()
+    _cycle(journal, _long_day(), _five(), "11:50", broker=broker)
+    state = journal.forward_load(NAME)
+    position = state["positions"][0]
+    stop = position["stop"]
+    target = position["target"]
+    position["signal_time"] = _at("10:00").isoformat()
+    position["entry_time"] = _at("12:27").isoformat()
+    for row in state["signals"]:
+        row["signal_time"] = position["signal_time"]
+        row["entry_time"] = position["entry_time"]
+    journal.forward_save(NAME, state)
+
+    held = _cycle(journal, _long_day(), _five(), "12:32", broker=broker)
+    assert any("Still open." in line and "Off-plan late entry." in line for line in held)
+    assert len(broker.orders) == 1
+    kept = journal.forward_load(NAME)["positions"][0]
+    assert kept["stop"] == stop
+    assert kept["target"] == target
+
+    stopped = _five(special={"12:30": (130.0, 130.4, 90.0, 100.0, 1000.0)})
+    lines = _cycle(journal, _long_day(), stopped, "12:35", broker=broker)
+    assert any("reason stop" in line for line in lines)
+    assert broker.orders[-1]["side"] == "SELL"
+    assert journal.forward_load(NAME)["positions"] == []
+    report = report_text(journal)
+    assert "off-plan late entry" in report
+    assert "The stop, the target, and the 15:45 flat still manage that position." in report
+
+
+def journal_entry_time(journal: Journal) -> str:
+    state = journal.forward_load(NAME)
+    return str(state["positions"][0]["entry_time"])
 
 
 def test_a_price_through_the_stop_is_skipped_once(tmp_path):

@@ -3,17 +3,24 @@
 The rules are the frozen extension book in ``vwap_band``: session VWAP, a
 15-minute close strictly outside the 2 SD band, fill on the next open, a
 stop one cent beyond the signal bar, a 1R target, and a flat at the 15:45
-open. One at-the-money 0 DTE SPY contract. One position. The cash mirror
-is the scored $1,000 book: the model debit has to fit settled cash, a sale
-settles the next session, and equity at or under $1 stops new entries.
+open. One at-the-money 0 DTE contract. ``vwap_band_15m`` trades SPY.
+``vwap_band_15m_qqq`` trades QQQ with the same rules and its own journal
+key. One position per book. The cash mirror is the scored $1,000 book: the
+model debit has to fit settled cash, a sale settles the next session, and
+equity at or under $1 stops new entries.
 
 The cycle is every 5 minutes from 09:50 through 15:50 ET. Signals come
 from completed 15-minute bars, including the bar that just closed when the
 next 15-minute bar is not in the file yet. The backtest fill is still that
 next open, and the stop and 1R target stay on that modeled fill. The order
 goes in on the first cycle after the signal bar closes when the current
-price is still strictly between the stop and that target. A stop or target
-that printed before the order is not a skip. Exits walk only 5-minute bars
+price is still strictly between the stop and that target, and only when
+that cycle is still within ``VWAP_MAX_ENTRY_DELAY_MIN`` minutes of the
+signal bar's close (default 10). A later cycle journals the signal as
+expired, late, and does not enter. A position already open keeps its
+stop, its target, and the 15:45 exit. The report marks that fill as an
+off-plan late entry. A stop or target that printed before the order is
+not a skip. Exits walk only 5-minute bars
 that start at or after the actual entry. The journal records the modeled
 next open and the actual entry. A 5-minute bar can still close the trade
 before the 15-minute bar that contains both levels.
@@ -38,7 +45,9 @@ trading stays off.
 
 from __future__ import annotations
 
+import contextvars
 import math
+import os
 from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -48,11 +57,15 @@ import pandas as pd
 from webull_bot.broker.webull import build_single_option_order, new_client_order_id
 from webull_bot.calendar import is_trading_day, next_trading_day, to_ny
 from webull_bot.chart_reads.vwap_band import (
+    DIVIDEND,
     FLAT,
     OUTER_DEFAULT,
+    RATE,
+    VOL_CAP,
+    VOL_FLOOR,
     _half_spread,
-    _iv_on,
     _option_mid,
+    _years,
     find_signals,
     target_price,
     walk_exit,
@@ -61,16 +74,80 @@ from webull_bot.data.yfinance_provider import bar_end, latest_completed_bar_star
 from webull_bot.journal.store import Journal
 from webull_bot.mtf_vwap.detect import rth
 from webull_bot.options.fees import CONTRACT_MULTIPLIER, option_leg_fees
-from webull_bot.options.pricing import listed_strike
+from webull_bot.options.pricing import listed_strike, option_price
 
 NY = ZoneInfo("America/New_York")
 NAME = "vwap_band_15m"
+QQQ_NAME = "vwap_band_15m_qqq"
 SYMBOL = "SPY"
+BOOKS = {
+    NAME: "SPY",
+    QQQ_NAME: "QQQ",
+}
+_ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
 STAKE = 1_000.0
+# A cycle later than this after the signal bar closes does not enter.
+DEFAULT_MAX_ENTRY_DELAY_MIN = 10.0
 # Written down so a reader can see the scored book did not skip these days.
 SKIPS_EVENT_DAYS = False
+
+
+def _book() -> str:
+    name = _ACTIVE.get()
+    return name if name in BOOKS else NAME
+
+
+def _symbol() -> str:
+    return BOOKS[_book()]
+
+
+def _activate(book: str) -> contextvars.Token:
+    return _ACTIVE.set(book if book in BOOKS else NAME)
+
+
+def max_entry_delay_minutes() -> float:
+    """Minutes after the signal bar closes that an entry is still allowed.
+
+    ``VWAP_MAX_ENTRY_DELAY_MIN`` overrides the default. A blank or unusable
+    value keeps the default. Both VWAP books read the same cap.
+    """
+    raw = os.environ.get("VWAP_MAX_ENTRY_DELAY_MIN", "").strip()
+    if not raw:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    try:
+        minutes = float(raw)
+    except ValueError:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    if not math.isfinite(minutes) or minutes < 0:
+        return DEFAULT_MAX_ENTRY_DELAY_MIN
+    return minutes
+
+
+def _as_ny(stamp) -> pd.Timestamp:
+    clock = pd.Timestamp(stamp)
+    if clock.tzinfo is None:
+        return clock.tz_localize(NY)
+    return clock.tz_convert(NY)
+
+
+def _entry_deadline(signal_time) -> pd.Timestamp:
+    return bar_end(signal_time, "15m") + pd.Timedelta(minutes=max_entry_delay_minutes())
+
+
+def _entry_is_late(signal_time, when) -> bool:
+    """True when ``when`` is after the signal bar close plus the entry cap."""
+    if signal_time is None or when is None:
+        return False
+    return _as_ny(when) > _entry_deadline(signal_time)
+
+
+def _off_plan_late(row: dict) -> bool:
+    """A fill already in the journal that arrived after the entry cap."""
+    if not isinstance(row, dict):
+        return False
+    return _entry_is_late(row.get("signal_time"), row.get("entry_time"))
 
 
 def in_forward_window(moment: datetime) -> bool:
@@ -82,7 +159,7 @@ def in_forward_window(moment: datetime) -> bool:
 
 def empty_state() -> dict[str, Any]:
     return {
-        "book": NAME,
+        "book": _book(),
         "stake": STAKE,
         "settled": STAKE,
         "unsettled": [],
@@ -97,7 +174,7 @@ def empty_state() -> dict[str, Any]:
 
 
 def load_state(journal: Journal) -> dict[str, Any]:
-    saved = journal.forward_load(NAME)
+    saved = journal.forward_load(_book())
     state = empty_state()
     if isinstance(saved, dict):
         for key in state:
@@ -119,10 +196,39 @@ def run_cycle(
     bars5: pd.DataFrame,
     now: datetime,
     iv_points: dict | None = None,
+    iv_closes: dict | None = None,
+    broker=None,
+    dry_run: bool = False,
+    book: str = NAME,
+) -> list[str]:
+    """One idempotent cycle. ``dry_run`` prints the rule and does not write or send."""
+    token = _activate(book)
+    try:
+        return _run_cycle(
+            journal=journal,
+            bars15=bars15,
+            bars5=bars5,
+            now=now,
+            iv_points=iv_points,
+            iv_closes=iv_closes,
+            broker=broker,
+            dry_run=dry_run,
+        )
+    finally:
+        _ACTIVE.reset(token)
+
+
+def _run_cycle(
+    *,
+    journal: Journal,
+    bars15: pd.DataFrame,
+    bars5: pd.DataFrame,
+    now: datetime,
+    iv_points: dict | None = None,
+    iv_closes: dict | None = None,
     broker=None,
     dry_run: bool = False,
 ) -> list[str]:
-    """One idempotent cycle. ``dry_run`` prints the rule and does not write or send."""
     local = to_ny(now)
     if not in_forward_window(now):
         return [
@@ -139,7 +245,7 @@ def run_cycle(
     else:
         state = empty_state()
 
-    problems = data_problems(bars15, bars5, now)
+    problems = data_problems(bars15, bars5, now, book=_book())
     if problems:
         if (not dry_run) and state.get("positions") and local.time() >= FLAT:
             lines.append(
@@ -150,14 +256,23 @@ def run_cycle(
             _finish(state, journal, now, dry_run=False)
             return lines
         lines.append(
-            "Refusing to trade vwap_band_15m. Data is stale: "
+            f"Refusing to trade {_book()}. Data is stale: "
             + "; ".join(problems)
             + ". No orders."
         )
         return lines
 
     if dry_run:
-        events = plan_day(bars15=bars15, bars5=bars5, now=now, iv_points=points, settled=STAKE)
+        events = plan_day(
+            bars15=bars15,
+            bars5=bars5,
+            now=now,
+            iv_points=points,
+            iv_closes=iv_closes,
+            broker=broker,
+            settled=STAKE,
+            book=_book(),
+        )
         lines.extend(_clock_lines(bars15, bars5, now))
         if not events:
             lines.append("No 2 SD continuation through this cycle.")
@@ -172,7 +287,7 @@ def run_cycle(
     _settle(state, local.date())
     lines.extend(_clock_lines(bars15, bars5, now))
     _manage_open(state, bars5, now, broker, lines, journal)
-    _take_signals(state, bars15, bars5, now, points, broker, lines, journal)
+    _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, journal)
     if not any(line.startswith("Signal ") or line.startswith("Exit ") or line.startswith("Skip ") for line in lines):
         pending = _pending_fill(bars15, now)
         if pending:
@@ -189,6 +304,36 @@ def plan_day(
     bars5: pd.DataFrame,
     now: datetime,
     iv_points: dict | None = None,
+    iv_closes: dict | None = None,
+    broker=None,
+    settled: float = STAKE,
+    stopped: bool = False,
+    book: str = NAME,
+) -> list[dict]:
+    token = _activate(book)
+    try:
+        return _plan_day(
+            bars15=bars15,
+            bars5=bars5,
+            now=now,
+            iv_points=iv_points,
+            iv_closes=iv_closes,
+            broker=broker,
+            settled=settled,
+            stopped=stopped,
+        )
+    finally:
+        _ACTIVE.reset(token)
+
+
+def _plan_day(
+    *,
+    bars15: pd.DataFrame,
+    bars5: pd.DataFrame,
+    now: datetime,
+    iv_points: dict | None = None,
+    iv_closes: dict | None = None,
+    broker=None,
     settled: float = STAKE,
     stopped: bool = False,
 ) -> list[dict]:
@@ -237,7 +382,7 @@ def plan_day(
                 events.append(row)
                 seen.add(sid)
                 continue
-            built = _decide_entry(signal, bars15, bars5, moment, points, cash)
+            built = _decide_entry(signal, bars15, bars5, moment, points, cash, iv_closes, broker)
             if built.get("status") == "wait":
                 continue
             seen.add(sid)
@@ -262,31 +407,50 @@ def plan_day(
     return events
 
 
-def data_problems(bars15: pd.DataFrame, bars5: pd.DataFrame, now: datetime) -> list[str]:
+def data_problems(
+    bars15: pd.DataFrame, bars5: pd.DataFrame, now: datetime, book: str = NAME
+) -> list[str]:
     """Today's completed 15-minute and 5-minute bars have to be in the frames."""
-    problems = []
-    missing15 = _missing(bars15, now, "15m")
-    if missing15:
-        problems.append(f"SPY 15-minute data is stale: missing {missing15} ET")
-    missing5 = _missing(bars5, now, "5m")
-    if missing5:
-        problems.append(
-            f"SPY 5-minute data is stale: missing {missing5} ET. The stop cannot be managed"
-        )
-    return problems
+    token = _activate(book)
+    try:
+        problems = []
+        symbol = _symbol()
+        missing15 = _missing(bars15, now, "15m")
+        if missing15:
+            problems.append(f"{symbol} 15-minute data is stale: missing {missing15} ET")
+        missing5 = _missing(bars5, now, "5m")
+        if missing5:
+            problems.append(
+                f"{symbol} 5-minute data is stale: missing {missing5} ET. The stop cannot be managed"
+            )
+        return problems
+    finally:
+        _ACTIVE.reset(token)
 
 
-def report_text(journal: Journal) -> str:
+def report_text(journal: Journal, book: str = NAME) -> str:
+    token = _activate(book)
+    try:
+        return _report_text(journal)
+    finally:
+        _ACTIVE.reset(token)
+
+
+def _report_text(journal: Journal) -> str:
     state = load_state(journal)
     if not state.get("signals") and not state.get("orders") and not state.get("exits"):
-        return f"No forward-test journal for {NAME} yet.\n"
+        return f"No forward-test journal for {_book()} yet.\n"
     lines = [
-        f"{NAME} sandbox forward test. Live trading stays off.",
-        "One ATM 0 DTE SPY contract. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
+        f"{_book()} sandbox forward test. Live trading stays off.",
+        f"One ATM 0 DTE {_symbol()} contract. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
         "The journal records the modeled next open and the actual entry. Exits start after the actual entry.",
         "A 5-minute bar can exit before the 15-minute bar that holds both the stop and the target.",
         "CPI, NFP, and FOMC days are not skipped.",
         f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
+        (
+            f"A new entry has to be within {max_entry_delay_minutes():g} minutes of the signal bar close. "
+            "A position already open still exits at the stop, the target, or 15:45."
+        ),
         "Signals",
     ]
     signals = state.get("signals") or []
@@ -331,9 +495,14 @@ def report_text(journal: Journal) -> str:
     if not positions:
         lines.append("(none)")
     for row in positions:
+        note = " off-plan late entry" if _off_plan_late(row) else ""
         lines.append(
             f"- {row.get('right')} strike {row.get('strike')} expiry {row.get('expiry')} "
-            f"stop {row.get('stop')} target {row.get('target')}"
+            f"stop {row.get('stop')} target {row.get('target')}{note}"
+        )
+    if any(_off_plan_late(row) for row in list(signals) + list(positions)):
+        lines.append(
+            "Off-plan late entry. The stop, the target, and the 15:45 flat still manage that position."
         )
     lines.append(f"Realized P&L on the model mirror ${realized:.2f}.")
     lines.append("")
@@ -342,9 +511,9 @@ def report_text(journal: Journal) -> str:
 
 def _header(local: datetime, dry_run: bool) -> list[str]:
     lines = [
-        f"Forward test {NAME}. Sandbox paper only. Live trading stays off.",
+        f"Forward test {_book()}. Sandbox paper only. Live trading stays off.",
         (
-            "One ATM 0 DTE SPY contract. Session VWAP, a 15-minute close outside the 2 SD band, "
+            f"One ATM 0 DTE {_symbol()} contract. Session VWAP, a 15-minute close outside the 2 SD band, "
             "1R target and stop measured from the modeled next open, order on the first cycle after that bar "
             "when the price is still between them, flat at the 15:45 open."
         ),
@@ -359,6 +528,10 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
         ),
         "CPI, NFP, and FOMC days are not skipped. The scored backtest does not skip them.",
         f"Window {local.isoformat()}. Cash mirror ${STAKE:,.0f}. One position.",
+        (
+            f"Entry only through {max_entry_delay_minutes():g} minutes after the signal bar closes. "
+            "A later cycle journals the signal as expired, late."
+        ),
     ]
     if dry_run:
         lines.append(
@@ -377,7 +550,7 @@ def _finish(state: dict, journal: Journal, now: datetime, dry_run: bool) -> None
     if dry_run:
         return
     state["last_cycle"] = cycle_id(now)
-    journal.forward_save(NAME, state)
+    journal.forward_save(_book(), state)
 
 
 def _settle(state: dict, day: date) -> None:
@@ -402,9 +575,10 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
             kept.append(position)
+            note = " Off-plan late entry." if _off_plan_late(position) else ""
             lines.append(
                 f"Open {position.get('right')} from {position.get('entry_time') or position.get('fill_time')} "
-                f"stop {float(position.get('stop')):.2f} target {float(position.get('target')):.2f}. Still open."
+                f"stop {float(position.get('stop')):.2f} target {float(position.get('target')):.2f}. Still open.{note}"
             )
             continue
         reason, underlying, when = outcome
@@ -414,7 +588,7 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
     state["positions"] = kept
 
 
-def _take_signals(state, bars15, bars5, now, points, broker, lines, journal) -> None:
+def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, journal) -> None:
     now_ts = pd.Timestamp(to_ny(now))
     view = _signal_view(bars15, now_ts)
     known = {str(row.get("id")) for row in state.get("signals") or []}
@@ -428,22 +602,24 @@ def _take_signals(state, bars15, bars5, now, points, broker, lines, journal) -> 
             row = _skip(signal, "overlap", "one position already open")
             state["signals"].append(row)
             lines.append("Skip " + _event_line(row))
-            journal.forward_save(NAME, state)
+            journal.forward_save(_book(), state)
             continue
         if state.get("stopped") or float(state.get("settled") or 0.0) <= 1.0:
             row = _skip(signal, "bust", "equity is at or under $1")
             state["signals"].append(row)
             lines.append("Skip " + _event_line(row))
-            journal.forward_save(NAME, state)
+            journal.forward_save(_book(), state)
             continue
-        built = _decide_entry(signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0))
+        built = _decide_entry(
+            signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker
+        )
         if built.get("status") == "wait":
             lines.append(str(built.get("detail") or "Waiting on the next open. No order."))
             continue
         if built.get("status") == "skip":
             state["signals"].append(built)
             lines.append("Skip " + _event_line(built))
-            journal.forward_save(NAME, state)
+            journal.forward_save(_book(), state)
             continue
         _send_open(state, built, now, broker, lines, journal)
 
@@ -488,7 +664,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             "id": new_client_order_id(),
             "side": "BUY",
             "qty": "1",
-            "symbol": SYMBOL,
+            "symbol": _symbol(),
             "right": built["option_type"],
             "limit": f"{limit:.2f}",
             "status": "intent",
@@ -505,10 +681,10 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         order["model_price"] = f"{model_ask:.4f}"
         order["sandbox_price"] = None if sandbox_ask is None else f"{sandbox_ask:.4f}"
         order["price_source"] = source
-    journal.forward_save(NAME, state)
+    journal.forward_save(_book(), state)
     payload = build_single_option_order(
         client_order_id=order["id"],
-        symbol=SYMBOL,
+        symbol=_symbol(),
         side="BUY",
         quantity=1,
         strike_price=strike,
@@ -519,7 +695,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         position_intent="BUY_TO_OPEN",
     )
     if not _place(broker, payload, order, lines, "entry"):
-        journal.forward_save(NAME, state)
+        journal.forward_save(_book(), state)
         return
     order["status"] = "submitted"
     position = {
@@ -543,6 +719,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         "sandbox_ask": sandbox_ask,
         "price_source": source,
         "iv": built["iv"],
+        "iv_source": built.get("iv_source"),
     }
     built["status"] = "open"
     built["price_source"] = source
@@ -571,7 +748,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         + f" Order BUY 1 {built['right']} limit {limit:.2f} ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
-    journal.forward_save(NAME, state)
+    journal.forward_save(_book(), state)
 
 
 def _send_close(state, position, reason, underlying, when, broker, lines, journal) -> bool:
@@ -590,7 +767,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             "id": new_client_order_id(),
             "side": "SELL",
             "qty": "1",
-            "symbol": SYMBOL,
+            "symbol": _symbol(),
             "right": position.get("option_type"),
             "limit": f"{limit:.2f}",
             "status": "intent",
@@ -608,10 +785,10 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         order["model_price"] = f"{model_bid:.4f}"
         order["sandbox_price"] = None if sandbox_bid is None else f"{sandbox_bid:.4f}"
         order["price_source"] = source
-    journal.forward_save(NAME, state)
+    journal.forward_save(_book(), state)
     payload = build_single_option_order(
         client_order_id=order["id"],
-        symbol=SYMBOL,
+        symbol=_symbol(),
         side="SELL",
         quantity=1,
         strike_price=float(position["strike"]),
@@ -622,7 +799,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         position_intent="SELL_TO_CLOSE",
     )
     if not _place(broker, payload, order, lines, "exit"):
-        journal.forward_save(NAME, state)
+        journal.forward_save(_book(), state)
         return False
     order["status"] = "submitted"
     credit = _credit(model_bid)
@@ -672,7 +849,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         f"Order SELL 1 limit {limit:.2f} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
-    journal.forward_save(NAME, state)
+    journal.forward_save(_book(), state)
     return True
 
 
@@ -696,7 +873,7 @@ def _entry_quote(broker, built) -> Optional[dict]:
     if broker is None or not hasattr(broker, "option_zero_dte_quote"):
         return None
     try:
-        return broker.option_zero_dte_quote(SYMBOL, built["option_type"], float(built["entry"]), built["expiry"])
+        return broker.option_zero_dte_quote(_symbol(), built["option_type"], float(built["entry"]), built["expiry"])
     except Exception:
         return None
 
@@ -731,13 +908,155 @@ def _position_exit(position, bars5, now):
     return _exit_after(position, path, now_ts)
 
 
-def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float) -> dict:
+def resolve_volatility(day, points, closes, broker, spot, option_type, when) -> tuple[Optional[float], str]:
+    """VIX1D prior close, then VIX, then the last cached close, then a sandbox quote.
+
+    The scored backtest still requires a prior close. This chain is only the
+    forward book, so a missing print does not skip the trade while any source
+    has a number. The journal records which source was used.
+    """
+    chosen = _prior_close(day, points)
+    if chosen is not None:
+        return chosen
+    cached = _cached_close(day, closes)
+    if cached is not None:
+        return cached
+    quoted = _quote_volatility(broker, spot, option_type, when)
+    if quoted is not None:
+        return quoted, "sandbox option quote"
+    return None, ""
+
+
+def _prior_close(day, points) -> Optional[tuple[float, str]]:
+    point = (points or {}).get(day)
+    if not point:
+        return None
+    try:
+        raw = float(point[0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    name = str(point[1]) if len(point) > 1 else "VIX"
+    iv = _clip_points(raw)
+    if iv is None:
+        return None
+    if name == "VIX1D":
+        return iv, "VIX1D prior close"
+    if name == "VIX":
+        return iv, "VIX prior close"
+    return iv, f"{name} prior close"
+
+
+def _clip_points(raw: float) -> Optional[float]:
+    if not math.isfinite(raw) or raw <= 0:
+        return None
+    return min(VOL_CAP, max(VOL_FLOOR, float(raw) / 100.0))
+
+
+def _cached_close(day, closes) -> Optional[tuple[float, str]]:
+    series_map = closes or {}
+    for key, label in (("^VIX1D", "cached VIX1D"), ("^VIX", "cached VIX")):
+        value = _latest_before(series_map.get(key), day)
+        if value is None:
+            continue
+        iv = _clip_points(value)
+        if iv is not None:
+            return iv, label
+    return None
+
+
+def _latest_before(series, day: date) -> Optional[float]:
+    if series is None or len(getattr(series, "index", ())) == 0:
+        return None
+    frame = series.astype(float)
+    index = pd.to_datetime(frame.index)
+    if getattr(index, "tz", None) is not None:
+        index = index.tz_convert(NY).tz_localize(None)
+    order = index.argsort()
+    best = None
+    for pos in order:
+        value = float(frame.iloc[int(pos)])
+        if not math.isfinite(value) or value <= 0:
+            continue
+        session = pd.Timestamp(index[int(pos)]).date()
+        if session >= day:
+            continue
+        best = value
+    return best
+
+
+def _quote_volatility(broker, spot, option_type, when) -> Optional[float]:
+    if broker is None or not hasattr(broker, "option_zero_dte_quote"):
+        return None
+    try:
+        spot_value = float(spot)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(spot_value) or spot_value <= 0:
+        return None
+    try:
+        quote = broker.option_zero_dte_quote(_symbol(), option_type, spot_value, _as_date(when))
+    except Exception:
+        return None
+    if not quote:
+        return None
+    ask = _positive(quote.get("ask"))
+    if ask is None:
+        return None
+    bid = _positive(quote.get("bid"))
+    mid = (ask + bid) / 2.0 if bid is not None else ask
+    strike = _positive(quote.get("strike")) or listed_strike(spot_value, spot_value)
+    right = "call" if str(option_type).upper() == "CALL" else "put"
+    return _implied_vol(right, spot_value, float(strike), when, mid)
+
+
+def _positive(value) -> Optional[float]:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or number <= 0:
+        return None
+    return number
+
+
+def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Optional[float]:
+    if mid <= 0 or spot <= 0 or strike <= 0:
+        return None
+    years = _years(pd.Timestamp(when), 0)
+
+    def price(sigma: float) -> float:
+        return float(option_price(right, spot, strike, years, sigma, RATE, DIVIDEND))
+
+    if mid <= price(VOL_FLOOR):
+        return VOL_FLOOR
+    if mid >= price(VOL_CAP):
+        return VOL_CAP
+    lo = VOL_FLOOR
+    hi = VOL_CAP
+    for _ in range(48):
+        guess = 0.5 * (lo + hi)
+        if price(guess) < mid:
+            lo = guess
+        else:
+            hi = guess
+    return 0.5 * (lo + hi)
+
+
+def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_closes=None, broker=None) -> dict:
     """Price the order at this cycle. A missing open waits. It is not a skip.
 
     The stop and the 1R target stay on the modeled next open. The order uses
     the current price, and only when that price is still strictly between them.
-    Bars between the modeled fill and this cycle are not an exit.
+    The cycle also has to fall within the entry cap after the signal bar
+    closes. Bars between the modeled fill and this cycle are not an exit.
+    A position that is already open is not decided here.
     """
+    if _entry_is_late(signal.signal_time, now_ts):
+        row = _skip(signal, "expired", "expired, late")
+        row["reason"] = "expired, late"
+        row["entry_deadline"] = _entry_deadline(signal.signal_time).isoformat()
+        row["seen_at"] = _as_ny(now_ts).isoformat()
+        return row
     if now_ts.time() >= FLAT:
         return _skip(signal, "flat", "the 15:45 flat has already passed")
     modeled = _print_open(bars15, signal.fill_time, now_ts)
@@ -779,11 +1098,15 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float) -> dict
         row["target"] = level
         return row
     day = _as_date(signal.fill_time)
-    iv = _iv_on(day, points)
-    if iv is None:
-        return _skip(signal, "iv", "no prior VIX1D or VIX close")
     right = "call" if signal.direction == "long" else "put"
     option_type = "CALL" if signal.direction == "long" else "PUT"
+    iv, iv_source = resolve_volatility(day, points, iv_closes, broker, spot, option_type, now_ts)
+    if iv is None:
+        return _skip(
+            signal,
+            "iv",
+            "no VIX1D prior close, VIX prior close, cached close, or sandbox option quote",
+        )
     strike = listed_strike(spot, spot)
     entry_mid = _option_mid(right, spot, strike, now_ts, iv, 0)
     model_ask = entry_mid + _half_spread(entry_mid)
@@ -795,6 +1118,8 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float) -> dict
         row["strike"] = strike
         row["modeled_entry"] = modeled
         row["entry"] = spot
+        row["iv"] = iv
+        row["iv_source"] = iv_source
         return row
     row = dict(_base(signal))
     row.update(
@@ -813,6 +1138,7 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float) -> dict
             "strike": strike,
             "expiry": day.isoformat(),
             "iv": iv,
+            "iv_source": iv_source,
             "model_ask": model_ask,
             "model_bid": None,
             "model_debit": debit,
@@ -869,7 +1195,7 @@ def _extensions(view: pd.DataFrame, now_ts: pd.Timestamp) -> list:
     ready = _with_unclosed_next(view, now_ts)
     done = {_minute_key(ts) for ts in view.index if bar_end(ts, "15m") <= now_ts}
     found = []
-    for signal in find_signals(ready, SYMBOL, OUTER_DEFAULT):
+    for signal in find_signals(ready, _symbol(), OUTER_DEFAULT):
         if signal.mode != "extension":
             continue
         if _as_date(signal.signal_time) != now_ts.date():
@@ -1065,7 +1391,7 @@ def _base(signal) -> dict:
     return {
         "id": _signal_id(signal),
         "mode": "extension",
-        "symbol": SYMBOL,
+        "symbol": _symbol(),
         "direction": signal.direction,
         "signal_time": pd.Timestamp(signal.signal_time).isoformat(),
         "fill_time": pd.Timestamp(signal.fill_time).isoformat(),
@@ -1074,16 +1400,17 @@ def _base(signal) -> dict:
 
 
 def _signal_id(signal) -> str:
-    return f"{SYMBOL}|{pd.Timestamp(signal.signal_time).isoformat()}|{signal.direction}|extension"
+    return f"{_symbol()}|{pd.Timestamp(signal.signal_time).isoformat()}|{signal.direction}|extension"
 
 
 def _event_line(event: dict) -> str:
     direction = event.get("direction") or ""
     when = _clock(event.get("signal_time"))
     if event.get("status") == "skip":
-        return (
-            f"{when} {direction} extension skipped: {event.get('detail') or event.get('skip')}."
-        )
+        text = f"{when} {direction} extension skipped: {event.get('detail') or event.get('skip')}."
+        if event.get("iv_source"):
+            text += f" Volatility {event['iv_source']}."
+        return text
     modeled = event.get("modeled_entry")
     if not isinstance(modeled, (int, float)):
         modeled = event.get("entry")
@@ -1109,6 +1436,10 @@ def _event_line(event: dict) -> str:
             body += f" model bid {float(event['model_bid']):.4f}"
     else:
         body += " still open"
+    if event.get("iv_source"):
+        body += f" volatility {event['iv_source']}"
+    if _off_plan_late(event):
+        body += " off-plan late entry"
     return body
 
 

@@ -79,10 +79,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     forward = sub.add_parser(
         "forward-test",
-        help="One sandbox cycle of chop_breakout_60m or vwap_band_15m. Live trading stays off. --dry-run does not connect.",
+        help="One sandbox cycle. Pass chop_breakout_60m, or one or both VWAP books. Live trading stays off. --dry-run does not connect.",
     )
     _add_config(forward)
-    forward.add_argument("strategy", choices=["chop_breakout_60m", "vwap_band_15m"])
+    forward.add_argument(
+        "strategy",
+        nargs="+",
+        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"],
+    )
     forward.add_argument(
         "--dry-run",
         action="store_true",
@@ -99,7 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print a sandbox forward-test journal. chop_breakout_60m also prints SPY and the random shadow.",
     )
     _add_config(forward_report)
-    forward_report.add_argument("strategy", choices=["chop_breakout_60m", "vwap_band_15m"])
+    forward_report.add_argument(
+        "strategy", choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"]
+    )
 
     return parser
 
@@ -138,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m"}
+FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"}
 
 
 def refuse_if_forward_only(names: list[str]) -> None:
@@ -161,7 +167,7 @@ def refuse_if_forward_only(names: list[str]) -> None:
         f"Refusing to run {shown} on the paper or live book. "
         "It is a sandbox forward test only. allow_unproven_strategies does not enable it. "
         "Live trading stays off. "
-        f"Use: python -m webull_bot forward-test {hit[0]}"
+        f"Use: python -m webull_bot forward-test {' '.join(hit)}"
     )
 
 
@@ -556,10 +562,33 @@ def _forward_now(args) -> datetime:
     return datetime.now(ZoneInfo("America/New_York"))
 
 
+def _forward_names(args) -> list[str]:
+    raw = args.strategy
+    if isinstance(raw, str):
+        return [raw]
+    return list(raw)
+
+
 def _forward_test(config, args) -> int:
     """One sandbox cycle. Dry-run does not connect. A real cycle is sandbox-only."""
-    if args.strategy == "vwap_band_15m":
-        return _forward_vwap(config, args)
+    names = _forward_names(args)
+    from webull_bot.execution.forward_vwap import BOOKS
+
+    vwap = [name for name in names if name in BOOKS]
+    chop = [name for name in names if name == "chop_breakout_60m"]
+    if vwap and chop:
+        raise SystemExit(
+            "Run chop_breakout_60m on its own command. "
+            "The two VWAP books share one command: "
+            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq"
+        )
+    if vwap:
+        return _forward_vwap(config, args, vwap)
+    if len(chop) != 1:
+        raise SystemExit(
+            "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, vwap_band_15m_qqq"
+        )
+    args.strategy = chop[0]
     from zoneinfo import ZoneInfo
 
     from webull_bot.data.yfinance_provider import YFinanceProvider
@@ -611,13 +640,16 @@ def _forward_test(config, args) -> int:
     return 0
 
 
-def _forward_vwap(config, args) -> int:
-    """One 5-minute cycle of the frozen 2 SD continuation. Sandbox only."""
+def _forward_vwap(config, args, books: list[str] | None = None) -> int:
+    """One 5-minute cycle of each frozen 2 SD continuation. Sandbox only."""
     from webull_bot.chart_reads.orb_mwf import prior_iv
     from webull_bot.data.yfinance_provider import YFinanceProvider
-    from webull_bot.execution.forward_vwap import in_forward_window, run_cycle
+    from webull_bot.execution.forward_vwap import BOOKS, in_forward_window, run_cycle
     from webull_bot.journal.store import Journal
 
+    names = list(books) if books else [name for name in _forward_names(args) if name in BOOKS]
+    if not names:
+        raise SystemExit("No VWAP forward book was named.")
     now = _forward_now(args)
     if not in_forward_window(now):
         from zoneinfo import ZoneInfo
@@ -647,8 +679,9 @@ def _forward_vwap(config, args) -> int:
     start = end - timedelta(days=50)
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     end_s = (end + timedelta(days=1)).isoformat()
-    bars15 = provider.history(["SPY"], start.isoformat(), end_s, "15m").get("SPY")
-    bars5 = provider.history(["SPY"], start.isoformat(), end_s, "5m").get("SPY")
+    symbols = [BOOKS[name] for name in names]
+    bars15 = provider.history(symbols, start.isoformat(), end_s, "15m")
+    bars5 = provider.history(symbols, start.isoformat(), end_s, "5m")
     daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", end_s, "1d")
     closes = {}
     for symbol, frame in daily.items():
@@ -657,26 +690,36 @@ def _forward_vwap(config, args) -> int:
         closes[symbol] = frame["close"]
     points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
-    lines = run_cycle(
-        journal=journal,
-        bars15=bars15 if bars15 is not None else pd.DataFrame(),
-        bars5=bars5 if bars5 is not None else pd.DataFrame(),
-        now=now,
-        iv_points=points,
-        broker=broker,
-        dry_run=bool(args.dry_run),
-    )
-    print("\n".join(lines))
+    blocks = []
+    for name in names:
+        symbol = BOOKS[name]
+        fifteen = bars15.get(symbol) if isinstance(bars15, dict) else None
+        five = bars5.get(symbol) if isinstance(bars5, dict) else None
+        lines = run_cycle(
+            journal=journal,
+            bars15=fifteen if fifteen is not None else pd.DataFrame(),
+            bars5=five if five is not None else pd.DataFrame(),
+            now=now,
+            iv_points=points,
+            iv_closes=closes,
+            broker=broker,
+            dry_run=bool(args.dry_run),
+            book=name,
+        )
+        blocks.append("\n".join(lines))
+    print("\n\n".join(blocks))
     return 0
 
 
 def _forward_report(config, args) -> int:
-    if args.strategy == "vwap_band_15m":
+    from webull_bot.execution.forward_vwap import BOOKS
+
+    if args.strategy in BOOKS:
         from webull_bot.execution.forward_vwap import report_text as vwap_report
         from webull_bot.journal.store import Journal
 
         journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
-        print(vwap_report(journal), end="")
+        print(vwap_report(journal, book=args.strategy), end="")
         return 0
     from webull_bot.execution.forward_chop import NAME, report_text
     from webull_bot.journal.store import Journal

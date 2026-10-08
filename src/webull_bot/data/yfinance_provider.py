@@ -73,14 +73,26 @@ class YFinanceProvider(DataProvider):
         frames: dict[str, pd.DataFrame] = {}
         needed: list[str] = []
         for symbol in symbols:
-            cached = self._read_cache(symbol, yf_interval, start, end)
+            try:
+                cached = self._read_cache(symbol, yf_interval, start, end)
+            except Exception:
+                cached = None
             if cached is not None:
                 frames[symbol] = cached
             else:
                 needed.append(symbol)
         if needed:
-            downloaded = self._download(needed, start, end, yf_interval)
+            try:
+                downloaded = self._download(needed, start, end, yf_interval)
+            except Exception:
+                downloaded = {}
             frames.update(downloaded)
+            for symbol in needed:
+                if symbol in frames:
+                    continue
+                relaxed = self._relaxed_cache(symbol, yf_interval)
+                if relaxed is not None:
+                    frames[symbol] = relaxed
         return frames
 
     def _cache_path(self, symbol: str, interval: str) -> Path:
@@ -118,6 +130,28 @@ class YFinanceProvider(DataProvider):
         if covers_end and (covers_start or long_history):
             return frame
         return None
+
+    def _relaxed_cache(self, symbol: str, interval: str) -> pd.DataFrame | None:
+        """Last on-disk file, including one that is too old to trade.
+
+        A Yahoo empty download ("possibly delisted") must not drop the symbol
+        or raise. The forward book still refuses a stale bar. It does not crash.
+        """
+        path = self._cache_path(symbol, interval)
+        if not path.exists():
+            return None
+        try:
+            frame = pd.read_csv(path, index_col=0)
+            if interval == "1d":
+                frame.index = pd.to_datetime(frame.index)
+            else:
+                frame.index = pd.to_datetime(frame.index, utc=True)
+            frame = normalize_frame(frame, "1d" if interval == "1d" else interval)
+        except Exception:
+            return None
+        if frame.empty:
+            return None
+        return frame
 
     def _download(self, symbols: list[str], start: str, end: str, interval: str) -> dict[str, pd.DataFrame]:
         import yfinance as yf
@@ -157,11 +191,23 @@ class YFinanceProvider(DataProvider):
                     if one is not None:
                         frames[symbol] = one
                 continue
-            parsed = _split_download(raw, chunk)
-            for symbol, frame in parsed.items():
+            try:
+                parsed = _split_download(raw, chunk)
+            except Exception:
+                parsed = {}
+            for symbol in chunk:
+                frame = parsed.get(symbol)
+                if frame is None:
+                    one = self._download_one(symbol, start_ts, end_ts, interval)
+                    if one is not None:
+                        frames[symbol] = one
+                    continue
                 try:
                     normal = normalize_frame(frame, "1d" if interval == "1d" else interval)
                 except ValueError:
+                    one = self._download_one(symbol, start_ts, end_ts, interval)
+                    if one is not None:
+                        frames[symbol] = one
                     continue
                 if normal.empty:
                     continue
@@ -176,35 +222,35 @@ class YFinanceProvider(DataProvider):
     def _download_one(self, symbol: str, start: pd.Timestamp, end: pd.Timestamp, interval: str):
         import yfinance as yf
 
-        try:
-            raw = yf.download(
-                tickers=symbol,
-                start=start.date().isoformat(),
-                end=(end + pd.Timedelta(days=1)).date().isoformat(),
-                interval=interval,
-                auto_adjust=True,
-                progress=False,
-                threads=False,
-            )
-        except Exception:
-            return None
-        if raw is None or raw.empty:
-            return None
-        parsed = _split_download(raw, [symbol])
-        frame = parsed.get(symbol)
-        if frame is None:
-            return None
-        try:
-            normal = normalize_frame(frame, "1d" if interval == "1d" else interval)
-        except ValueError:
-            return None
-        if normal.empty:
-            return None
-        normal = _closed_hourly(normal, interval, _clock())
-        if normal.empty:
-            return None
-        normal.to_csv(self._cache_path(symbol, interval))
-        return normal
+        for attempt in range(3):
+            try:
+                raw = yf.download(
+                    tickers=symbol,
+                    start=start.date().isoformat(),
+                    end=(end + pd.Timedelta(days=1)).date().isoformat(),
+                    interval=interval,
+                    auto_adjust=True,
+                    progress=False,
+                    threads=False,
+                )
+            except Exception:
+                raw = None
+            if raw is not None and not raw.empty:
+                parsed = _split_download(raw, [symbol])
+                frame = parsed.get(symbol)
+                if frame is not None:
+                    try:
+                        normal = normalize_frame(frame, "1d" if interval == "1d" else interval)
+                    except ValueError:
+                        normal = None
+                    if normal is not None and not normal.empty:
+                        normal = _closed_hourly(normal, interval, _clock())
+                        if not normal.empty:
+                            normal.to_csv(self._cache_path(symbol, interval))
+                            return normal
+            if attempt < 2:
+                time.sleep(0.4 * (attempt + 1))
+        return None
 
 
 def _clock() -> datetime:
