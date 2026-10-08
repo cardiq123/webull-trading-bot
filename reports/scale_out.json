@@ -1,0 +1,3714 @@
+{
+  "n_trials": 18,
+  "primary_stake": 2500.0,
+  "sizing": [
+    {
+      "id": "both_prior_day_ema20_level_r1",
+      "start": "2018-01-01",
+      "end": "2026-07-06",
+      "stakes": {
+        "1000": {
+          "starting_equity": 1000.0,
+          "ending_equity": 608.1776111202382,
+          "total_return": -0.39182238887976173,
+          "cagr": -0.056766089035787504,
+          "sharpe": -1.6536325144450363,
+          "max_drawdown": -0.40508997810719904,
+          "trades": 790,
+          "win_rate": 0.46329113924050636,
+          "avg_win": 1.8617660068425292,
+          "avg_loss": -2.5311998759059633,
+          "profit_factor": 0.634912510650889,
+          "expectancy": -0.49597770744273784,
+          "breakeven_win_rate": 0.5761938388472753,
+          "years": 8.509240246406572
+        },
+        "2500": {
+          "starting_equity": 2500.0,
+          "ending_equity": 1304.867900825524,
+          "total_return": -0.4780528396697904,
+          "cagr": -0.07356347877590108,
+          "sharpe": -1.8579064292944416,
+          "max_drawdown": -0.48450683296146524,
+          "trades": 979,
+          "win_rate": 0.4606741573033708,
+          "avg_win": 4.529531450263259,
+          "avg_loss": -6.13248254402122,
+          "profit_factor": 0.6308986210169003,
+          "expectancy": -1.2207682320474715,
+          "breakeven_win_rate": 0.5751711212636396,
+          "years": 8.509240246406572
+        },
+        "5000": {
+          "starting_equity": 5000.0,
+          "ending_equity": 2477.129730394742,
+          "total_return": -0.5045740539210516,
+          "cagr": -0.07922373819895068,
+          "sharpe": -1.8744967539109518,
+          "max_drawdown": -0.5107859795471648,
+          "trades": 995,
+          "win_rate": 0.46331658291457284,
+          "avg_win": 9.266146013597355,
+          "avg_loss": -12.723901838714678,
+          "profit_factor": 0.6286928160719982,
+          "expectancy": -2.5355480096535246,
+          "breakeven_win_rate": 0.5786209254372717,
+          "years": 8.509240246406572
+        }
+      }
+    },
+    {
+      "id": "both_swing10_structure_level_vwap",
+      "start": "2018-01-01",
+      "end": "2026-07-06",
+      "stakes": {
+        "1000": {
+          "starting_equity": 1000.0,
+          "ending_equity": 977.5513573375783,
+          "total_return": -0.022448642662421636,
+          "cagr": -0.002664654559216384,
+          "sharpe": -0.2432676025593513,
+          "max_drawdown": -0.04482717382426715,
+          "trades": 45,
+          "win_rate": 0.4666666666666667,
+          "avg_win": 2.844041725408419,
+          "avg_loss": -3.423896620666589,
+          "profit_factor": 0.7268141493267051,
+          "expectancy": -0.49885872583158514,
+          "breakeven_win_rate": 0.5462556316959687,
+          "years": 8.509240246406572
+        },
+        "2500": {
+          "starting_equity": 2500.0,
+          "ending_equity": 2409.5939765783187,
+          "total_return": -0.03616240936867254,
+          "cagr": -0.004319172061366561,
+          "sharpe": -0.29561465070121534,
+          "max_drawdown": -0.054211607845726095,
+          "trades": 185,
+          "win_rate": 0.4810810810810811,
+          "avg_win": 3.118976151685592,
+          "avg_loss": -3.833280217934348,
+          "profit_factor": 0.754328054015845,
+          "expectancy": -0.48868120768475504,
+          "breakeven_win_rate": 0.5513721034058907,
+          "years": 8.509240246406572
+        },
+        "5000": {
+          "starting_equity": 5000.0,
+          "ending_equity": 4741.70378374312,
+          "total_return": -0.05165924325137605,
+          "cagr": -0.006214000416611132,
+          "sharpe": -0.39606995694391184,
+          "max_drawdown": -0.06055286087421141,
+          "trades": 356,
+          "win_rate": 0.46629213483146065,
+          "avg_win": 4.268178119799174,
+          "avg_loss": -5.0884936007554735,
+          "profit_factor": 0.7328376772309976,
+          "expectancy": -0.725551169260891,
+          "breakeven_win_rate": 0.5438358588104699,
+          "years": 8.509240246406572
+        }
+      }
+    },
+    {
+      "id": "both_swing10_structure_level_vwap",
+      "start": "2026-07-07",
+      "end": "2026-10-06",
+      "stakes": {
+        "1000": {
+          "starting_equity": 1000.0,
+          "ending_equity": 1004.9687031251042,
+          "total_return": 0.0049687031251042235,
+          "cagr": 0.019872323244630063,
+          "sharpe": 1.984313483298443,
+          "max_drawdown": 0.0,
+          "trades": 1,
+          "win_rate": 1.0,
+          "avg_win": 4.968703125104184,
+          "avg_loss": 0.0,
+          "profit_factor": null,
+          "expectancy": 4.968703125104184,
+          "breakeven_win_rate": null,
+          "years": 0.2518822724161533
+        },
+        "2500": {
+          "starting_equity": 2500.0,
+          "ending_equity": 2505.4272829975025,
+          "total_return": 0.00217091319900109,
+          "cagr": 0.008646587235378922,
+          "sharpe": 0.6100724018762819,
+          "max_drawdown": -0.0037915305511242448,
+          "trades": 2,
+          "win_rate": 0.5,
+          "avg_win": 14.906109375313008,
+          "avg_loss": -9.478826377810371,
+          "profit_factor": 1.5725690904316734,
+          "expectancy": 2.7136414987513184,
+          "breakeven_win_rate": 0.38871647945991666,
+          "years": 0.2518822724161533
+        },
+        "5000": {
+          "starting_equity": 5000.0,
+          "ending_equity": 5006.239885664079,
+          "total_return": 0.0012479771328157696,
+          "cagr": 0.004963794832619328,
+          "sharpe": 0.281277683993799,
+          "max_drawdown": -0.00570820724233001,
+          "trades": 3,
+          "win_rate": 0.3333333333333333,
+          "avg_win": 34.78092187572929,
+          "avg_loss": -14.270518105824909,
+          "profit_factor": 1.218628560568256,
+          "expectancy": 2.079961888026491,
+          "breakeven_win_rate": 0.2909296467380232,
+          "years": 0.2518822724161533
+        }
+      }
+    }
+  ],
+  "fits": [
+    {
+      "id": "both_prior_day_ema20_level_r1",
+      "window": "train",
+      "dte": 0,
+      "fit": {
+        "signals": 979,
+        "fit_3_1000": 979,
+        "fit_1_1000": 979,
+        "fit_3_2500": 979,
+        "fit_1_2500": 979,
+        "fit_3_5000": 979,
+        "fit_1_5000": 979,
+        "median_debit_3": 231.73803882763576
+      },
+      "option_2500": {
+        "trades": 979,
+        "skipped": 0,
+        "pnl": 18582.125071596143,
+        "ending": 21082.125071596143,
+        "dte": 0
+      }
+    },
+    {
+      "id": "both_swing10_structure_level_vwap",
+      "window": "train",
+      "dte": 0,
+      "fit": {
+        "signals": 185,
+        "fit_3_1000": 185,
+        "fit_1_1000": 185,
+        "fit_3_2500": 185,
+        "fit_1_2500": 185,
+        "fit_3_5000": 185,
+        "fit_1_5000": 185,
+        "median_debit_3": 164.72827465748128
+      },
+      "option_2500": {
+        "trades": 185,
+        "skipped": 0,
+        "pnl": 7818.479244576487,
+        "ending": 10318.479244576492,
+        "dte": 0
+      }
+    },
+    {
+      "id": "both_swing10_structure_level_vwap",
+      "window": "holdout",
+      "dte": 0,
+      "fit": {
+        "signals": 2,
+        "fit_3_1000": 2,
+        "fit_1_1000": 2,
+        "fit_3_2500": 2,
+        "fit_1_2500": 2,
+        "fit_3_5000": 2,
+        "fit_1_5000": 2,
+        "median_debit_3": 468.5303680211286
+      },
+      "option_2500": {
+        "trades": 2,
+        "skipped": 0,
+        "pnl": 294.98280785955063,
+        "ending": 2794.9828078595506,
+        "dte": 0
+      }
+    },
+    {
+      "id": "both_prior_day_ema20_level_r1",
+      "window": "train",
+      "dte": 7,
+      "fit": {
+        "signals": 979,
+        "fit_3_1000": 302,
+        "fit_1_1000": 979,
+        "fit_3_2500": 970,
+        "fit_1_2500": 979,
+        "fit_3_5000": 979,
+        "fit_1_5000": 979,
+        "median_debit_3": 1223.36047051561
+      },
+      "option_2500": {
+        "trades": 903,
+        "skipped": 76,
+        "pnl": -2017.6151751622333,
+        "ending": 482.3848248377686,
+        "dte": 7
+      }
+    },
+    {
+      "id": "both_swing10_structure_level_vwap",
+      "window": "train",
+      "dte": 7,
+      "fit": {
+        "signals": 185,
+        "fit_3_1000": 109,
+        "fit_1_1000": 182,
+        "fit_3_2500": 176,
+        "fit_1_2500": 185,
+        "fit_3_5000": 185,
+        "fit_1_5000": 185,
+        "median_debit_3": 800.5491919976067
+      },
+      "option_2500": {
+        "trades": 185,
+        "skipped": 0,
+        "pnl": 1721.3161893647198,
+        "ending": 4221.3161893647175,
+        "dte": 7
+      }
+    }
+  ],
+  "tendency": {
+    "found": true,
+    "cells": 768,
+    "eligible": 0,
+    "labels": {
+      "inconsistent": 768
+    },
+    "books": 0
+  },
+  "exits": [
+    {
+      "book": "open_support",
+      "exit": "all_band",
+      "q": 7.718432718760382e-05,
+      "p": 2.1440090885445506e-05,
+      "train": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 12082.422057607699,
+            "total_return": 11.0824220576077,
+            "cagr": 0.3402134937865964,
+            "sharpe": 1.2966246699600377,
+            "max_drawdown": -0.1941802393271519,
+            "trades": 1206,
+            "win_rate": 0.5298507462686567,
+            "avg_win": 60.01915074980798,
+            "avg_loss": -48.09491229544902,
+            "profit_factor": 1.4063988680254136,
+            "expectancy": 9.189404691216994,
+            "breakeven_win_rate": 0.44485343479614015,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 13582.422057607706,
+            "total_return": 4.432968823043082,
+            "cagr": 0.22005964468985062,
+            "sharpe": 1.307670785286448,
+            "max_drawdown": -0.12403194462314737,
+            "trades": 1206,
+            "win_rate": 0.5298507462686567,
+            "avg_win": 60.01915074980798,
+            "avg_loss": -48.09491229544902,
+            "profit_factor": 1.4063988680254136,
+            "expectancy": 9.189404691216994,
+            "breakeven_win_rate": 0.44485343479614015,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 16082.422057607711,
+            "total_return": 2.216484411521542,
+            "cagr": 0.14716824183412713,
+            "sharpe": 1.2764344384078137,
+            "max_drawdown": -0.09285923407864649,
+            "trades": 1206,
+            "win_rate": 0.5298507462686567,
+            "avg_win": 60.01915074980798,
+            "avg_loss": -48.09491229544902,
+            "profit_factor": 1.4063988680254136,
+            "expectancy": 9.189404691216994,
+            "breakeven_win_rate": 0.44485343479614015,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 2.1440090885445506e-05
+      },
+      "holdout": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 1957.1092059598675,
+            "total_return": 0.9571092059598676,
+            "cagr": 13.379490052654994,
+            "sharpe": 3.0858842748144992,
+            "max_drawdown": -0.1804911750687559,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 110.59684830814506,
+            "avg_loss": -53.74969730492391,
+            "profit_factor": 2.618798471011345,
+            "expectancy": 38.284368238394705,
+            "breakeven_win_rate": 0.3270509708884912,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3457.1092059598673,
+            "total_return": 0.38284368238394695,
+            "cagr": 2.6214664690989005,
+            "sharpe": 2.926113743001534,
+            "max_drawdown": -0.09961995609134311,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 110.59684830814506,
+            "avg_loss": -53.74969730492391,
+            "profit_factor": 2.618798471011345,
+            "expectancy": 38.284368238394705,
+            "breakeven_win_rate": 0.3270509708884912,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 5957.109205959867,
+            "total_return": 0.19142184119197325,
+            "cagr": 1.0044190915716595,
+            "sharpe": 2.840696615332757,
+            "max_drawdown": -0.05703095743644648,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 110.59684830814506,
+            "avg_loss": -53.74969730492391,
+            "profit_factor": 2.618798471011345,
+            "expectancy": 38.284368238394705,
+            "breakeven_win_rate": 0.3270509708884912,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.10465509234689145
+      }
+    },
+    {
+      "book": "open_support",
+      "exit": "r1",
+      "q": 1.9060943843131672e-08,
+      "p": 1.0589413246184262e-09,
+      "train": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 73326.88814892637,
+            "total_return": 72.32688814892637,
+            "cagr": 0.6565495901880087,
+            "sharpe": 1.5075600686858837,
+            "max_drawdown": -0.27980397296647963,
+            "trades": 1206,
+            "win_rate": 0.4311774461028192,
+            "avg_win": 386.30005840404567,
+            "avg_loss": -187.3894201474895,
+            "profit_factor": 1.5626399904285826,
+            "expectancy": 59.972544070419566,
+            "breakeven_win_rate": 0.3266391090535855,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 74826.88814892636,
+            "total_return": 28.930755259570542,
+            "cagr": 0.490981735493101,
+            "sharpe": 1.6488450907317471,
+            "max_drawdown": -0.22894484756081668,
+            "trades": 1206,
+            "win_rate": 0.4311774461028192,
+            "avg_win": 386.30005840404567,
+            "avg_loss": -187.3894201474895,
+            "profit_factor": 1.5626399904285826,
+            "expectancy": 59.972544070419566,
+            "breakeven_win_rate": 0.3266391090535855,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 77326.88814892639,
+            "total_return": 14.465377629785278,
+            "cagr": 0.3796623814885671,
+            "sharpe": 1.691093568994456,
+            "max_drawdown": -0.17592968680036247,
+            "trades": 1206,
+            "win_rate": 0.4311774461028192,
+            "avg_win": 386.30005840404567,
+            "avg_loss": -187.3894201474895,
+            "profit_factor": 1.5626399904285826,
+            "expectancy": 59.972544070419566,
+            "breakeven_win_rate": 0.3266391090535855,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 1.0589413246184262e-09
+      },
+      "holdout": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 192.35945082730456,
+            "total_return": -0.8076405491726955,
+            "cagr": -0.998561688693317,
+            "sharpe": -1.2450737036242674,
+            "max_drawdown": -0.9072235732449275,
+            "trades": 7,
+            "win_rate": 0.2857142857142857,
+            "avg_win": 536.6827951626597,
+            "avg_loss": -376.20122789960294,
+            "profit_factor": 0.5706337516855575,
+            "expectancy": -115.37722131038504,
+            "breakeven_win_rate": 0.4121018863246601,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.1076923076923077,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 18,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3835.356800213659,
+            "total_return": 0.5341427200854636,
+            "cagr": 4.468991950395815,
+            "sharpe": 1.5694093574795738,
+            "max_drawdown": -0.7033969879488459,
+            "trades": 25,
+            "win_rate": 0.4,
+            "avg_win": 558.884444152556,
+            "avg_loss": -283.56584275412666,
+            "profit_factor": 1.3139439708826322,
+            "expectancy": 53.4142720085464,
+            "breakeven_win_rate": 0.33659652938730256,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6335.356800213659,
+            "total_return": 0.2670713600427317,
+            "cagr": 1.5593603646907948,
+            "sharpe": 1.296953969279337,
+            "max_drawdown": -0.4138553090034294,
+            "trades": 25,
+            "win_rate": 0.4,
+            "avg_win": 558.884444152556,
+            "avg_loss": -283.56584275412666,
+            "profit_factor": 1.3139439708826322,
+            "expectancy": 53.4142720085464,
+            "breakeven_win_rate": 0.33659652938730256,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.29441533243282864
+      }
+    },
+    {
+      "book": "open_support",
+      "exit": "pct50",
+      "q": 7.718432718760382e-05,
+      "p": 1.761902358314603e-05,
+      "train": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 20159.259222942463,
+            "total_return": 19.159259222942463,
+            "cagr": 0.4233147328869189,
+            "sharpe": 1.5795519850750923,
+            "max_drawdown": -0.42070559632937343,
+            "trades": 1206,
+            "win_rate": 0.7039800995024875,
+            "avg_win": 103.42606871271799,
+            "avg_loss": -192.29544289679296,
+            "profit_factor": 1.2790882195276743,
+            "expectancy": 15.88661627109659,
+            "breakeven_win_rate": 0.6502585552542143,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 21659.259222942477,
+            "total_return": 7.663703689176991,
+            "cagr": 0.28883782773312827,
+            "sharpe": 1.4659914547628463,
+            "max_drawdown": -0.37111103151120384,
+            "trades": 1206,
+            "win_rate": 0.7039800995024875,
+            "avg_win": 103.42606871271799,
+            "avg_loss": -192.29544289679296,
+            "profit_factor": 1.2790882195276743,
+            "expectancy": 15.88661627109659,
+            "breakeven_win_rate": 0.6502585552542143,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 24159.259222942506,
+            "total_return": 3.8318518445885017,
+            "cagr": 0.2033627281547694,
+            "sharpe": 1.3749266557566069,
+            "max_drawdown": -0.3101706411277043,
+            "trades": 1206,
+            "win_rate": 0.7039800995024875,
+            "avg_win": 103.42606871271799,
+            "avg_loss": -192.29544289679296,
+            "profit_factor": 1.2790882195276743,
+            "expectancy": 15.88661627109659,
+            "breakeven_win_rate": 0.6502585552542143,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 1.761902358314603e-05
+      },
+      "holdout": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 1392.9310258467053,
+            "total_return": 0.39293102584670536,
+            "cagr": 2.727487568090817,
+            "sharpe": 2.0052334897198842,
+            "max_drawdown": -0.7025471874721982,
+            "trades": 22,
+            "win_rate": 0.7272727272727273,
+            "avg_win": 174.28031847102582,
+            "avg_loss": -399.2590116149513,
+            "profit_factor": 1.1640251125275587,
+            "expectancy": 17.860501174850246,
+            "breakeven_win_rate": 0.6961318791426211,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.3384615384615385,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 3,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 2870.1551196315468,
+            "total_return": 0.14806204785261867,
+            "cagr": 0.7300912074556998,
+            "sharpe": 1.054778385887427,
+            "max_drawdown": -0.39756985965424085,
+            "trades": 25,
+            "win_rate": 0.72,
+            "avg_win": 175.29872399508315,
+            "avg_loss": -397.88884461142123,
+            "profit_factor": 1.1328996867357486,
+            "expectancy": 14.806204785261919,
+            "breakeven_win_rate": 0.6941686568303326,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 5370.155119631544,
+            "total_return": 0.07403102392630889,
+            "cagr": 0.3278229541241027,
+            "sharpe": 0.801226463716584,
+            "max_drawdown": -0.21233287457238204,
+            "trades": 25,
+            "win_rate": 0.72,
+            "avg_win": 175.29872399508315,
+            "avg_loss": -397.88884461142123,
+            "profit_factor": 1.1328996867357486,
+            "expectancy": 14.806204785261919,
+            "breakeven_win_rate": 0.6941686568303326,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.32996490628319575
+      }
+    },
+    {
+      "book": "open_support",
+      "exit": "scale_prem10",
+      "q": 7.807923362856824e-05,
+      "p": 2.602641120952275e-05,
+      "train": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 12517.276447206283,
+            "total_return": 11.517276447206283,
+            "cagr": 0.34579401970595725,
+            "sharpe": 1.290041268704239,
+            "max_drawdown": -0.22782667969894954,
+            "trades": 1206,
+            "win_rate": 0.5140961857379768,
+            "avg_win": 66.2803404638681,
+            "avg_loss": -50.471902116709835,
+            "profit_factor": 1.3894058782490832,
+            "expectancy": 9.549980470320284,
+            "breakeven_win_rate": 0.4322992090012837,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 14017.276447206283,
+            "total_return": 4.606910578882513,
+            "cagr": 0.22458653729177525,
+            "sharpe": 1.3202104637381284,
+            "max_drawdown": -0.12693732103881683,
+            "trades": 1206,
+            "win_rate": 0.5140961857379768,
+            "avg_win": 66.2803404638681,
+            "avg_loss": -50.471902116709835,
+            "profit_factor": 1.3894058782490832,
+            "expectancy": 9.549980470320284,
+            "breakeven_win_rate": 0.4322992090012837,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 16517.27644720628,
+            "total_return": 2.3034552894412563,
+            "cagr": 0.15077073682880027,
+            "sharpe": 1.2928765288452266,
+            "max_drawdown": -0.0991331036117068,
+            "trades": 1206,
+            "win_rate": 0.5140961857379768,
+            "avg_win": 66.2803404638681,
+            "avg_loss": -50.471902116709835,
+            "profit_factor": 1.3894058782490832,
+            "expectancy": 9.549980470320284,
+            "breakeven_win_rate": 0.4322992090012837,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 2.602641120952275e-05
+      },
+      "holdout": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 2028.6388779962356,
+            "total_return": 1.0286388779962357,
+            "cagr": 15.581973878958522,
+            "sharpe": 2.9683184532524653,
+            "max_drawdown": -0.19753209329185617,
+            "trades": 25,
+            "win_rate": 0.6,
+            "avg_win": 113.64984923929724,
+            "avg_loss": -67.61088605932231,
+            "profit_factor": 2.5214101425822166,
+            "expectancy": 41.14555511984943,
+            "breakeven_win_rate": 0.3730034855476901,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3528.6388779962344,
+            "total_return": 0.41145555119849386,
+            "cagr": 2.928213433699047,
+            "sharpe": 2.854012424515533,
+            "max_drawdown": -0.11131430021030042,
+            "trades": 25,
+            "win_rate": 0.6,
+            "avg_win": 113.64984923929724,
+            "avg_loss": -67.61088605932231,
+            "profit_factor": 2.5214101425822166,
+            "expectancy": 41.14555511984943,
+            "breakeven_win_rate": 0.3730034855476901,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6028.638877996237,
+            "total_return": 0.2057277755992475,
+            "cagr": 1.101688829062264,
+            "sharpe": 2.783685354738148,
+            "max_drawdown": -0.06443820549872048,
+            "trades": 25,
+            "win_rate": 0.6,
+            "avg_win": 113.64984923929724,
+            "avg_loss": -67.61088605932231,
+            "profit_factor": 2.5214101425822166,
+            "expectancy": 41.14555511984943,
+            "breakeven_win_rate": 0.3730034855476901,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.10162380418712194
+      }
+    },
+    {
+      "book": "open_support",
+      "exit": "scale_be",
+      "q": 0.00011377152963630757,
+      "p": 4.424448374745294e-05,
+      "train": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 12023.113849208801,
+            "total_return": 11.023113849208801,
+            "cagr": 0.3394386993015157,
+            "sharpe": 1.2895607071761692,
+            "max_drawdown": -0.22126353452843261,
+            "trades": 1206,
+            "win_rate": 0.5132669983416253,
+            "avg_win": 63.741599527379385,
+            "avg_loss": -48.43771083175307,
+            "profit_factor": 1.3876881989637846,
+            "expectancy": 9.140227072312427,
+            "breakeven_win_rate": 0.43178827429660505,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 13523.113849208801,
+            "total_return": 4.40924553968352,
+            "cagr": 0.21943235795535387,
+            "sharpe": 1.3046863471714936,
+            "max_drawdown": -0.1375296482123476,
+            "trades": 1206,
+            "win_rate": 0.5132669983416253,
+            "avg_win": 63.741599527379385,
+            "avg_loss": -48.43771083175307,
+            "profit_factor": 1.3876881989637846,
+            "expectancy": 9.140227072312427,
+            "breakeven_win_rate": 0.43178827429660505,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 16023.113849208783,
+            "total_return": 2.2046227698417566,
+            "cagr": 0.14667026696930874,
+            "sharpe": 1.2686310166955672,
+            "max_drawdown": -0.10747894662272928,
+            "trades": 1206,
+            "win_rate": 0.5132669983416253,
+            "avg_win": 63.741599527379385,
+            "avg_loss": -48.43771083175307,
+            "profit_factor": 1.3876881989637846,
+            "expectancy": 9.140227072312427,
+            "breakeven_win_rate": 0.43178827429660505,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 4.424448374745294e-05
+      },
+      "holdout": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 2007.2293819067831,
+            "total_return": 1.0072293819067832,
+            "cagr": 14.898018686116172,
+            "sharpe": 3.0333619328558634,
+            "max_drawdown": -0.19262033696042213,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 115.62980616928728,
+            "avg_loss": -55.598900405748964,
+            "profit_factor": 2.6469086039083463,
+            "expectancy": 40.28917527627133,
+            "breakeven_win_rate": 0.3247054861176813,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3507.229381906781,
+            "total_return": 0.4028917527627123,
+            "cagr": 2.8344396296650545,
+            "sharpe": 2.9113489032022755,
+            "max_drawdown": -0.10828971731067805,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 115.62980616928728,
+            "avg_loss": -55.598900405748964,
+            "profit_factor": 2.6469086039083463,
+            "expectancy": 40.28917527627133,
+            "breakeven_win_rate": 0.3247054861176813,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6007.2293819067845,
+            "total_return": 0.20144587638135691,
+            "cagr": 1.0722129422752262,
+            "sharpe": 2.8395124246125083,
+            "max_drawdown": -0.06260682559815356,
+            "trades": 25,
+            "win_rate": 0.56,
+            "avg_win": 115.62980616928728,
+            "avg_loss": -55.598900405748964,
+            "profit_factor": 2.6469086039083463,
+            "expectancy": 40.28917527627133,
+            "breakeven_win_rate": 0.3247054861176813,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.11004110996140978
+      }
+    },
+    {
+      "book": "open_support",
+      "exit": "scale_full10",
+      "q": 1.0633426788003733e-05,
+      "p": 1.7722377980006222e-06,
+      "train": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 14849.712064518275,
+            "total_return": 13.849712064518275,
+            "cagr": 0.37309153223766267,
+            "sharpe": 1.500064819920929,
+            "max_drawdown": -0.15267180961104632,
+            "trades": 1206,
+            "win_rate": 0.5008291873963516,
+            "avg_win": 77.3395010487231,
+            "avg_loss": -54.590276692542346,
+            "profit_factor": 1.4214334056173212,
+            "expectancy": 11.484006686996903,
+            "breakeven_win_rate": 0.4137828292229997,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 16349.71206451825,
+            "total_return": 5.5398848258073,
+            "cagr": 0.24693906588440084,
+            "sharpe": 1.5111635497100764,
+            "max_drawdown": -0.11427916792717474,
+            "trades": 1206,
+            "win_rate": 0.5008291873963516,
+            "avg_win": 77.3395010487231,
+            "avg_loss": -54.590276692542346,
+            "profit_factor": 1.4214334056173212,
+            "expectancy": 11.484006686996903,
+            "breakeven_win_rate": 0.4137828292229997,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 18849.71206451825,
+            "total_return": 2.7699424129036503,
+            "cagr": 0.16877376692181367,
+            "sharpe": 1.4786980927921716,
+            "max_drawdown": -0.087853633935153,
+            "trades": 1206,
+            "win_rate": 0.5008291873963516,
+            "avg_win": 77.3395010487231,
+            "avg_loss": -54.590276692542346,
+            "profit_factor": 1.4214334056173212,
+            "expectancy": 11.484006686996903,
+            "breakeven_win_rate": 0.4137828292229997,
+            "years": 8.509240246406572,
+            "trades_per_day": 0.5656660412757973,
+            "sessions": 2132,
+            "scaled_at_fill": 72,
+            "scaled_at_fill_rate": 0.05970149253731343,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 1206,
+          "median_debit_3": 228.2320780260232,
+          "median_debit_1": 76.07735934200772,
+          "fit_3_1000": 1206,
+          "fit_1_1000": 1206,
+          "fit_3_2500": 1206,
+          "fit_1_2500": 1206,
+          "fit_3_5000": 1206,
+          "fit_1_5000": 1206
+        },
+        "p": 1.7722377980006222e-06
+      },
+      "holdout": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 1913.4096033123653,
+            "total_return": 0.9134096033123653,
+            "cagr": 12.146440802536798,
+            "sharpe": 2.6276063844352313,
+            "max_drawdown": -0.17512327836415653,
+            "trades": 25,
+            "win_rate": 0.48,
+            "avg_win": 148.57702150419465,
+            "avg_loss": -66.88574267215154,
+            "profit_factor": 2.0504821262473416,
+            "expectancy": 36.53638413249463,
+            "breakeven_win_rate": 0.31042831427433415,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3413.409603312365,
+            "total_return": 0.36536384132494604,
+            "cagr": 2.4431095290791593,
+            "sharpe": 2.521639059748968,
+            "max_drawdown": -0.0965401958364438,
+            "trades": 25,
+            "win_rate": 0.48,
+            "avg_win": 148.57702150419465,
+            "avg_loss": -66.88574267215154,
+            "profit_factor": 2.0504821262473416,
+            "expectancy": 36.53638413249463,
+            "breakeven_win_rate": 0.31042831427433415,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 5913.40960331237,
+            "total_return": 0.1826819206624739,
+            "cagr": 0.9466761736947125,
+            "sharpe": 2.455872206673777,
+            "max_drawdown": -0.055232627216551866,
+            "trades": 25,
+            "win_rate": 0.48,
+            "avg_win": 148.57702150419465,
+            "avg_loss": -66.88574267215154,
+            "profit_factor": 2.0504821262473416,
+            "expectancy": 36.53638413249463,
+            "breakeven_win_rate": 0.31042831427433415,
+            "years": 0.2518822724161533,
+            "trades_per_day": 0.38461538461538464,
+            "sessions": 65,
+            "scaled_at_fill": 3,
+            "scaled_at_fill_rate": 0.12,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 25,
+          "median_debit_3": 374.94067326664475,
+          "median_debit_1": 124.98022442221492,
+          "fit_3_1000": 25,
+          "fit_1_1000": 25,
+          "fit_3_2500": 25,
+          "fit_1_2500": 25,
+          "fit_3_5000": 25,
+          "fit_1_5000": 25
+        },
+        "p": 0.13013415033441678
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "all_band",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.17927098904231364,
+            "total_return": -0.9998207290109576,
+            "cagr": -0.829862224912781,
+            "sharpe": -1.815827438383011,
+            "max_drawdown": -0.9998207290109576,
+            "trades": 121,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -8.262981231495521,
+            "profit_factor": 0.0,
+            "expectancy": -8.262981231495521,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.09901800327332243,
+            "sessions": 1222,
+            "scaled_at_fill": 111,
+            "scaled_at_fill_rate": 0.9173553719008265,
+            "skips": {
+              "premium": 2582,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 2.718283248092961,
+            "total_return": -0.9989126867007628,
+            "cagr": -0.7536638575961755,
+            "sharpe": -2.42461677894551,
+            "max_drawdown": -0.9989126867007628,
+            "trades": 279,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -8.950830525992497,
+            "profit_factor": 0.0,
+            "expectancy": -8.950830525992497,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.22831423895253683,
+            "sessions": 1222,
+            "scaled_at_fill": 253,
+            "scaled_at_fill_rate": 0.9068100358422939,
+            "skips": {
+              "premium": 2424,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 2.7476465428856773,
+            "total_return": -0.9994504706914229,
+            "cagr": -0.7858682376187732,
+            "sharpe": -1.9958449750921257,
+            "max_drawdown": -0.9994504706914229,
+            "trades": 519,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -9.628617251362472,
+            "profit_factor": 0.0,
+            "expectancy": -9.628617251362472,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.4247135842880524,
+            "sessions": 1222,
+            "scaled_at_fill": 468,
+            "scaled_at_fill_rate": 0.9017341040462428,
+            "skips": {
+              "premium": 2184,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 8.052260953221328,
+            "total_return": -0.9919477390467787,
+            "cagr": -0.6369909696365037,
+            "sharpe": -1.6172247299780795,
+            "max_drawdown": -0.9919477390467787,
+            "trades": 50,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -19.838954780935577,
+            "profit_factor": 0.0,
+            "expectancy": -19.838954780935577,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.04187604690117253,
+            "sessions": 1194,
+            "scaled_at_fill": 44,
+            "scaled_at_fill_rate": 0.88,
+            "skips": {
+              "premium": 2731,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 10.764906524306475,
+            "total_return": -0.9956940373902774,
+            "cagr": -0.6817362292677679,
+            "sharpe": -1.7945067694942805,
+            "max_drawdown": -0.9956940373902774,
+            "trades": 92,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -27.056903189953204,
+            "profit_factor": 0.0,
+            "expectancy": -27.056903189953204,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.07705192629815745,
+            "sessions": 1194,
+            "scaled_at_fill": 78,
+            "scaled_at_fill_rate": 0.8478260869565217,
+            "skips": {
+              "premium": 2689,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 10.18924519358945,
+            "total_return": -0.9979621509612822,
+            "cagr": -0.7280380796535895,
+            "sharpe": -1.9724704393997003,
+            "max_drawdown": -0.9979621509612822,
+            "trades": 203,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -24.580348545844398,
+            "profit_factor": 0.0,
+            "expectancy": -24.580348545844398,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.17001675041876047,
+            "sessions": 1194,
+            "scaled_at_fill": 178,
+            "scaled_at_fill_rate": 0.8768472906403941,
+            "skips": {
+              "premium": 2578,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 0.9999999999243192
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "r1",
+      "q": 1.0,
+      "p": 0.9980063096198373,
+      "train": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.8127485197840905,
+            "total_return": -0.9991872514802159,
+            "cagr": -0.7679524389595572,
+            "sharpe": -1.0312681091386438,
+            "max_drawdown": -0.9992022582769741,
+            "trades": 74,
+            "win_rate": 0.3783783783783784,
+            "avg_win": 37.819310669046615,
+            "avg_loss": -44.7419119611635,
+            "profit_factor": 0.5145164559003462,
+            "expectancy": -13.502530425408324,
+            "breakeven_win_rate": 0.5419240478252306,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.060556464811783964,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 2615,
+              "cap": 0,
+              "overlap": 14
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 0.44890705565189704,
+            "total_return": -0.9998204371777393,
+            "cagr": -0.8298053973535924,
+            "sharpe": -1.3757781932260404,
+            "max_drawdown": -0.9998217782322532,
+            "trades": 197,
+            "win_rate": 0.3604060913705584,
+            "avg_win": 40.674889098836694,
+            "avg_loss": -42.75768427747422,
+            "profit_factor": 0.5360434639508559,
+            "expectancy": -12.688076613930695,
+            "breakeven_win_rate": 0.5124819066124412,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.16121112929623568,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 2474,
+              "cap": 0,
+              "overlap": 32
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 12743.554514647145,
+            "total_return": 1.5487109029294288,
+            "cagr": 0.21177636979533188,
+            "sharpe": 0.6890479547966263,
+            "max_drawdown": -0.6170540576976716,
+            "trades": 2300,
+            "win_rate": 0.4582608695652174,
+            "avg_win": 118.47480438398559,
+            "avg_loss": -94.0039240016642,
+            "profit_factor": 1.0661113971158067,
+            "expectancy": 3.36676283245531,
+            "breakeven_win_rate": 0.44241569363614924,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.8821603927986907,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 403
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 0.9980063096198373
+      },
+      "holdout": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 73451.10961654314,
+            "total_return": 72.45110961654314,
+            "cagr": 1.4668886139893762,
+            "sharpe": 2.005662262784995,
+            "max_drawdown": -0.23246499613249372,
+            "trades": 2355,
+            "win_rate": 0.49723991507431,
+            "avg_win": 221.24415704566422,
+            "avg_loss": -157.62314044250815,
+            "profit_factor": 1.3882159395043399,
+            "expectancy": 30.764802384944012,
+            "breakeven_win_rate": 0.41603786203645327,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9723618090452262,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 426
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 74951.10961654315,
+            "total_return": 28.98044384661726,
+            "cagr": 1.0434566097084899,
+            "sharpe": 2.379417612375177,
+            "max_drawdown": -0.16600240905684427,
+            "trades": 2355,
+            "win_rate": 0.49723991507431,
+            "avg_win": 221.24415704566422,
+            "avg_loss": -157.62314044250815,
+            "profit_factor": 1.3882159395043399,
+            "expectancy": 30.764802384944012,
+            "breakeven_win_rate": 0.41603786203645327,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9723618090452262,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 426
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 77451.10961654315,
+            "total_return": 14.49022192330863,
+            "cagr": 0.7786765565303977,
+            "sharpe": 2.57573968934267,
+            "max_drawdown": -0.1451276430594849,
+            "trades": 2355,
+            "win_rate": 0.49723991507431,
+            "avg_win": 221.24415704566422,
+            "avg_loss": -157.62314044250815,
+            "profit_factor": 1.3882159395043399,
+            "expectancy": 30.764802384944012,
+            "breakeven_win_rate": 0.41603786203645327,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9723618090452262,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 426
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 5.873105147929364e-09
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "pct50",
+      "q": 1.0,
+      "p": 0.9999999984324037,
+      "train": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 1.93002378418384,
+            "total_return": -0.9980699762158162,
+            "cagr": -0.7228636363077039,
+            "sharpe": -1.2070986141192726,
+            "max_drawdown": -0.9980699762158162,
+            "trades": 126,
+            "win_rate": 0.4365079365079365,
+            "avg_win": 33.901338830259384,
+            "avg_loss": -40.31892411098708,
+            "profit_factor": 0.6513467579150308,
+            "expectancy": -7.9211902874271125,
+            "breakeven_win_rate": 0.5432333774255687,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.10310965630114566,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 2562,
+              "cap": 0,
+              "overlap": 15
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 2.1355132913915025,
+            "total_return": -0.9991457946834434,
+            "cagr": -0.7655701036170797,
+            "sharpe": -1.0672155921204578,
+            "max_drawdown": -0.9991457946834434,
+            "trades": 351,
+            "win_rate": 0.452991452991453,
+            "avg_win": 32.591453250354775,
+            "avg_loss": -39.99950809122404,
+            "profit_factor": 0.6747532284996189,
+            "expectancy": -7.116423039055857,
+            "breakeven_win_rate": 0.5510260141480319,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.2872340425531915,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 2310,
+              "cap": 0,
+              "overlap": 42
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 5.186910647111944,
+            "total_return": -0.9989626178705776,
+            "cagr": -0.7560299587181813,
+            "sharpe": -0.3474419495412309,
+            "max_drawdown": -0.9992259716528161,
+            "trades": 1773,
+            "win_rate": 0.5487873660462493,
+            "avg_win": 59.97459758637806,
+            "avg_loss": -79.18762067612342,
+            "profit_factor": 0.9211553989325298,
+            "expectancy": -2.817153462691983,
+            "breakeven_win_rate": 0.5690310320201416,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.4509001636661212,
+            "sessions": 1222,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 736,
+              "cap": 0,
+              "overlap": 194
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 0.9999999984324037
+      },
+      "holdout": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 23357.008938790455,
+            "total_return": 22.357008938790454,
+            "cagr": 0.939010686471919,
+            "sharpe": 1.8043981425942093,
+            "max_drawdown": -0.27483925240205564,
+            "trades": 2493,
+            "win_rate": 0.5960689931809066,
+            "avg_win": 115.67625102724162,
+            "avg_loss": -148.49841120922605,
+            "profit_factor": 1.1495073083524647,
+            "expectancy": 8.967913733971276,
+            "breakeven_win_rate": 0.5621220822317258,
+            "years": 4.758384668035592,
+            "trades_per_day": 2.0879396984924625,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 288
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 24857.008938790463,
+            "total_return": 8.942803575516185,
+            "cagr": 0.620435781832565,
+            "sharpe": 1.9102852446570087,
+            "max_drawdown": -0.2601578545458094,
+            "trades": 2493,
+            "win_rate": 0.5960689931809066,
+            "avg_win": 115.67625102724162,
+            "avg_loss": -148.49841120922605,
+            "profit_factor": 1.1495073083524647,
+            "expectancy": 8.967913733971276,
+            "breakeven_win_rate": 0.5621220822317258,
+            "years": 4.758384668035592,
+            "trades_per_day": 2.0879396984924625,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 288
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 27357.00893879044,
+            "total_return": 4.471401787758088,
+            "cagr": 0.4292736001785036,
+            "sharpe": 1.921580706839656,
+            "max_drawdown": -0.238889474411751,
+            "trades": 2493,
+            "win_rate": 0.5960689931809066,
+            "avg_win": 115.67625102724162,
+            "avg_loss": -148.49841120922605,
+            "profit_factor": 1.1495073083524647,
+            "expectancy": 8.967913733971276,
+            "breakeven_win_rate": 0.5621220822317258,
+            "years": 4.758384668035592,
+            "trades_per_day": 2.0879396984924625,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 288
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 0.0013590034782548853
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "scale_prem10",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.8116235257988236,
+            "total_return": -0.9991883764742012,
+            "cagr": -0.7680184207796046,
+            "sharpe": -1.9569821823487414,
+            "max_drawdown": -0.9991883764742012,
+            "trades": 122,
+            "win_rate": 0.11475409836065574,
+            "avg_win": 9.27394385633906,
+            "avg_loss": -10.453922133916182,
+            "profit_factor": 0.11499778665874366,
+            "expectancy": -8.1900686596246,
+            "breakeven_win_rate": 0.5299063841512301,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.09983633387888707,
+            "sessions": 1222,
+            "scaled_at_fill": 112,
+            "scaled_at_fill_rate": 0.9180327868852459,
+            "skips": {
+              "premium": 2580,
+              "cap": 0,
+              "overlap": 1
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 3.3552351215304483,
+            "total_return": -0.9986579059513878,
+            "cagr": -0.7427831291015348,
+            "sharpe": -2.407033795838933,
+            "max_drawdown": -0.9986579059513878,
+            "trades": 280,
+            "win_rate": 0.125,
+            "avg_win": 8.277851190186377,
+            "avg_loss": -11.372936965448957,
+            "profit_factor": 0.10397931278606565,
+            "expectancy": -8.91658844599454,
+            "breakeven_win_rate": 0.5787522045108148,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.22913256955810146,
+            "sessions": 1222,
+            "scaled_at_fill": 254,
+            "scaled_at_fill_rate": 0.9071428571428571,
+            "skips": {
+              "premium": 2420,
+              "cap": 0,
+              "overlap": 3
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 1.414231208929687,
+            "total_return": -0.999717153758214,
+            "cagr": -0.8131638910665862,
+            "sharpe": -2.0106098341996796,
+            "max_drawdown": -0.999717153758214,
+            "trades": 532,
+            "win_rate": 0.14473684210526316,
+            "avg_win": 10.17461785162101,
+            "avg_loss": -12.70776119421075,
+            "profit_factor": 0.13549659765745078,
+            "expectancy": -9.395837911261419,
+            "breakeven_win_rate": 0.5553513980673958,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.4353518821603928,
+            "sessions": 1222,
+            "scaled_at_fill": 480,
+            "scaled_at_fill_rate": 0.9022556390977443,
+            "skips": {
+              "premium": 2165,
+              "cap": 0,
+              "overlap": 6
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 9.232935066614088,
+            "total_return": -0.990767064933386,
+            "cagr": -0.6264013763455969,
+            "sharpe": -1.6293770375854193,
+            "max_drawdown": -0.990767064933386,
+            "trades": 51,
+            "win_rate": 0.0784313725490196,
+            "avg_win": 31.146531512580125,
+            "avg_loss": -23.730918957100144,
+            "profit_factor": 0.11170105313496205,
+            "expectancy": -19.42680519477227,
+            "breakeven_win_rate": 0.4324347934168598,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.04271356783919598,
+            "sessions": 1194,
+            "scaled_at_fill": 46,
+            "scaled_at_fill_rate": 0.9019607843137255,
+            "skips": {
+              "premium": 2730,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 10.146185642695945,
+            "total_return": -0.9959415257429216,
+            "cagr": -0.6856708603060833,
+            "sharpe": -1.4859316157636364,
+            "max_drawdown": -0.9959415257429216,
+            "trades": 97,
+            "win_rate": 0.14432989690721648,
+            "avg_win": 38.27944202960896,
+            "avg_loss": -36.45501208158831,
+            "profit_factor": 0.17711620393764407,
+            "expectancy": -25.668596024302104,
+            "breakeven_win_rate": 0.48779391667659683,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.0812395309882747,
+            "sessions": 1194,
+            "scaled_at_fill": 84,
+            "scaled_at_fill_rate": 0.865979381443299,
+            "skips": {
+              "premium": 2683,
+              "cap": 0,
+              "overlap": 1
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 8.459313583828916,
+            "total_return": -0.9983081372832342,
+            "cagr": -0.7384672387882547,
+            "sharpe": -1.7729513714306888,
+            "max_drawdown": -0.9983081372832342,
+            "trades": 208,
+            "win_rate": 0.15865384615384615,
+            "avg_win": 36.93070762798518,
+            "avg_loss": -35.48716593222674,
+            "profit_factor": 0.1962421092984119,
+            "expectancy": -23.997791761616195,
+            "breakeven_win_rate": 0.4900332499092354,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.17420435510887772,
+            "sessions": 1194,
+            "scaled_at_fill": 183,
+            "scaled_at_fill_rate": 0.8798076923076923,
+            "skips": {
+              "premium": 2572,
+              "cap": 0,
+              "overlap": 1
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 0.9999999820300836
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "scale_be",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 2.880235543615573,
+            "total_return": -0.9971197644563844,
+            "cagr": -0.699122195619226,
+            "sharpe": -1.978403441015656,
+            "max_drawdown": -0.9971197644563844,
+            "trades": 123,
+            "win_rate": 0.016260162601626018,
+            "avg_win": 3.4297245804885748,
+            "avg_loss": -8.297348872870753,
+            "profit_factor": 0.006832262130470201,
+            "expectancy": -8.10666475167792,
+            "breakeven_win_rate": 0.7075378956114495,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.10065466448445172,
+            "sessions": 1222,
+            "scaled_at_fill": 113,
+            "scaled_at_fill_rate": 0.9186991869918699,
+            "skips": {
+              "premium": 2580,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 0.49781583482663727,
+            "total_return": -0.9998008736660693,
+            "cagr": -0.8261531559296431,
+            "sharpe": -2.1786042035687085,
+            "max_drawdown": -0.9998008736660693,
+            "trades": 284,
+            "win_rate": 0.01056338028169014,
+            "avg_win": 9.189792165078126,
+            "avg_loss": -8.993137226549496,
+            "profit_factor": 0.010909614482001284,
+            "expectancy": -8.801064028750613,
+            "breakeven_win_rate": 0.49459231968917006,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.23240589198036007,
+            "sessions": 1222,
+            "scaled_at_fill": 258,
+            "scaled_at_fill_rate": 0.9084507042253521,
+            "skips": {
+              "premium": 2419,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 4.774371092671515,
+            "total_return": -0.9990451257814656,
+            "cagr": -0.7601460974558787,
+            "sharpe": -2.3564345032310956,
+            "max_drawdown": -0.9990451257814656,
+            "trades": 531,
+            "win_rate": 0.011299435028248588,
+            "avg_win": 18.49195011951419,
+            "avg_loss": -9.726052056427463,
+            "profit_factor": 0.021728916477964568,
+            "expectancy": -9.40720457421343,
+            "breakeven_win_rate": 0.34467543080423263,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.43453355155482815,
+            "sessions": 1222,
+            "scaled_at_fill": 478,
+            "scaled_at_fill_rate": 0.9001883239171374,
+            "skips": {
+              "premium": 2172,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 10.99379804669986,
+            "total_return": -0.9890062019533001,
+            "cagr": -0.612441988537144,
+            "sharpe": -1.588311460937491,
+            "max_drawdown": -0.9890062019533001,
+            "trades": 44,
+            "win_rate": 0.022727272727272728,
+            "avg_win": 46.92938784982067,
+            "avg_loss": -24.091525344258628,
+            "profit_factor": 0.045301453402850626,
+            "expectancy": -22.47741368075683,
+            "breakeven_win_rate": 0.3392173412136164,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.03685092127303183,
+            "sessions": 1194,
+            "scaled_at_fill": 38,
+            "scaled_at_fill_rate": 0.8636363636363636,
+            "skips": {
+              "premium": 2737,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 11.032592886590619,
+            "total_return": -0.9955869628453637,
+            "cagr": -0.6800891274836537,
+            "sharpe": -2.246530080784874,
+            "max_drawdown": -0.9955869628453637,
+            "trades": 112,
+            "win_rate": 0.017857142857142856,
+            "avg_win": 59.063513297117424,
+            "avg_loss": -23.700858488251303,
+            "profit_factor": 0.045309838058394426,
+            "expectancy": -22.222923277798284,
+            "breakeven_win_rate": 0.28636547317382277,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.09380234505862646,
+            "sessions": 1194,
+            "scaled_at_fill": 98,
+            "scaled_at_fill_rate": 0.875,
+            "skips": {
+              "premium": 2669,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 11.234464094561744,
+            "total_return": -0.9977531071810877,
+            "cagr": -0.722399105917615,
+            "sharpe": -1.9601524538908806,
+            "max_drawdown": -0.9977531071810877,
+            "trades": 203,
+            "win_rate": 0.009852216748768473,
+            "avg_win": 59.063513297117424,
+            "avg_loss": -25.40742568407796,
+            "profit_factor": 0.023130901061371698,
+            "expectancy": -24.575199684263236,
+            "breakeven_win_rate": 0.3007830384096247,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.17001675041876047,
+            "sessions": 1194,
+            "scaled_at_fill": 177,
+            "scaled_at_fill_rate": 0.8719211822660099,
+            "skips": {
+              "premium": 2578,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 0.9999999999967311
+      }
+    },
+    {
+      "book": "vwap_SPY",
+      "exit": "scale_full10",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.12495169144481988,
+            "total_return": -0.9998750483085552,
+            "cagr": -0.8420155191252172,
+            "sharpe": -1.8130593904630716,
+            "max_drawdown": -0.9998750483085552,
+            "trades": 120,
+            "win_rate": 0.08333333333333333,
+            "avg_win": 13.344075617665828,
+            "avg_loss": -10.302870949865573,
+            "profit_factor": 0.11774366478306653,
+            "expectancy": -8.332292069237958,
+            "breakeven_win_rate": 0.435695615941045,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.09819967266775777,
+            "sessions": 1222,
+            "scaled_at_fill": 110,
+            "scaled_at_fill_rate": 0.9166666666666666,
+            "skips": {
+              "premium": 2582,
+              "cap": 0,
+              "overlap": 1
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 0.20059876596692305,
+            "total_return": -0.9999197604936132,
+            "cagr": -0.8557479909153431,
+            "sharpe": -2.1498636326019787,
+            "max_drawdown": -0.9999197604936132,
+            "trades": 269,
+            "win_rate": 0.08550185873605948,
+            "avg_win": 12.059882612529389,
+            "avg_loss": -11.289336184236628,
+            "profit_factor": 0.09987744026374588,
+            "expectancy": -9.292934577078197,
+            "breakeven_win_rate": 0.48349952443806204,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.22013093289689034,
+            "sessions": 1222,
+            "scaled_at_fill": 244,
+            "scaled_at_fill_rate": 0.9070631970260223,
+            "skips": {
+              "premium": 2432,
+              "cap": 0,
+              "overlap": 2
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 2.486642594334093,
+            "total_return": -0.9995026714811331,
+            "cagr": -0.7902116672454352,
+            "sharpe": -1.992533996110993,
+            "max_drawdown": -0.9995026714811331,
+            "trades": 527,
+            "win_rate": 0.13282732447817835,
+            "avg_win": 14.86079665219365,
+            "avg_loss": -13.211748628138357,
+            "profit_factor": 0.1722914116872486,
+            "expectancy": -9.482947547259341,
+            "breakeven_win_rate": 0.470628811752053,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.43126022913256956,
+            "sessions": 1222,
+            "scaled_at_fill": 475,
+            "scaled_at_fill_rate": 0.9013282732447818,
+            "skips": {
+              "premium": 2170,
+              "cap": 0,
+              "overlap": 6
+            }
+          }
+        },
+        "fit": {
+          "signals": 2703,
+          "median_debit_3": 147.79214769801104,
+          "median_debit_1": 49.264049232670345,
+          "fit_3_1000": 2703,
+          "fit_1_1000": 2703,
+          "fit_3_2500": 2703,
+          "fit_1_2500": 2703,
+          "fit_3_5000": 2703,
+          "fit_1_5000": 2703
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 8.610221009386542,
+            "total_return": -0.9913897789906134,
+            "cagr": -0.6318437265953752,
+            "sharpe": -1.7716787730492003,
+            "max_drawdown": -0.9913897789906134,
+            "trades": 50,
+            "win_rate": 0.16,
+            "avg_win": 27.208331648638886,
+            "avg_loss": -28.787057909041064,
+            "profit_factor": 0.18003018502345242,
+            "expectancy": -19.827795579812275,
+            "breakeven_win_rate": 0.5140969307729877,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.04187604690117253,
+            "sessions": 1194,
+            "scaled_at_fill": 45,
+            "scaled_at_fill_rate": 0.9,
+            "skips": {
+              "premium": 2731,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 8.242130237926464,
+            "total_return": -0.9967031479048294,
+            "cagr": -0.6991047570289297,
+            "sharpe": -1.5394709042910564,
+            "max_drawdown": -0.9967031479048294,
+            "trades": 98,
+            "win_rate": 0.25510204081632654,
+            "avg_win": 34.507794526849274,
+            "avg_loss": -45.95140730045623,
+            "profit_factor": 0.2571790190100092,
+            "expectancy": -25.42610071185789,
+            "breakeven_win_rate": 0.571114381659969,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.08207705192629816,
+            "sessions": 1194,
+            "scaled_at_fill": 85,
+            "scaled_at_fill_rate": 0.8673469387755102,
+            "skips": {
+              "premium": 2682,
+              "cap": 0,
+              "overlap": 1
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 9.848174437920179,
+            "total_return": -0.9980303651124159,
+            "cagr": -0.7299770465957671,
+            "sharpe": -1.6082995066267123,
+            "max_drawdown": -0.9980303651124159,
+            "trades": 222,
+            "win_rate": 0.28378378378378377,
+            "avg_win": 38.60905719771197,
+            "avg_loss": -46.68253100011281,
+            "profit_factor": 0.3277013477179452,
+            "expectancy": -22.47816137640578,
+            "breakeven_win_rate": 0.5473286637814463,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.18592964824120603,
+            "sessions": 1194,
+            "scaled_at_fill": 195,
+            "scaled_at_fill_rate": 0.8783783783783784,
+            "skips": {
+              "premium": 2558,
+              "cap": 0,
+              "overlap": 1
+            }
+          }
+        },
+        "fit": {
+          "signals": 2781,
+          "median_debit_3": 249.333499384065,
+          "median_debit_1": 83.111166461355,
+          "fit_3_1000": 2781,
+          "fit_1_1000": 2781,
+          "fit_3_2500": 2781,
+          "fit_1_2500": 2781,
+          "fit_3_5000": 2781,
+          "fit_1_5000": 2781
+        },
+        "p": 0.9999998464606605
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "all_band",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.6406661622590497,
+            "total_return": -0.999359333837741,
+            "cagr": -0.7790147578617621,
+            "sharpe": -1.7669565589797092,
+            "max_drawdown": -0.999359333837741,
+            "trades": 125,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -7.994874670701932,
+            "profit_factor": 0.0,
+            "expectancy": -7.994874670701932,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.10469011725293133,
+            "sessions": 1194,
+            "scaled_at_fill": 113,
+            "scaled_at_fill_rate": 0.904,
+            "skips": {
+              "premium": 2309,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 0.1868188075572368,
+            "total_return": -0.9999252724769772,
+            "cagr": -0.8578404115169636,
+            "sharpe": -2.13446851743066,
+            "max_drawdown": -0.9999252724769772,
+            "trades": 303,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -8.250208518786943,
+            "profit_factor": 0.0,
+            "expectancy": -8.250208518786943,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.2537688442211055,
+            "sessions": 1194,
+            "scaled_at_fill": 272,
+            "scaled_at_fill_rate": 0.8976897689768977,
+            "skips": {
+              "premium": 2131,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 2.6687268910775277,
+            "total_return": -0.9994662546217845,
+            "cagr": -0.7871456585260294,
+            "sharpe": -2.3220154698814413,
+            "max_drawdown": -0.9994662546217845,
+            "trades": 568,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -8.798118438572041,
+            "profit_factor": 0.0,
+            "expectancy": -8.798118438572041,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.47571189279731996,
+            "sessions": 1194,
+            "scaled_at_fill": 509,
+            "scaled_at_fill_rate": 0.8961267605633803,
+            "skips": {
+              "premium": 1866,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "all_band",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 6.536963529378055,
+            "total_return": -0.993463036470622,
+            "cagr": -0.6525521812552456,
+            "sharpe": -1.8014761434879025,
+            "max_drawdown": -0.993463036470622,
+            "trades": 73,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -13.609082691378385,
+            "profit_factor": 0.0,
+            "expectancy": -13.609082691378385,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.0623398804440649,
+            "sessions": 1171,
+            "scaled_at_fill": 69,
+            "scaled_at_fill_rate": 0.9452054794520548,
+            "skips": {
+              "premium": 2292,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 7.5687967449625395,
+            "total_return": -0.996972481302015,
+            "cagr": -0.7044459468520682,
+            "sharpe": -2.150503375300034,
+            "max_drawdown": -0.996972481302015,
+            "trades": 116,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -21.48647589012962,
+            "profit_factor": 0.0,
+            "expectancy": -21.48647589012962,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.0990606319385141,
+            "sessions": 1171,
+            "scaled_at_fill": 107,
+            "scaled_at_fill_rate": 0.9224137931034483,
+            "skips": {
+              "premium": 2249,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6.75366490174144,
+            "total_return": -0.9986492670196517,
+            "cagr": -0.7505555606639547,
+            "sharpe": -2.1146652837891224,
+            "max_drawdown": -0.9986492670196517,
+            "trades": 248,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -20.13405780281558,
+            "profit_factor": 0.0,
+            "expectancy": -20.13405780281558,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.21178479931682323,
+            "sessions": 1171,
+            "scaled_at_fill": 230,
+            "scaled_at_fill_rate": 0.9274193548387096,
+            "skips": {
+              "premium": 2117,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 0.9999999996203575
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "r1",
+      "q": 7.137529273798345e-08,
+      "p": 7.930588081998162e-09,
+      "train": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 47422.00320939581,
+            "total_return": 46.422003209395804,
+            "cagr": 1.2085067914082162,
+            "sharpe": 1.472013357853412,
+            "max_drawdown": -0.7497597657102602,
+            "trades": 2025,
+            "win_rate": 0.4804938271604938,
+            "avg_win": 134.83392211477442,
+            "avg_loss": -80.58118156680597,
+            "profit_factor": 1.547613954258389,
+            "expectancy": 22.92444602933118,
+            "breakeven_win_rate": 0.37407396319767094,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.6959798994974875,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 409
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 48922.00320939582,
+            "total_return": 18.56880128375833,
+            "cagr": 0.8415079535355043,
+            "sharpe": 2.313669303788176,
+            "max_drawdown": -0.3425345970858108,
+            "trades": 2025,
+            "win_rate": 0.4804938271604938,
+            "avg_win": 134.83392211477442,
+            "avg_loss": -80.58118156680597,
+            "profit_factor": 1.547613954258389,
+            "expectancy": 22.92444602933118,
+            "breakeven_win_rate": 0.37407396319767094,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.6959798994974875,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 409
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 51422.003209395865,
+            "total_return": 9.284400641879174,
+            "cagr": 0.6136616019529364,
+            "sharpe": 2.6813974519643367,
+            "max_drawdown": -0.17978603015598582,
+            "trades": 2025,
+            "win_rate": 0.4804938271604938,
+            "avg_win": 134.83392211477442,
+            "avg_loss": -80.58118156680597,
+            "profit_factor": 1.547613954258389,
+            "expectancy": 22.92444602933118,
+            "breakeven_win_rate": 0.37407396319767094,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.6959798994974875,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 409
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 7.930588081998162e-09
+      },
+      "holdout": {
+        "exit": "r1",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 123607.43416186546,
+            "total_return": 122.60743416186546,
+            "cagr": 1.752037613819902,
+            "sharpe": 2.033044284817018,
+            "max_drawdown": -0.12469549256160695,
+            "trades": 1979,
+            "win_rate": 0.482566953006569,
+            "avg_win": 303.55506982713626,
+            "avg_loss": -163.36685304985298,
+            "profit_factor": 1.7329138083302553,
+            "expectancy": 61.954236564863905,
+            "breakeven_win_rate": 0.34988045119674543,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.6900085397096498,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 386
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 125107.43416186552,
+            "total_return": 49.04297366474621,
+            "cagr": 1.2757578392284126,
+            "sharpe": 2.774599365761453,
+            "max_drawdown": -0.09277805572497455,
+            "trades": 1979,
+            "win_rate": 0.482566953006569,
+            "avg_win": 303.55506982713626,
+            "avg_loss": -163.36685304985298,
+            "profit_factor": 1.7329138083302553,
+            "expectancy": 61.954236564863905,
+            "breakeven_win_rate": 0.34988045119674543,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.6900085397096498,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 386
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 127607.43416186552,
+            "total_return": 24.521486832373103,
+            "cagr": 0.9754626291730784,
+            "sharpe": 3.33008673709863,
+            "max_drawdown": -0.06503415580060501,
+            "trades": 1979,
+            "win_rate": 0.482566953006569,
+            "avg_win": 303.55506982713626,
+            "avg_loss": -163.36685304985298,
+            "profit_factor": 1.7329138083302553,
+            "expectancy": 61.954236564863905,
+            "breakeven_win_rate": 0.34988045119674543,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.6900085397096498,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 386
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 3.588469386831359e-21
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "pct50",
+      "q": 1.0,
+      "p": 0.9416222825036806,
+      "train": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.3797155509860217,
+            "total_return": -0.999620284449014,
+            "cagr": -0.8015176688756618,
+            "sharpe": -1.1831085918593676,
+            "max_drawdown": -0.9996584326021866,
+            "trades": 147,
+            "win_rate": 0.42857142857142855,
+            "avg_win": 20.341753105598052,
+            "avg_loss": -27.156556310734427,
+            "profit_factor": 0.5617912173631542,
+            "expectancy": -6.800137989449075,
+            "breakeven_win_rate": 0.5717373238003401,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.12311557788944724,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 2267,
+              "cap": 0,
+              "overlap": 20
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 18049.44708184193,
+            "total_return": 6.219778832736772,
+            "cagr": 0.5006010103394503,
+            "sharpe": 1.1075100628797736,
+            "max_drawdown": -0.6323398120237481,
+            "trades": 2260,
+            "win_rate": 0.618141592920354,
+            "avg_win": 54.45347652067618,
+            "avg_loss": -70.1298489195164,
+            "profit_factor": 1.256921974898139,
+            "expectancy": 6.880286319399097,
+            "breakeven_win_rate": 0.562915210937943,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.8927973199329984,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 174
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 20549.44708184192,
+            "total_return": 3.109889416368384,
+            "cagr": 0.33667761915188654,
+            "sharpe": 1.4216589104529749,
+            "max_drawdown": -0.32307792470647656,
+            "trades": 2260,
+            "win_rate": 0.618141592920354,
+            "avg_win": 54.45347652067618,
+            "avg_loss": -70.1298489195164,
+            "profit_factor": 1.256921974898139,
+            "expectancy": 6.880286319399097,
+            "breakeven_win_rate": 0.562915210937943,
+            "years": 4.870636550308008,
+            "trades_per_day": 1.8927973199329984,
+            "sessions": 1194,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 174
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 0.9416222825036806
+      },
+      "holdout": {
+        "exit": "pct50",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 36112.57096843959,
+            "total_return": 35.11257096843959,
+            "cagr": 1.1249575053652996,
+            "sharpe": 2.391820138373567,
+            "max_drawdown": -0.22652803526818033,
+            "trades": 2233,
+            "win_rate": 0.6735333631885356,
+            "avg_win": 97.83809637834945,
+            "avg_loss": -153.68439778408504,
+            "profit_factor": 1.3134045678639423,
+            "expectancy": 15.724393626708272,
+            "breakeven_win_rate": 0.6110165148284307,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9069171648163963,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 132
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 37612.57096843956,
+            "total_return": 14.045028387375824,
+            "cagr": 0.7678094110898119,
+            "sharpe": 2.5353962564561816,
+            "max_drawdown": -0.1741850506077246,
+            "trades": 2233,
+            "win_rate": 0.6735333631885356,
+            "avg_win": 97.83809637834945,
+            "avg_loss": -153.68439778408504,
+            "profit_factor": 1.3134045678639423,
+            "expectancy": 15.724393626708272,
+            "breakeven_win_rate": 0.6110165148284307,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9069171648163963,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 132
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 40112.570968439504,
+            "total_return": 7.0225141936879005,
+            "cagr": 0.5489795683730074,
+            "sharpe": 2.6412762582874896,
+            "max_drawdown": -0.13647244566251104,
+            "trades": 2233,
+            "win_rate": 0.6735333631885356,
+            "avg_win": 97.83809637834945,
+            "avg_loss": -153.68439778408504,
+            "profit_factor": 1.3134045678639423,
+            "expectancy": 15.724393626708272,
+            "breakeven_win_rate": 0.6110165148284307,
+            "years": 4.758384668035592,
+            "trades_per_day": 1.9069171648163963,
+            "sessions": 1171,
+            "scaled_at_fill": 0,
+            "scaled_at_fill_rate": 0.0,
+            "skips": {
+              "premium": 0,
+              "cap": 0,
+              "overlap": 132
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 9.989651657470983e-10
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "scale_prem10",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.8384195422124439,
+            "total_return": -0.9991615804577876,
+            "cagr": -0.7664661772470507,
+            "sharpe": -1.7877808596020042,
+            "max_drawdown": -0.9991615804577876,
+            "trades": 115,
+            "win_rate": 0.06086956521739131,
+            "avg_win": 7.544916496171956,
+            "avg_loss": -9.740518480842512,
+            "profit_factor": 0.050204962544286295,
+            "expectancy": -8.688361569198152,
+            "breakeven_win_rate": 0.5635101745368337,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.09631490787269682,
+            "sessions": 1194,
+            "scaled_at_fill": 103,
+            "scaled_at_fill_rate": 0.8956521739130435,
+            "skips": {
+              "premium": 2318,
+              "cap": 0,
+              "overlap": 1
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 1.9629495324693353,
+            "total_return": -0.9992148201870122,
+            "cagr": -0.7695907104374813,
+            "sharpe": -2.2160401632784126,
+            "max_drawdown": -0.9992148201870122,
+            "trades": 300,
+            "win_rate": 0.08,
+            "avg_win": 7.809261620680302,
+            "avg_loss": -9.729925106390796,
+            "profit_factor": 0.06979151642587877,
+            "expectancy": -8.326790168225108,
+            "breakeven_win_rate": 0.5547534932947039,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.25125628140703515,
+            "sessions": 1194,
+            "scaled_at_fill": 269,
+            "scaled_at_fill_rate": 0.8966666666666666,
+            "skips": {
+              "premium": 2132,
+              "cap": 0,
+              "overlap": 2
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 0.07784533144452244,
+            "total_return": -0.9999844309337111,
+            "cagr": -0.8969818036313453,
+            "sharpe": -2.1609689839837816,
+            "max_drawdown": -0.9999844309337111,
+            "trades": 557,
+            "win_rate": 0.07719928186714542,
+            "avg_win": 8.119189348786932,
+            "avg_loss": -10.406706802852922,
+            "profit_factor": 0.06526865862925114,
+            "expectancy": -8.976520924001013,
+            "breakeven_win_rate": 0.5617383751733787,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.466499162479062,
+            "sessions": 1194,
+            "scaled_at_fill": 500,
+            "scaled_at_fill_rate": 0.8976660682226212,
+            "skips": {
+              "premium": 1875,
+              "cap": 0,
+              "overlap": 2
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_prem10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 7.245591458677572,
+            "total_return": -0.9927544085413225,
+            "cagr": -0.6449552727399007,
+            "sharpe": -1.7823489087401496,
+            "max_drawdown": -0.9927544085413225,
+            "trades": 53,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -18.731215255496654,
+            "profit_factor": 0.0,
+            "expectancy": -18.731215255496654,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.04526046114432109,
+            "sessions": 1171,
+            "scaled_at_fill": 50,
+            "scaled_at_fill_rate": 0.9433962264150944,
+            "skips": {
+              "premium": 2312,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 7.317337590837571,
+            "total_return": -0.997073064963665,
+            "cagr": -0.7065371355641916,
+            "sharpe": -2.074392495551353,
+            "max_drawdown": -0.997073064963665,
+            "trades": 103,
+            "win_rate": 0.05825242718446602,
+            "avg_win": 31.901921711082426,
+            "avg_loss": -27.671074151295432,
+            "profit_factor": 0.07131326865831215,
+            "expectancy": -24.200802547661773,
+            "breakeven_win_rate": 0.46449022330888934,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.08795900939368062,
+            "sessions": 1171,
+            "scaled_at_fill": 95,
+            "scaled_at_fill_rate": 0.9223300970873787,
+            "skips": {
+              "premium": 2262,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6.594285331035714,
+            "total_return": -0.9986811429337928,
+            "cagr": -0.7518043627165375,
+            "sharpe": -1.995526971274588,
+            "max_drawdown": -0.9986811429337928,
+            "trades": 261,
+            "win_rate": 0.1417624521072797,
+            "avg_win": 32.10020790150687,
+            "avg_loss": -27.59425628136037,
+            "profit_factor": 0.1921510922297504,
+            "expectancy": -19.131822661566922,
+            "breakeven_win_rate": 0.46225821203166323,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.2228864218616567,
+            "sessions": 1171,
+            "scaled_at_fill": 243,
+            "scaled_at_fill_rate": 0.9310344827586207,
+            "skips": {
+              "premium": 2104,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 0.9999999999685482
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "scale_be",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 1.543524100691858,
+            "total_return": -0.9984564758993082,
+            "cagr": -0.7352913445448885,
+            "sharpe": -1.8459393950483858,
+            "max_drawdown": -0.9984564758993082,
+            "trades": 124,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -8.052068354026682,
+            "profit_factor": 0.0,
+            "expectancy": -8.052068354026682,
+            "breakeven_win_rate": 1.0,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.10385259631490787,
+            "sessions": 1194,
+            "scaled_at_fill": 112,
+            "scaled_at_fill_rate": 0.9032258064516129,
+            "skips": {
+              "premium": 2310,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 0.9129101114082747,
+            "total_return": -0.9996348359554367,
+            "cagr": -0.8031036656937176,
+            "sharpe": -2.3053513459185466,
+            "max_drawdown": -0.9996348359554367,
+            "trades": 306,
+            "win_rate": 0.00980392156862745,
+            "avg_win": 6.1970218062575375,
+            "avg_loss": -8.309168829397251,
+            "profit_factor": 0.0073842104796365245,
+            "expectancy": -8.166951274145733,
+            "breakeven_win_rate": 0.5728015740379236,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.2562814070351759,
+            "sessions": 1194,
+            "scaled_at_fill": 275,
+            "scaled_at_fill_rate": 0.8986928104575164,
+            "skips": {
+              "premium": 2128,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 0.0,
+            "total_return": -1.0,
+            "cagr": -1.0,
+            "sharpe": -3.996909483268443,
+            "max_drawdown": -1.0000230491446438,
+            "trades": 572,
+            "win_rate": 0.006993006993006993,
+            "avg_win": 4.712411395222999,
+            "avg_loss": -8.836205794549493,
+            "profit_factor": 0.0037556838888335325,
+            "expectancy": -8.74146021979584,
+            "breakeven_win_rate": 0.6521850658840461,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.47906197654941374,
+            "sessions": 1194,
+            "scaled_at_fill": 513,
+            "scaled_at_fill_rate": 0.8968531468531469,
+            "skips": {
+              "premium": 1862,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_be",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 6.947318088851253,
+            "total_return": -0.9930526819111487,
+            "cagr": -0.6480780683137856,
+            "sharpe": -1.8358064361002506,
+            "max_drawdown": -0.9930526819111487,
+            "trades": 73,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -13.603461396043135,
+            "profit_factor": 0.0,
+            "expectancy": -13.603461396043135,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.0623398804440649,
+            "sessions": 1171,
+            "scaled_at_fill": 69,
+            "scaled_at_fill_rate": 0.9452054794520548,
+            "skips": {
+              "premium": 2292,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 12.761142971990825,
+            "total_return": -0.9948955428112036,
+            "cagr": -0.6701523938762887,
+            "sharpe": -2.1503175227014135,
+            "max_drawdown": -0.9948955428112036,
+            "trades": 115,
+            "win_rate": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": -21.62816397415659,
+            "profit_factor": 0.0,
+            "expectancy": -21.62816397415659,
+            "breakeven_win_rate": 1.0,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.0982066609735269,
+            "sessions": 1171,
+            "scaled_at_fill": 106,
+            "scaled_at_fill_rate": 0.9217391304347826,
+            "skips": {
+              "premium": 2250,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 6.570471649102778,
+            "total_return": -0.9986859056701795,
+            "cagr": -0.751992993983137,
+            "sharpe": -2.5045656366492435,
+            "max_drawdown": -0.9986859056701795,
+            "trades": 251,
+            "win_rate": 0.00796812749003984,
+            "avg_win": 55.871954270034806,
+            "avg_loss": -20.50270456582717,
+            "profit_factor": 0.021888366756080534,
+            "expectancy": -19.894141547214726,
+            "breakeven_win_rate": 0.26844904944046777,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.2143467122117848,
+            "sessions": 1171,
+            "scaled_at_fill": 233,
+            "scaled_at_fill_rate": 0.9282868525896414,
+            "skips": {
+              "premium": 2114,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 0.9999999993372845
+      }
+    },
+    {
+      "book": "vwap_QQQ",
+      "exit": "scale_full10",
+      "q": 1.0,
+      "p": 1.0,
+      "train": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 0.0,
+            "total_return": -1.0,
+            "cagr": -1.0,
+            "sharpe": -5.721391161623739,
+            "max_drawdown": -1.0001282016577435,
+            "trades": 114,
+            "win_rate": 0.043859649122807015,
+            "avg_win": 11.91109950783852,
+            "avg_loss": -9.721868799971892,
+            "profit_factor": 0.05620120190989608,
+            "expectancy": -8.773054400506524,
+            "breakeven_win_rate": 0.44940059365139867,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.09547738693467336,
+            "sessions": 1194,
+            "scaled_at_fill": 101,
+            "scaled_at_fill_rate": 0.8859649122807017,
+            "skips": {
+              "premium": 2318,
+              "cap": 0,
+              "overlap": 2
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 1.6360415102844228,
+            "total_return": -0.9993455833958862,
+            "cagr": -0.7780491738085527,
+            "sharpe": -2.3583089942961637,
+            "max_drawdown": -0.9993455833958862,
+            "trades": 296,
+            "win_rate": 0.057432432432432436,
+            "avg_win": 12.06089377946601,
+            "avg_loss": -9.689602697995124,
+            "profit_factor": 0.07584347803137488,
+            "expectancy": -8.44041877868148,
+            "breakeven_win_rate": 0.44548880564799687,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.24790619765494137,
+            "sessions": 1194,
+            "scaled_at_fill": 265,
+            "scaled_at_fill_rate": 0.8952702702702703,
+            "skips": {
+              "premium": 2135,
+              "cap": 0,
+              "overlap": 3
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 2.697859543890882,
+            "total_return": -0.9994604280912218,
+            "cagr": -0.7866706547200538,
+            "sharpe": -2.229356019643531,
+            "max_drawdown": -0.9994604280912218,
+            "trades": 546,
+            "win_rate": 0.06776556776556776,
+            "avg_win": 13.268855277012381,
+            "avg_loss": -10.782416081936287,
+            "profit_factor": 0.08945431866606302,
+            "expectancy": -9.15256802281339,
+            "breakeven_win_rate": 0.4483096099584986,
+            "years": 4.870636550308008,
+            "trades_per_day": 0.457286432160804,
+            "sessions": 1194,
+            "scaled_at_fill": 490,
+            "scaled_at_fill_rate": 0.8974358974358975,
+            "skips": {
+              "premium": 1884,
+              "cap": 0,
+              "overlap": 4
+            }
+          }
+        },
+        "fit": {
+          "signals": 2434,
+          "median_debit_3": 111.29440432929516,
+          "median_debit_1": 37.09813477643172,
+          "fit_3_1000": 2434,
+          "fit_1_1000": 2434,
+          "fit_3_2500": 2434,
+          "fit_1_2500": 2434,
+          "fit_3_5000": 2434,
+          "fit_1_5000": 2434
+        },
+        "p": 1.0
+      },
+      "holdout": {
+        "exit": "scale_full10",
+        "stakes": {
+          "1000": {
+            "starting_equity": 1000.0,
+            "ending_equity": 6.686878124841035,
+            "total_return": -0.993313121875159,
+            "cagr": -0.6508925940878283,
+            "sharpe": -1.8692797420049134,
+            "max_drawdown": -0.993313121875159,
+            "trades": 57,
+            "win_rate": 0.08771929824561403,
+            "avg_win": 30.055063209636966,
+            "avg_loss": -21.9920853446797,
+            "profit_factor": 0.13140681653014222,
+            "expectancy": -17.426545997809814,
+            "breakeven_win_rate": 0.4225415984456603,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.04867634500426986,
+            "sessions": 1171,
+            "scaled_at_fill": 54,
+            "scaled_at_fill_rate": 0.9473684210526315,
+            "skips": {
+              "premium": 2308,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "2500": {
+            "starting_equity": 2500.0,
+            "ending_equity": 7.6179086644128144,
+            "total_return": -0.9969528365342348,
+            "cagr": -0.7040439455968253,
+            "sharpe": -1.9027963952719085,
+            "max_drawdown": -0.9969528365342348,
+            "trades": 96,
+            "win_rate": 0.11458333333333333,
+            "avg_win": 29.723207178876237,
+            "avg_loss": -33.168674944743834,
+            "profit_factor": 0.11596883807221478,
+            "expectancy": -25.962313451412367,
+            "breakeven_win_rate": 0.5273919912199098,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.08198121263877028,
+            "sessions": 1171,
+            "scaled_at_fill": 89,
+            "scaled_at_fill_rate": 0.9270833333333334,
+            "skips": {
+              "premium": 2269,
+              "cap": 0,
+              "overlap": 0
+            }
+          },
+          "5000": {
+            "starting_equity": 5000.0,
+            "ending_equity": 10.688445881178597,
+            "total_return": -0.9978623108237643,
+            "cagr": -0.7252905739638499,
+            "sharpe": -2.3873522190048786,
+            "max_drawdown": -0.9978623108237643,
+            "trades": 249,
+            "win_rate": 0.22088353413654618,
+            "avg_win": 32.56996282328613,
+            "avg_loss": -34.951853141234835,
+            "profit_factor": 0.26418491487406437,
+            "expectancy": -20.037395799673977,
+            "breakeven_win_rate": 0.5176379314146428,
+            "years": 4.758384668035592,
+            "trades_per_day": 0.2126387702818104,
+            "sessions": 1171,
+            "scaled_at_fill": 232,
+            "scaled_at_fill_rate": 0.9317269076305221,
+            "skips": {
+              "premium": 2116,
+              "cap": 0,
+              "overlap": 0
+            }
+          }
+        },
+        "fit": {
+          "signals": 2365,
+          "median_debit_3": 206.5704101076756,
+          "median_debit_1": 68.85680336922519,
+          "fit_3_1000": 2365,
+          "fit_1_1000": 2365,
+          "fit_3_2500": 2365,
+          "fit_1_2500": 2365,
+          "fit_3_5000": 2365,
+          "fit_1_5000": 2365
+        },
+        "p": 0.9999999999700641
+      }
+    }
+  ]
+}
