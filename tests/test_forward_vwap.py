@@ -826,10 +826,10 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
     assert held[0]["target"] == pytest.approx(zero[0]["target"])
     assert held[0]["direction"] == zero[0]["direction"]
     assert held[0]["entry_time"] == zero[0]["entry_time"]
-    assert held[0]["qty"] == 3
+    assert held[0]["qty"] == 1
     assert held[0]["expiry"] == "2024-01-04"
     assert zero[0]["expiry"] == DAY
-    assert held[0]["model_debit"] > zero[0]["model_debit"]
+    assert held[0]["model_debit"] > zero[0]["model_debit"] / 3
     rich = plan_day(
         bars15=_long_day(),
         bars5=_five(),
@@ -838,17 +838,28 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
         settled=1_000_000.0,
         book=QQQ_AGGR_1DTE_NAME,
     )
-    assert rich[0]["qty"] == 3
+    assert rich[0]["qty"] == 1
+    one_lot = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        settled=held[0]["model_debit"],
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert one_lot[0]["status"] == "open"
+    assert one_lot[0]["qty"] == 1
     short_cash = plan_day(
         bars15=_long_day(),
         bars5=_five(),
         now=_at("11:50"),
         iv_points=IV,
-        settled=held[0]["model_debit"] / 3,
+        settled=held[0]["model_debit"] / 2,
         book=QQQ_AGGR_1DTE_NAME,
     )
     assert short_cash[0]["skip"] == "premium"
-    assert short_cash[0]["qty"] == 3
+    assert short_cash[0]["qty"] == 1
+    assert "does not fit" in short_cash[0]["detail"]
 
     flat = plan_day(
         bars15=_long_day(),
@@ -889,7 +900,7 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
     assert "not held overnight" in "\n".join(second)
     assert len(broker.orders) == 2
     assert broker.orders[0]["quantity"] == "3"
-    assert broker.orders[1]["quantity"] == "3"
+    assert broker.orders[1]["quantity"] == "1"
     assert broker.orders[1]["symbol"] == "QQQ"
     assert broker.orders[1]["legs"][0]["option_expire_date"] == "2024-01-04"
     assert broker.orders[0]["legs"][0]["option_expire_date"] == DAY
@@ -899,7 +910,7 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
     saved = journal.forward_load(QQQ_AGGR_1DTE_NAME)
     assert saved["book"] == QQQ_AGGR_1DTE_NAME
     assert saved["stake"] == 2500.0
-    assert saved["positions"][0]["qty"] == 3
+    assert saved["positions"][0]["qty"] == 1
     assert saved["positions"][0]["expiry"] == "2024-01-04"
     assert journal.forward_load(QQQ_AGGR_NAME)["positions"][0]["expiry"] == DAY
 
@@ -913,7 +924,9 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
         book=QQQ_AGGR_1DTE_NAME,
     )
     assert any("reason flat" in line for line in flat_lines)
+    assert any("Order SELL 1" in line for line in flat_lines)
     assert journal.forward_load(QQQ_AGGR_1DTE_NAME)["positions"] == []
+    assert broker.orders[-1]["quantity"] == "1"
     assert broker.orders[-1]["legs"][0]["option_expire_date"] == "2024-01-04"
     report = report_text(journal, book=QQQ_AGGR_1DTE_NAME)
     assert report.splitlines()[0].startswith("vwap_band_15m_qqq_aggr_1dte ")
@@ -955,4 +968,47 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
     assert any("already opened 5 trades today" in line for line in blocked)
     assert capped.forward_load(QQQ_AGGR_1DTE_NAME)["signals"][0]["skip"] == "cap"
     assert capped.forward_load(QQQ_AGGR_NAME)["positions"]
+
+
+def test_an_open_three_lot_still_closes_at_three_after_the_book_is_one(tmp_path):
+    journal = Journal(tmp_path / "legacy.sqlite")
+    state = empty_state()
+    state["book"] = QQQ_AGGR_1DTE_NAME
+    state["positions"] = [
+        {
+            "id": "legacy-3",
+            "direction": "long",
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 130.0,
+            "model_strike": 130.0,
+            "expiry": "2024-01-04",
+            "signal_time": f"{DAY}T11:30:00-05:00",
+            "fill_time": f"{DAY}T11:45:00-05:00",
+            "entry_time": f"{DAY}T11:47:00-05:00",
+            "entry": 130.0,
+            "stop": 99.0,
+            "target": 200.0,
+            "qty": 3,
+            "model_debit": 300.0,
+            "iv": 0.2,
+        }
+    ]
+    journal.forward_save(QQQ_AGGR_1DTE_NAME, state)
+    broker = Broker()
+    lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("15:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert any("Order SELL 3" in line for line in lines)
+    assert broker.orders[-1]["side"] == "SELL"
+    assert broker.orders[-1]["quantity"] == "3"
+    assert broker.orders[-1]["legs"][0]["option_expire_date"] == "2024-01-04"
+    assert journal.forward_load(QQQ_AGGR_1DTE_NAME)["positions"] == []
+    assert all(order["side"] != "BUY" for order in broker.orders)
 

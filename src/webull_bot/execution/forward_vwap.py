@@ -9,11 +9,12 @@ key. ``vwap_band_15m_qqq_aggr`` is QQQ Aggressive: the same QQQ signal,
 1R exits, entry expiry, and 15:45 flatten, with three at-the-money 0 DTE
 contracts and a fresh $2,500 cash mirror. ``vwap_band_15m_qqq_aggr_1dte``
 is QQQ Aggressive 1DTE: that same signal, stop, target, and 10-minute
-entry window, with three at-the-money contracts on the next trading
+entry window, with one at-the-money contract on the next trading
 session. The scored book still sells at the 15:45 open the entry day.
-It does not hold overnight. The ticket is three contracts
+It does not hold overnight. The ticket is one contract
 or it is skipped and journaled. It is never cut down and never sized
-above three. One position per book. The one-contract books use the scored
+above one. A position opened at the previous three-contract size keeps
+that recorded quantity on the exit. One position per book. The one-contract books use the scored
 $1,000 mirror: the model debit has to fit settled cash, a sale settles
 the next session, and equity at or under $1 stops new entries.
 
@@ -106,12 +107,13 @@ DISPLAY = {
     QQQ_AGGR_NAME: "QQQ Aggressive",
     QQQ_AGGR_1DTE_NAME: "QQQ Aggressive 1DTE",
 }
-# One contract on the scored books. Both QQQ Aggressive books are a fixed 3-lot.
+# One contract on the scored books and on QQQ Aggressive 1DTE.
+# QQQ Aggressive 0 DTE stays a fixed 3-lot.
 QUANTITIES = {
     NAME: 1,
     QQQ_NAME: 1,
     QQQ_AGGR_NAME: 3,
-    QQQ_AGGR_1DTE_NAME: 3,
+    QQQ_AGGR_1DTE_NAME: 1,
 }
 STAKES = {
     NAME: 1_000.0,
@@ -158,7 +160,7 @@ def _stake() -> float:
 
 
 def _quantity() -> int:
-    """Fixed lot for the active book. QQQ Aggressive is 3 and is never larger."""
+    """Fixed lot for a new entry. QQQ Aggressive 0 DTE is 3. 1 DTE is 1."""
     qty = int(QUANTITIES.get(_book(), 1))
     return qty if qty > 0 else 1
 
@@ -198,8 +200,13 @@ def _priced_mid(right: str, spot: float, strike: float, when, iv: float) -> floa
     return float(option_price(right, spot, strike, _model_years(when), iv, RATE, DIVIDEND))
 
 
-def _lot(row: dict | None = None) -> int:
-    """Contracts on this ticket, capped at the book's fixed lot."""
+def _lot(row: dict | None = None, *, closing: bool = False) -> int:
+    """Contracts on this ticket.
+
+    A new entry is the book's fixed lot and is never larger. An open
+    ticket keeps the quantity stored when it was opened, so a smaller
+    book size does not sell only part of that position.
+    """
     cap = _quantity()
     if isinstance(row, dict) and row.get("qty") not in (None, ""):
         try:
@@ -207,6 +214,8 @@ def _lot(row: dict | None = None) -> int:
         except (TypeError, ValueError):
             qty = 0
         if qty > 0:
+            if closing:
+                return qty
             return min(qty, cap)
     return cap
 
@@ -976,7 +985,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             journal.forward_save(_book(), state)
             return True
         return False
-    qty = _lot(position)
+    qty = _lot(position, closing=True)
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
@@ -1400,7 +1409,7 @@ def _mark_exit(built: dict, reason: str, underlying: float, when) -> None:
     right = str(built["right"])
     exit_mid = _priced_mid(right, float(underlying), strike, pd.Timestamp(when), iv)
     model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
-    qty = _lot(built)
+    qty = _lot(built, closing=True)
     credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(built["model_debit"])
     built["status"] = "closed"
