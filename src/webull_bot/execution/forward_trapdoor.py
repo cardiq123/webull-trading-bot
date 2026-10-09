@@ -107,6 +107,9 @@ def empty_state() -> dict[str, Any]:
         "fills": [],
         "exits": [],
         "positions": [],
+        "shadow": [],
+        "quote_log": [],
+        "quote_error": None,
         "last_cycle": None,
     }
 
@@ -150,6 +153,7 @@ def run_cycle(
         state = load_state(journal)
         if state.get("last_cycle") == cycle_id(now):
             lines.append(f"Already journaled {cycle_id(now)}. No new orders.")
+            _log_market(state, bars5, now, broker, lines, journal, save=True)
             return lines
     else:
         state = empty_state()
@@ -162,6 +166,7 @@ def run_cycle(
                 "The 15:45 flatten is mandatory, so the open option is closed and the stop check is skipped."
             )
             _flatten_open(state, bars5, now, broker, lines, journal)
+            _log_market(state, bars5, now, broker, lines, journal, save=False)
             _finish(state, journal, now, dry_run=False)
             return lines
         lines.append(
@@ -192,6 +197,7 @@ def run_cycle(
     lines.append(f"Last completed 5-minute bar {_last_key(bars5, now, '5m')}.")
     _manage_open(state, bars5, now, broker, lines, journal)
     _take_signals(state, bars5, now, points, iv_closes, broker, lines, journal)
+    _log_market(state, bars5, now, broker, lines, journal, save=False)
     if not any(line.startswith("Signal ") or line.startswith("Exit ") or line.startswith("Skip ") for line in lines):
         if not state.get("positions"):
             lines.append("No new QQQ trapdoor. No open position.")
@@ -363,8 +369,32 @@ def report_text(journal: Journal) -> str:
             f"stop {row.get('stop')} target {row.get('target')}{note}"
         )
     lines.append(f"Realized P&L on the model mirror ${realized:.2f}.")
-    lines.append("")
+    from webull_bot.execution.forward_quotes import report_lines
+
+    lines.extend(report_lines(state))
     return "\n".join(lines) + "\n"
+
+
+def _log_market(state, bars5, now, broker, lines, journal, save: bool) -> None:
+    """Quote log after the order decision. A failure here does not change the trade."""
+    try:
+        from webull_bot.execution.forward_quotes import note_quotes
+
+        spot = _spot(bars5, _as_ny(now))
+        changed = note_quotes(
+            state,
+            book=NAME,
+            symbol=SYMBOL,
+            now=now,
+            underlying=spot,
+            broker=broker,
+            lines=lines,
+            bars=bars5,
+        )
+        if changed and save:
+            journal.forward_save(NAME, state)
+    except Exception:
+        lines.append("Quote log failed. Entry and exit were not changed.")
 
 
 def signals_through(frame: pd.DataFrame, now_ts: pd.Timestamp) -> list[_Signal]:
