@@ -709,6 +709,8 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
     for position in list(state.get("positions") or []):
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
+            outcome = _quote_exit(position, broker, now)
+        if outcome is None:
             kept.append(position)
             note = " Off-plan late entry." if _off_plan_late(position) else ""
             lines.append(
@@ -726,11 +728,11 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
 def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, journal) -> None:
     now_ts = pd.Timestamp(to_ny(now))
     view = _signal_view(bars15, now_ts)
-    known = {str(row.get("id")) for row in state.get("signals") or []}
     open_ids = {str(row.get("id")) for row in state.get("positions") or []}
     for signal in _extensions(view, now_ts):
         sid = _signal_id(signal)
-        if sid in known or sid in open_ids:
+        prior = next((row for row in state.get("signals") or [] if str(row.get("id")) == sid), None)
+        if sid in open_ids or (prior is not None and prior.get("status") not in {"pending", "wait"}):
             lines.append(f"Signal {_clock(signal.signal_time)} already journaled. Not sent again.")
             continue
         if state.get("positions"):
@@ -751,13 +753,19 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
             lines.append("Skip " + _event_line(row))
             journal.forward_save(_book(), state)
             continue
+        frozen = None
+        if prior is not None and prior.get("modeled_entry") not in (None, ""):
+            frozen = _positive(prior.get("modeled_entry"))
         built = _decide_entry(
-            signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker
+            signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker, frozen
         )
         if built.get("status") == "wait":
+            _remember_pending(state, signal, built)
             lines.append(str(built.get("detail") or "Waiting on the next open. No order."))
+            journal.forward_save(_book(), state)
             continue
         if built.get("status") == "skip":
+            _drop_pending(state, built.get("id"))
             state["signals"].append(built)
             lines.append("Skip " + _event_line(built))
             journal.forward_save(_book(), state)
@@ -868,6 +876,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     built["price_source"] = source
     built["sandbox_ask"] = sandbox_ask
     built["order_strike"] = strike
+    _drop_pending(state, built.get("id"))
     state["signals"].append(built)
     state["positions"].append(position)
     state["fills"].append(
@@ -899,7 +908,11 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
     if existing and existing.get("status") in {"intent", "submitted"}:
         lines.append(f"Exit {position.get('right')} already journaled. Not sent again.")
-        return existing.get("status") == "submitted"
+        if existing.get("status") == "submitted":
+            _drop_open(state, position)
+            journal.forward_save(_book(), state)
+            return True
+        return False
     qty = _lot(position)
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
@@ -993,8 +1006,14 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         f"Order SELL {qty} limit {limit:.2f} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
+    _drop_open(state, position)
     journal.forward_save(_book(), state)
     return True
+
+
+def _drop_open(state, position) -> None:
+    pid = position.get("id")
+    state["positions"] = [row for row in (state.get("positions") or []) if row.get("id") != pid]
 
 
 def _place(broker, payload, order, lines, kind: str) -> bool:
@@ -1186,7 +1205,7 @@ def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Op
     return 0.5 * (lo + hi)
 
 
-def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_closes=None, broker=None) -> dict:
+def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_closes=None, broker=None, frozen_open: Optional[float] = None) -> dict:
     """Price the order at this cycle. A missing open waits. It is not a skip.
 
     The stop and the 1R target stay on the modeled next open. The order uses
@@ -1206,6 +1225,12 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
     modeled = _print_open(bars15, signal.fill_time, now_ts)
     if modeled is None:
         modeled = _print_open(bars5, signal.fill_time, now_ts)
+    if modeled is None and frozen_open is not None and frozen_open > 0:
+        modeled = float(frozen_open)
+    if modeled is None:
+        live = _underlying_price(broker)
+        if live is not None and bar_end(signal.signal_time, "15m") <= now_ts:
+            modeled = live
     if modeled is None:
         return {
             "status": "wait",
@@ -1218,10 +1243,13 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
         return _skip(signal, "no_bar", "the fill is not a price")
     if abs(modeled - stop) <= 0:
         return _skip(signal, "dust", "the stop is on the fill")
-    spot = _spot(bars5, now_ts)
+    spot = _underlying_price(broker)
+    if spot is None:
+        spot = _spot(bars5, now_ts)
     if spot is None:
         return {
             "status": "wait",
+            "modeled_entry": modeled,
             "detail": (
                 f"The {_clock(signal.signal_time)} extension is waiting on a price. No order."
             ),
@@ -1640,6 +1668,65 @@ def _print_open(frame, stamp, now_ts: pd.Timestamp) -> Optional[float]:
     if not math.isfinite(price) or price <= 0:
         return None
     return price
+
+
+def _drop_pending(state: dict, sid) -> None:
+    state["signals"] = [
+        row
+        for row in (state.get("signals") or [])
+        if not (str(row.get("id")) == str(sid) and row.get("status") in {"pending", "wait"})
+    ]
+
+
+def _remember_pending(state: dict, signal, built: dict) -> None:
+    sid = _signal_id(signal)
+    row = {
+        "id": sid,
+        "status": "pending",
+        "signal_time": pd.Timestamp(signal.signal_time).isoformat(),
+        "fill_time": pd.Timestamp(signal.fill_time).isoformat(),
+        "direction": signal.direction,
+        "stop": float(signal.stop),
+        "detail": built.get("detail"),
+    }
+    if built.get("modeled_entry") not in (None, ""):
+        row["modeled_entry"] = float(built["modeled_entry"])
+    _drop_pending(state, sid)
+    state.setdefault("signals", []).append(row)
+
+
+def _underlying_price(broker) -> Optional[float]:
+    """Live quote when the broker has one. A failure falls back to the bars."""
+    getter = getattr(broker, "underlying_quote", None)
+    if getter is None:
+        return None
+    try:
+        return _positive(getter(_symbol()))
+    except Exception:
+        return None
+
+
+def _quote_exit(position, broker, now):
+    """Stop or target on the live underlying. No quote means no exit from this path."""
+    price = _underlying_price(broker)
+    if price is None:
+        return None
+    now_ts = pd.Timestamp(to_ny(now))
+    if now_ts.time() >= FLAT:
+        return "flat", float(price), now_ts
+    stop = float(position.get("stop"))
+    target = float(position.get("target"))
+    if str(position.get("direction")) == "long":
+        if price <= stop:
+            return "stop", float(price), now_ts
+        if price >= target:
+            return "target", float(price), now_ts
+        return None
+    if price >= stop:
+        return "stop", float(price), now_ts
+    if price <= target:
+        return "target", float(price), now_ts
+    return None
 
 
 def _spot(frame, now_ts: pd.Timestamp) -> Optional[float]:

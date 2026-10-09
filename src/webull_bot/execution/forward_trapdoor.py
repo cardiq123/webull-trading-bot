@@ -19,7 +19,8 @@ The order goes out on the first cycle after the signal bar closes, and
 only when QQQ is still strictly between the stop and the 1R target. Those
 levels stay on the modeled next open. The same ``VWAP_MAX_ENTRY_DELAY_MIN``
 cap (default 10 minutes after the bar close) expires a signal that was
-not entered. A journaled signal is not sent again. Exits are bot-managed.
+not entered. A skip or an open order is not sent again. A pending signal is retried until
+it enters, expires, or is skipped. Exits are bot-managed.
 Webull options have no OCO. A marketable limit sells the put when a
 completed 5-minute bar or the live underlying quote hits the stop or the
 target. The 15:45 flatten is mandatory.
@@ -533,13 +534,13 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
 
 def _take_signals(state, bars5, now, points, iv_closes, broker, lines, journal) -> None:
     now_ts = _as_ny(now)
-    known = {str(row.get("id")) for row in state.get("signals") or []}
     open_ids = {str(row.get("id")) for row in state.get("positions") or []}
     for signal in signals_through(bars5, now_ts):
         if _as_ny(signal.fill_time) > now_ts:
             continue
         sid = _signal_id(signal)
-        if sid in known or sid in open_ids:
+        prior = next((row for row in state.get("signals") or [] if str(row.get("id")) == sid), None)
+        if sid in open_ids or (prior is not None and prior.get("status") not in {"pending", "wait"}):
             lines.append(f"Signal {_clock(signal.signal_time)} already journaled. Not sent again.")
             continue
         if state.get("positions"):
@@ -566,13 +567,19 @@ def _take_signals(state, bars5, now, points, iv_closes, broker, lines, journal) 
             lines.append("Skip " + _event_line(row))
             journal.forward_save(NAME, state)
             continue
+        frozen = None
+        if prior is not None and prior.get("modeled_entry") not in (None, ""):
+            frozen = _positive(prior.get("modeled_entry"))
         built = _decide_entry(
-            signal, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker
+            signal, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker, frozen
         )
         if built.get("status") == "wait":
+            _remember_pending(state, signal, built)
             lines.append(str(built.get("detail") or "Waiting on a price. No order."))
+            journal.forward_save(NAME, state)
             continue
         if built.get("status") == "skip":
+            _drop_pending(state, built.get("id"))
             state["signals"].append(built)
             lines.append("Skip " + _event_line(built))
             journal.forward_save(NAME, state)
@@ -682,7 +689,9 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     built["status"] = "open"
     built["price_source"] = source
     built["sandbox_ask"] = sandbox_ask
+    built["order_symbol"] = option_symbol
     built["order_strike"] = strike
+    _drop_pending(state, built.get("id"))
     state["signals"].append(built)
     state["positions"].append(position)
     state["fills"].append(
@@ -714,7 +723,11 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
     if existing and existing.get("status") in {"intent", "submitted"}:
         lines.append("Exit put already journaled. Not sent again.")
-        return existing.get("status") == "submitted"
+        if existing.get("status") == "submitted":
+            _drop_open(state, position)
+            journal.forward_save(NAME, state)
+            return True
+        return False
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
@@ -807,8 +820,14 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         f"Order SELL 1 limit {limit:.2f} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
+    _drop_open(state, position)
     journal.forward_save(NAME, state)
     return True
+
+
+def _drop_open(state, position) -> None:
+    pid = position.get("id")
+    state["positions"] = [row for row in (state.get("positions") or []) if row.get("id") != pid]
 
 
 def _entry_quote(broker, built) -> Optional[dict]:
@@ -820,7 +839,32 @@ def _entry_quote(broker, built) -> Optional[dict]:
         return None
 
 
-def _decide_entry(signal: _Signal, bars5, now_ts, points, settled: float, iv_closes=None, broker=None) -> dict:
+def _drop_pending(state: dict, sid) -> None:
+    state["signals"] = [
+        row
+        for row in (state.get("signals") or [])
+        if not (str(row.get("id")) == str(sid) and row.get("status") in {"pending", "wait"})
+    ]
+
+
+def _remember_pending(state: dict, signal: _Signal, built: dict) -> None:
+    sid = _signal_id(signal)
+    row = {
+        "id": sid,
+        "status": "pending",
+        "signal_time": pd.Timestamp(signal.signal_time).isoformat(),
+        "fill_time": pd.Timestamp(signal.fill_time).isoformat(),
+        "direction": "short",
+        "stop": float(signal.stop),
+        "detail": built.get("detail"),
+    }
+    if built.get("modeled_entry") not in (None, ""):
+        row["modeled_entry"] = float(built["modeled_entry"])
+    _drop_pending(state, sid)
+    state.setdefault("signals", []).append(row)
+
+
+def _decide_entry(signal: _Signal, bars5, now_ts, points, settled: float, iv_closes=None, broker=None, frozen_open: Optional[float] = None) -> dict:
     """Price the put at this cycle. A missing price waits. It is not a skip."""
     now_ts = _as_ny(now_ts)
     if _late(signal.signal_time, now_ts):
@@ -832,6 +876,18 @@ def _decide_entry(signal: _Signal, bars5, now_ts, points, settled: float, iv_clo
     if now_ts.time() >= FLAT:
         return _skip(signal, "flat", "the 15:45 flat has already passed")
     modeled, modeled_from = _modeled_open(signal, bars5, now_ts)
+    if modeled is None and frozen_open is not None and frozen_open > 0:
+        modeled, modeled_from = float(frozen_open), "live open"
+    if modeled is None and bar_end(signal.signal_time, "5m") <= now_ts:
+        getter = getattr(broker, "underlying_quote", None)
+        live = None
+        if getter is not None:
+            try:
+                live = _positive(getter(SYMBOL))
+            except Exception:
+                live = None
+        if live is not None:
+            modeled, modeled_from = live, "live open"
     if modeled is None:
         return {
             "status": "wait",
@@ -844,6 +900,7 @@ def _decide_entry(signal: _Signal, bars5, now_ts, points, settled: float, iv_clo
     if spot is None:
         return {
             "status": "wait",
+            "modeled_entry": modeled,
             "detail": f"The {_clock(signal.signal_time)} trapdoor is waiting on a price. No order.",
         }
     target = modeled - (stop - modeled)

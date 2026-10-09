@@ -124,6 +124,29 @@ def build_parser() -> argparse.ArgumentParser:
         ],
     )
 
+    watch = sub.add_parser(
+        "forward-watch",
+        help=(
+            "Long-running sandbox watch. Polls every 5 seconds and runs the full "
+            "cycle 3 seconds after each 5-minute bar close. Live trading stays off. "
+            "--dry-run does not connect."
+        ),
+    )
+    _add_config(watch)
+    watch.add_argument(
+        "strategy",
+        nargs="+",
+        choices=[
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "neckline_trapdoor_qqq",
+        ],
+    )
+    watch.add_argument("--dry-run", action="store_true", help="Print the tick and do not connect or write the journal.")
+    watch.add_argument("--now", default=None, help="ISO time in America/New_York. Used with --once.")
+    watch.add_argument("--once", action="store_true", help="Run one tick and exit. For a check, not the box.")
+
     return parser
 
 
@@ -155,6 +178,8 @@ def main(argv: list[str] | None = None) -> int:
         return _check(config, args)
     if args.command == "forward-test":
         return _forward_test(config, args)
+    if args.command == "forward-watch":
+        return _forward_watch(config, args)
     if args.command == "forward-report":
         return _forward_report(config, args)
     parser.error(args.command)
@@ -694,6 +719,22 @@ def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] 
             "Outside the 09:50-15:50 ET window. No orders."
         )
         return 0
+    from webull_bot.execution.forward_watch import cycle_lock
+
+    with cycle_lock(20) as acquired:
+        if not acquired:
+            print("forward-test skipped. forward-watch holds the cycle lock. No second cycle.")
+            return 0
+        return _forward_vwap_body(config, args, names, trap_names, now)
+
+
+def _forward_vwap_body(config, args, names: list[str], trap_names: list[str], now) -> int:
+    from webull_bot.chart_reads.orb_mwf import prior_iv
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_vwap import BOOKS, run_cycle
+    from webull_bot.execution.forward_watch import guard_market_data, overlay_webull_bars, remember_frames
+    from webull_bot.journal.store import Journal
+
     broker = None
     if not args.dry_run:
         raw = os.environ.get("WEBULL_ENV", "").strip().lower()
@@ -709,6 +750,7 @@ def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] 
         broker.sandbox_only = True
         broker.connect()
         assert_sandbox_hosts(broker.hosts)
+        guard_market_data(broker)
     end = now.date()
     start = end - timedelta(days=50)
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
@@ -717,6 +759,10 @@ def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] 
     five_symbols = list(dict.fromkeys([*symbols, *(["QQQ"] if trap_names else [])]))
     bars15 = provider.history(symbols, start.isoformat(), end_s, "15m") if symbols else {}
     bars5 = provider.history(five_symbols, start.isoformat(), end_s, "5m")
+    if broker is not None:
+        bars15, bars5 = overlay_webull_bars(
+            broker, bars15, bars5, symbols, five_symbols, start.isoformat(), end_s
+        )
     daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", end_s, "1d")
     closes = {}
     for symbol, frame in daily.items():
@@ -724,6 +770,7 @@ def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] 
             continue
         closes[symbol] = frame["close"]
     points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
+    remember_frames(bars15, bars5, points, closes)
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
     blocks = []
     for name in names:
@@ -758,6 +805,17 @@ def _forward_vwap(config, args, books: list[str] | None = None, trap: list[str] 
         blocks.append("\n".join(lines))
     print("\n\n".join(blocks))
     return 0
+
+
+def _forward_watch(config, args) -> int:
+    from webull_bot.execution.forward_watch import run_watch
+
+    names = _forward_names(args)
+    if not names:
+        raise SystemExit(
+            "Name at least one book: vwap_band_15m vwap_band_15m_qqq_aggr neckline_trapdoor_qqq"
+        )
+    return run_watch(config, args, names)
 
 
 def _forward_report(config, args) -> int:

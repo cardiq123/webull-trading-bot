@@ -12,6 +12,7 @@ build/
 .env.*
 !.env.example
 data/cache/
+data/forward/
 data/*.sqlite
 data/*.sqlite3
 data/*.db
