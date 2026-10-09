@@ -132,6 +132,13 @@ def calibrate(vix1d_points: float = VIX1D_OCT8) -> dict:
     }
 
 
+def _session_day(when) -> date:
+    clock = pd.Timestamp(when)
+    if clock.tzinfo is not None:
+        clock = clock.tz_convert("America/New_York")
+    return clock.date()
+
+
 def half_spread(mid: float, width: str) -> float:
     """``model`` is the book's spread. ``0.01`` and ``0.02`` are the full bid-ask width."""
     if width == "model":
@@ -147,8 +154,34 @@ def _clip(iv: float) -> float:
     return min(VOL_CAP, max(VOL_FLOOR, float(iv)))
 
 
-def price_structures(structures: list[dict], iv_points: dict, scale: float, width: str) -> list[tuple]:
-    """One contract's debit and credit. Sizing is applied later."""
+def expiry_after(day: date, dte: int) -> date:
+    """The session ``dte`` trades later. 1 is the next session, not the next calendar day."""
+    cursor = day
+    for _ in range(int(dte)):
+        cursor = next_trading_day(cursor)
+    return cursor
+
+
+def years_until_expiry(when, expiry: date) -> float:
+    """Minutes from ``when`` until 16:00 on ``expiry``, over a 365-day year."""
+    clock = pd.Timestamp(when)
+    if clock.tzinfo is None:
+        clock = clock.tz_localize("America/New_York")
+    else:
+        clock = clock.tz_convert("America/New_York")
+    close = pd.Timestamp(expiry.year, expiry.month, expiry.day, 16, tz="America/New_York")
+    minutes = max(1.0, (close - clock).total_seconds() / 60.0)
+    return minutes / (365.0 * 24.0 * 60.0)
+
+
+def price_structures(
+    structures: list[dict], iv_points: dict, scale: float, width: str, dte: int = 0
+) -> list[tuple]:
+    """One contract's debit and credit. Sizing is applied later.
+
+    ``dte`` 0 uses the book's same-day clock. 1 and 2 expire on the next
+    trading sessions, so the same-day exit still has time value left.
+    """
     rows: list[tuple] = []
     for item in structures:
         base = _iv_on(item["day"], iv_points)
@@ -156,18 +189,36 @@ def price_structures(structures: list[dict], iv_points: dict, scale: float, widt
             continue
         used = _clip(base * float(scale))
         strike = listed_strike(item["fill"], item["fill"])
-        opened = _ticket(item["right"], item["fill"], strike, item["fill_time"], used, width, buy=True)
+        opened = _ticket(
+            item["right"], item["fill"], strike, item["fill_time"], used, width, buy=True, dte=dte, session=item["day"]
+        )
         if opened is None:
             continue
         debit, ask = opened
-        credit = _ticket(item["right"], item["exit"], strike, item["exit_time"], used, width, buy=False)
+        credit = _ticket(
+            item["right"], item["exit"], strike, item["exit_time"], used, width, buy=False, dte=dte, session=item["day"]
+        )
         rows.append((item["day"], item["due"], item["fill_i"], item["exit_i"], float(debit), float(credit), float(ask)))
     rows.sort(key=lambda row: (row[0], row[2]))
     return rows
 
 
-def _ticket(right: str, spot: float, strike: float, when, iv: float, width: str, buy: bool) -> Optional[tuple[float, float] | float]:
-    mid = float(option_price(right, spot, strike, _years(when), iv, RATE, DIVIDEND))
+def _ticket(
+    right: str,
+    spot: float,
+    strike: float,
+    when,
+    iv: float,
+    width: str,
+    buy: bool,
+    dte: int = 0,
+    session: date | None = None,
+) -> Optional[tuple[float, float] | float]:
+    if int(dte) <= 0:
+        years = _years(when)
+    else:
+        years = years_until_expiry(when, expiry_after(session or _session_day(when), int(dte)))
+    mid = float(option_price(right, spot, strike, years, iv, RATE, DIVIDEND))
     if not math.isfinite(mid) or mid < 0:
         mid = 0.0
     spread = half_spread(mid, width)
@@ -424,7 +475,7 @@ def vwap_structures(frame: pd.DataFrame, symbol: str) -> list[dict]:
             continue
         target = float(target_price(signal, fill, "r"))
         loc = int(session.index.get_loc(fill_time))
-        _reason, exit_raw, when = walk_exit(session, loc, signal.direction, float(signal.stop), target)
+        reason, exit_raw, when = walk_exit(session, loc, signal.direction, float(signal.stop), target)
         when = pd.Timestamp(when)
         if when not in positions or fill_time not in positions:
             continue
@@ -439,6 +490,9 @@ def vwap_structures(frame: pd.DataFrame, symbol: str) -> list[dict]:
                 "fill_time": fill_time,
                 "exit_time": when,
                 "right": "call" if signal.direction == "long" else "put",
+                "direction": signal.direction,
+                "stop": float(signal.stop),
+                "reason": reason,
             }
         )
     return found
@@ -453,7 +507,7 @@ def trapdoor_structures(book) -> list[dict]:
         target = _planned_target(book, event, fill, "r1")
         if not _target_ok(event.direction, fill, target, "r1"):
             continue
-        _reason, exit_raw, when = _walk(book, event.fill_i, event.direction, event.stop, target, "r1")
+        reason, exit_raw, when = _walk(book, event.fill_i, event.direction, event.stop, target, "r1")
         exit_i = int(book.index.get_loc(when))
         day = book.dates[event.fill_i]
         if not isinstance(day, date):
@@ -469,6 +523,9 @@ def trapdoor_structures(book) -> list[dict]:
                 "fill_time": book.index[event.fill_i],
                 "exit_time": when,
                 "right": "put",
+                "direction": event.direction,
+                "stop": float(event.stop),
+                "reason": reason,
             }
         )
     return found
