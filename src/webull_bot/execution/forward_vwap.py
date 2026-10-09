@@ -613,6 +613,10 @@ def _run_cycle(
     points = iv_points or {}
     if not dry_run:
         state = load_state(journal)
+        from webull_bot.execution.forward_reconcile import chase_exit_orders
+
+        if chase_exit_orders(state, broker, now, lines):
+            journal.forward_save(_book(), state)
         if state.get("last_cycle") == cycle_id(now):
             lines.append(f"Already journaled {cycle_id(now)}. No new orders.")
             _account(state, broker, local.date(), lines)
@@ -854,9 +858,12 @@ def _report_text(journal: Journal) -> str:
     if not orders:
         lines.append("(none)")
     for row in orders:
+        from webull_bot.execution.forward_reconcile import limit_fill_text
+
         lines.append(
             f"- {row.get('side')} {row.get('qty')} {row.get('symbol')} {row.get('right')} "
-            f"limit {row.get('limit')} status {row.get('status')} "
+            f"{limit_fill_text(row.get('limit'), row.get('fill'))} "
+            f"status {row.get('broker_status') or row.get('status')} "
             f"model {row.get('model_price')} sandbox {row.get('sandbox_price')} "
             f"{row.get('price_source')}"
         )
@@ -865,9 +872,11 @@ def _report_text(journal: Journal) -> str:
     if not fills:
         lines.append("(none)")
     for row in fills:
+        from webull_bot.execution.forward_reconcile import limit_fill_text
+
         lines.append(
             f"- {row.get('time')} {row.get('side')} {row.get('qty')} {row.get('right')} "
-            f"limit {row.get('price')} fill {row.get('fill') or 'pending'} "
+            f"{limit_fill_text(row.get('price'), row.get('fill'))} "
             f"underlying {row.get('underlying')} {row.get('price_source')}"
         )
     lines.append("Exits")
@@ -1254,7 +1263,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     lines.append(
         "Signal "
         + _event_line(built)
-        + f" Order BUY {qty} {built['right']} limit {limit:.2f} ({source}). "
+        + f" Order BUY {qty} {built['right']}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
     journal.forward_save(_book(), state)
@@ -1290,6 +1299,10 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             "price_source": source,
             "kind": "exit",
             "reason": reason,
+            "option_symbol": position.get("option_symbol"),
+            "strike": position.get("strike"),
+            "expiry": position.get("expiry"),
+            "option_type": position.get("option_type"),
         }
         state["orders"].append(order)
     else:
@@ -1316,6 +1329,16 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         journal.forward_save(_book(), state)
         return False
     order["status"] = "submitted"
+    from webull_bot.execution.forward_reconcile import stamp_submission
+
+    stamp_submission(
+        order,
+        when,
+        option_symbol=position.get("option_symbol"),
+        strike=position.get("strike"),
+        expiry=position.get("expiry"),
+        option_type=position.get("option_type"),
+    )
     credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(position.get("model_debit") or 0.0)
     pnl = credit - debit
@@ -1360,7 +1383,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     lines.append(
         f"Exit {position.get('right')} reason {reason} underlying {float(underlying):.2f} "
         f"at {_clock(when)}. Model bid {model_bid:.4f}. "
-        f"Order SELL {qty} limit {limit:.2f} ({source}). "
+        f"Order SELL {qty} {position.get('right')}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
     _drop_open(state, position)

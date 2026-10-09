@@ -129,6 +129,26 @@ def build_parser() -> argparse.ArgumentParser:
         ],
     )
 
+    forward_reconcile = sub.add_parser(
+        "forward-reconcile",
+        help=(
+            "Read sandbox order detail for one forward book and store the fill status. "
+            "Does not place or cancel an order. Live trading stays off."
+        ),
+    )
+    _add_config(forward_reconcile)
+    forward_reconcile.add_argument(
+        "strategy",
+        choices=[
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
+            "neckline_trapdoor_qqq",
+        ],
+    )
+
     watch = sub.add_parser(
         "forward-watch",
         help=(
@@ -189,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
         return _forward_watch(config, args)
     if args.command == "forward-report":
         return _forward_report(config, args)
+    if args.command == "forward-reconcile":
+        return _forward_reconcile(config, args)
     parser.error(args.command)
     return 2
 
@@ -844,6 +866,35 @@ def _forward_watch(config, args) -> int:
             "vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq"
         )
     return run_watch(config, args, names)
+
+
+def _forward_reconcile(config, args) -> int:
+    """Read order detail and positions for one book. Never places or cancels."""
+    from webull_bot.execution.forward_reconcile import reconcile_book, require_sandbox
+
+    require_sandbox()
+    from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+    from webull_bot.journal.store import Journal
+
+    try:
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+    except SystemExit:
+        raise
+    except Exception:
+        raise SystemExit("Reconcile could not connect. The reason was not printed. No order was sent.")
+    from zoneinfo import ZoneInfo
+
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    now = datetime.now(ZoneInfo("America/New_York"))
+    try:
+        lines = reconcile_book(journal, broker, args.strategy, now)
+    except Exception:
+        raise SystemExit("Reconcile failed. The reason was not printed. No order was sent.")
+    print("\n".join(lines))
+    return 0
 
 
 def _forward_report(config, args) -> int:

@@ -1055,21 +1055,16 @@ def _refresh_fills(state, broker) -> bool:
     for order in state.get("orders") or []:
         if not isinstance(order, dict) or order.get("fill") not in (None, ""):
             continue
-        if order.get("status") not in {"submitted", "intent"}:
+        from webull_bot.execution.forward_reconcile import apply_order_detail, order_needs_detail, read_order_detail
+
+        if not order_needs_detail(order):
             continue
-        if int(order.get("fill_tries") or 0) >= 5:
+        detail = read_order_detail(broker, str(order.get("id") or ""))
+        if detail.get("kind") in {None, "unknown", "error"}:
             continue
-        order["fill_tries"] = int(order.get("fill_tries") or 0) + 1
+        apply_order_detail(order, detail)
         changed = True
-        fill = _read_fill(broker, str(order.get("id") or ""))
-        if not fill:
-            continue
-        order["fill"] = fill.get("price")
-        order["fill_time"] = fill.get("time")
-        if fill.get("error"):
-            order["fill_error"] = fill["error"]
-            state["quote_error"] = fill["error"]
-        changed = True
+        fill = {"price": order.get("fill"), "time": order.get("fill_time"), "error": detail.get("kind") == "error"}
         for row in state.get("quote_log") or []:
             if row.get("signal_id") and order.get("key", "").startswith(str(row.get("signal_id"))):
                 phase = "exit" if str(order.get("kind")) == "exit" else "entry"

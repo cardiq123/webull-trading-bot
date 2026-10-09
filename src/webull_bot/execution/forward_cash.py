@@ -46,29 +46,24 @@ def prepare_cash(state: dict, broker, stake: float, session: date) -> bool:
 
 
 def refresh_missing_fills(state: dict, broker, session: date) -> None:
-    """One order-detail read per order per session when the fill is missing."""
+    """Read order detail again until the order is filled or terminal.
+
+    A working order is not skipped for the rest of the session. The limit
+    on the order is never written down as the fill.
+    """
+    from webull_bot.execution.forward_reconcile import apply_order_detail, order_needs_detail, read_order_detail
+
     mark = session.isoformat()
     for order in state.get("orders") or []:
         if not isinstance(order, dict):
             continue
-        if order.get("status") not in {"submitted", "intent"}:
-            continue
-        if _known_fill(order.get("fill")) is not None:
-            _stamp_fill_row(state, order)
-            continue
-        if str(order.get("fill_session") or "") == mark:
+        if not order_needs_detail(order):
+            if _known_fill(order.get("fill")) is not None:
+                _stamp_fill_row(state, order)
             continue
         order["fill_session"] = mark
-        order["fill_tries"] = 0
-        from webull_bot.execution.forward_quotes import _read_fill
-
-        found = _read_fill(broker, str(order.get("id") or ""))
-        price = _known_fill(found.get("price") if isinstance(found, dict) else None)
-        if price is None:
-            continue
-        order["fill"] = price
-        if isinstance(found, dict) and found.get("time"):
-            order["fill_time"] = found.get("time")
+        detail = read_order_detail(broker, str(order.get("id") or ""))
+        apply_order_detail(order, detail)
         _stamp_fill_row(state, order)
 
 
@@ -177,7 +172,7 @@ def pnl_phrase(row: dict) -> str:
     model_txt = "model P&L n/a" if model is None else f"model P&L ${model:.2f}"
     fill = _number(row.get("fill_pnl"))
     if fill is None:
-        return f"fill P&L waiting on the order. {model_txt}"
+        return f"fill P&L waiting on the order. The limit is not a fill. {model_txt}"
     return f"fill P&L ${fill:.2f}. {model_txt}"
 
 
@@ -348,7 +343,15 @@ def _fingerprint(state: dict) -> tuple:
     fills = []
     for order in state.get("orders") or []:
         if isinstance(order, dict):
-            fills.append((order.get("id"), order.get("fill"), order.get("fill_session")))
+            fills.append(
+                (
+                    order.get("id"),
+                    order.get("fill"),
+                    order.get("fill_session"),
+                    order.get("broker_status"),
+                    order.get("status"),
+                )
+            )
     return (
         round(float(state.get("settled") or 0.0), 6),
         tuple(unsettled),

@@ -330,6 +330,10 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
             state = load_state(journal)
             if prepare_cash(state, broker, _stake(), local.date()):
                 journal.forward_save(name, state)
+            from webull_bot.execution.forward_reconcile import chase_exit_orders
+
+            if chase_exit_orders(state, broker, now, lines):
+                journal.forward_save(name, state)
             try:
                 _manage_open(state, _frame(bars5, symbol), now, view, lines, journal)
             except Exception:
@@ -353,6 +357,10 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     if TRAP_NAME in names:
         state = trap_load(journal)
         if prepare_cash(state, broker, TRAP_STAKE, local.date()):
+            journal.forward_save(TRAP_NAME, state)
+        from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_trap_exits
+
+        if chase_trap_exits(state, broker, now, lines):
             journal.forward_save(TRAP_NAME, state)
         try:
             trap_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
