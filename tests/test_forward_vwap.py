@@ -15,6 +15,7 @@ from webull_bot.config import load_config
 from webull_bot.execution.forward_vwap import (
     ENTRY_BOOKS,
     NAME,
+    QQQ_AGGR_1DTE_NAME,
     QQQ_AGGR_NAME,
     QQQ_NAME,
     SKIPS_EVENT_DAYS,
@@ -785,4 +786,173 @@ def test_the_one_contract_qqq_journal_still_counts_toward_the_daily_cap(tmp_path
     saved = journal.forward_load(QQQ_AGGR_NAME)
     assert saved["signals"][0]["skip"] == "cap"
     assert journal.forward_load(QQQ_NAME)["signals"][0]["id"] == "old-0"
+
+
+def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_path, monkeypatch):
+    from webull_bot.execution.forward_vwap import _ACTIVE, _activate, _expiry_for
+
+    monkeypatch.setenv("WEBULL_APP_SECRET", "super-secret-value")
+    assert QQQ_AGGR_1DTE_NAME == "vwap_band_15m_qqq_aggr_1dte"
+    assert QQQ_AGGR_1DTE_NAME in ENTRY_BOOKS
+    token = _activate(QQQ_AGGR_1DTE_NAME)
+    try:
+        assert _expiry_for(date(2024, 1, 3)) == date(2024, 1, 4)
+        assert _expiry_for(date(2026, 10, 9)) == date(2026, 10, 12)
+    finally:
+        _ACTIVE.reset(token)
+    with pytest.raises(KeyError, match="not in the paper or live book"):
+        strategy_by_name(QQQ_AGGR_1DTE_NAME)
+    with pytest.raises(SystemExit, match="Live trading stays off"):
+        refuse_if_forward_only([QQQ_AGGR_1DTE_NAME])
+    parser = build_parser()
+    watch = parser.parse_args(
+        [
+            "forward-watch",
+            NAME,
+            QQQ_AGGR_NAME,
+            QQQ_AGGR_1DTE_NAME,
+            "neckline_trapdoor_qqq",
+            "--dry-run",
+            "--once",
+        ]
+    )
+    assert watch.strategy == [NAME, QQQ_AGGR_NAME, QQQ_AGGR_1DTE_NAME, "neckline_trapdoor_qqq"]
+    assert parser.parse_args(["forward-report", QQQ_AGGR_1DTE_NAME]).strategy == QQQ_AGGR_1DTE_NAME
+
+    zero = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_NAME)
+    held = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_1DTE_NAME)
+    assert zero[0]["status"] == "open" and held[0]["status"] == "open"
+    assert held[0]["stop"] == pytest.approx(zero[0]["stop"])
+    assert held[0]["target"] == pytest.approx(zero[0]["target"])
+    assert held[0]["direction"] == zero[0]["direction"]
+    assert held[0]["entry_time"] == zero[0]["entry_time"]
+    assert held[0]["qty"] == 3
+    assert held[0]["expiry"] == "2024-01-04"
+    assert zero[0]["expiry"] == DAY
+    assert held[0]["model_debit"] > zero[0]["model_debit"]
+    rich = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        settled=1_000_000.0,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert rich[0]["qty"] == 3
+    short_cash = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        settled=held[0]["model_debit"] / 3,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert short_cash[0]["skip"] == "premium"
+    assert short_cash[0]["qty"] == 3
+
+    flat = plan_day(
+        bars15=_long_day(),
+        bars5=_five(special={"15:45": (131.0, 180.0, 129.0, 179.0, 1000.0)}),
+        now=_at("15:50"),
+        iv_points=IV,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert flat[0]["reason"] == "flat"
+    assert flat[0]["exit"] == pytest.approx(131.0)
+    assert flat[0]["exit_time"].startswith(DAY)
+    assert "15:45" in flat[0]["exit_time"]
+    assert flat[0]["expiry"] == "2024-01-04"
+
+    journal = Journal(tmp_path / "both.sqlite")
+    broker = Broker()
+    first = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_NAME,
+    )
+    second = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    text = "\n".join(first + second)
+    assert "super-secret-value" not in text
+    assert "QQQ Aggressive 1DTE" in text
+    assert "not held overnight" in "\n".join(second)
+    assert len(broker.orders) == 2
+    assert broker.orders[0]["quantity"] == "3"
+    assert broker.orders[1]["quantity"] == "3"
+    assert broker.orders[1]["symbol"] == "QQQ"
+    assert broker.orders[1]["legs"][0]["option_expire_date"] == "2024-01-04"
+    assert broker.orders[0]["legs"][0]["option_expire_date"] == DAY
+    assert combined_entries(
+        journal, date.fromisoformat(DAY), QQQ_AGGR_1DTE_NAME, journal.forward_load(QQQ_AGGR_1DTE_NAME)
+    ) == 2
+    saved = journal.forward_load(QQQ_AGGR_1DTE_NAME)
+    assert saved["book"] == QQQ_AGGR_1DTE_NAME
+    assert saved["stake"] == 2500.0
+    assert saved["positions"][0]["qty"] == 3
+    assert saved["positions"][0]["expiry"] == "2024-01-04"
+    assert journal.forward_load(QQQ_AGGR_NAME)["positions"][0]["expiry"] == DAY
+
+    flat_lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(special={"15:45": (131.0, 180.0, 129.0, 179.0, 1000.0)}),
+        now=_at("15:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert any("reason flat" in line for line in flat_lines)
+    assert journal.forward_load(QQQ_AGGR_1DTE_NAME)["positions"] == []
+    assert broker.orders[-1]["legs"][0]["option_expire_date"] == "2024-01-04"
+    report = report_text(journal, book=QQQ_AGGR_1DTE_NAME)
+    assert report.splitlines()[0].startswith("vwap_band_15m_qqq_aggr_1dte ")
+    assert "QQQ Aggressive 1DTE" in report
+    assert "1 DTE" in report
+    assert "flat at 15:45" in report
+    assert "$2,500" in report
+
+    capped = Journal(tmp_path / "cap.sqlite")
+    capped.forward_save(
+        NAME,
+        {
+            "signals": [
+                {"id": f"seed-{i}", "status": "closed", "entry_time": f"{DAY}T10:0{i}:00"}
+                for i in range(4)
+            ]
+        },
+    )
+    room = Broker()
+    run_cycle(
+        journal=capped,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=room,
+        book=QQQ_AGGR_NAME,
+    )
+    blocked = run_cycle(
+        journal=capped,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=room,
+        book=QQQ_AGGR_1DTE_NAME,
+    )
+    assert len(room.orders) == 1
+    assert any("already opened 5 trades today" in line for line in blocked)
+    assert capped.forward_load(QQQ_AGGR_1DTE_NAME)["signals"][0]["skip"] == "cap"
+    assert capped.forward_load(QQQ_AGGR_NAME)["positions"]
 

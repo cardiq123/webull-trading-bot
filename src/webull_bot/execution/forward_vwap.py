@@ -7,7 +7,11 @@ open. One at-the-money 0 DTE contract. ``vwap_band_15m`` trades SPY.
 ``vwap_band_15m_qqq`` trades QQQ with the same rules and its own journal
 key. ``vwap_band_15m_qqq_aggr`` is QQQ Aggressive: the same QQQ signal,
 1R exits, entry expiry, and 15:45 flatten, with three at-the-money 0 DTE
-contracts and a fresh $2,500 cash mirror. The ticket is three contracts
+contracts and a fresh $2,500 cash mirror. ``vwap_band_15m_qqq_aggr_1dte``
+is QQQ Aggressive 1DTE: that same signal, stop, target, and 10-minute
+entry window, with three at-the-money contracts on the next trading
+session. The scored book still sells at the 15:45 open the entry day.
+It does not hold overnight. The ticket is three contracts
 or it is skipped and journaled. It is never cut down and never sized
 above three. One position per book. The one-contract books use the scored
 $1,000 mirror: the model debit has to fit settled cash, a sale settles
@@ -43,10 +47,11 @@ CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
 
 ``--dry-run`` replays the session from a fresh cash mirror ($1,000 on the
-one-contract books, $2,500 on QQQ Aggressive) and does not connect or
+one-contract books, $2,500 on both QQQ Aggressive books) and does not connect or
 write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
 trading stays off. The runner names ``vwap_band_15m``,
-``vwap_band_15m_qqq_aggr``, and ``neckline_trapdoor_qqq``. The one-contract
+``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``, and
+``neckline_trapdoor_qqq``. The one-contract
 QQQ book stays available so its journal can still be read.
 """
 
@@ -87,32 +92,44 @@ NY = ZoneInfo("America/New_York")
 NAME = "vwap_band_15m"
 QQQ_NAME = "vwap_band_15m_qqq"
 QQQ_AGGR_NAME = "vwap_band_15m_qqq_aggr"
+QQQ_AGGR_1DTE_NAME = "vwap_band_15m_qqq_aggr_1dte"
 SYMBOL = "SPY"
 BOOKS = {
     NAME: "SPY",
     QQQ_NAME: "QQQ",
     QQQ_AGGR_NAME: "QQQ",
+    QQQ_AGGR_1DTE_NAME: "QQQ",
 }
 DISPLAY = {
     NAME: "SPY VWAP",
     QQQ_NAME: "QQQ VWAP",
     QQQ_AGGR_NAME: "QQQ Aggressive",
+    QQQ_AGGR_1DTE_NAME: "QQQ Aggressive 1DTE",
 }
-# One contract on the scored books. QQQ Aggressive is the fixed 3-lot cell.
+# One contract on the scored books. Both QQQ Aggressive books are a fixed 3-lot.
 QUANTITIES = {
     NAME: 1,
     QQQ_NAME: 1,
     QQQ_AGGR_NAME: 3,
+    QQQ_AGGR_1DTE_NAME: 3,
 }
 STAKES = {
     NAME: 1_000.0,
     QQQ_NAME: 1_000.0,
     QQQ_AGGR_NAME: 2_500.0,
+    QQQ_AGGR_1DTE_NAME: 2_500.0,
+}
+# 0 is same-day expiry. 1 is the next trading session, sold the entry day.
+DTE = {
+    NAME: 0,
+    QQQ_NAME: 0,
+    QQQ_AGGR_NAME: 0,
+    QQQ_AGGR_1DTE_NAME: 1,
 }
 # New entries across the sandbox forward books, including QQQ Trapdoor.
 # The one-contract QQQ journal still counts when the runner no longer calls it.
 COMBINED_ENTRY_CAP = 5
-ENTRY_BOOKS = (NAME, QQQ_NAME, QQQ_AGGR_NAME, "neckline_trapdoor_qqq")
+ENTRY_BOOKS = (NAME, QQQ_NAME, QQQ_AGGR_NAME, QQQ_AGGR_1DTE_NAME, "neckline_trapdoor_qqq")
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
@@ -146,6 +163,41 @@ def _quantity() -> int:
     return qty if qty > 0 else 1
 
 
+def _dte() -> int:
+    """0 expires today. 1 expires the next trading session."""
+    return max(0, int(DTE.get(_book(), 0)))
+
+
+def _expiry_for(session: date) -> date:
+    """Listed expiry for this book. 1 DTE is the next session, including Friday to Monday."""
+    cursor = session
+    for _ in range(_dte()):
+        cursor = next_trading_day(cursor)
+    return cursor
+
+
+def _model_years(when) -> float:
+    """Time left until 16:00 on this book's expiry. A 1 DTE sale at 15:45 still has a session left."""
+    clock = pd.Timestamp(when)
+    if clock.tzinfo is None:
+        clock = clock.tz_localize(NY)
+    else:
+        clock = clock.tz_convert(NY)
+    if _dte() <= 0:
+        return _years(clock, 0)
+    close = pd.Timestamp(
+        datetime.combine(_expiry_for(clock.date()), time(16, 0), tzinfo=NY)
+    )
+    minutes = max(1.0, (close - clock).total_seconds() / 60.0)
+    return minutes / (365.0 * 24.0 * 60.0)
+
+
+def _priced_mid(right: str, spot: float, strike: float, when, iv: float) -> float:
+    if spot <= 0 or strike <= 0 or iv <= 0:
+        return 0.0
+    return float(option_price(right, spot, strike, _model_years(when), iv, RATE, DIVIDEND))
+
+
 def _lot(row: dict | None = None) -> int:
     """Contracts on this ticket, capped at the book's fixed lot."""
     cap = _quantity()
@@ -163,7 +215,8 @@ def _contract_phrase() -> str:
     qty = _quantity()
     word = {1: "One", 3: "Three"}.get(qty, str(qty))
     noun = "contract" if qty == 1 else "contracts"
-    return f"{word} ATM 0 DTE {_symbol()} {noun}"
+    label = "0 DTE" if _dte() == 0 else "1 DTE"
+    return f"{word} ATM {label} {_symbol()} {noun}"
 
 
 def _activate(book: str) -> contextvars.Token:
@@ -649,6 +702,11 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
             "Exits are bot-managed. Webull options have no OCO and no trailing stop. "
             "A marketable limit closes the contract when the underlying hits the stop or the target. "
             "The 15:45 flatten is mandatory."
+            + (
+                " The 1 DTE contract is sold at that same 15:45 open. It is not held overnight."
+                if _dte() > 0
+                else ""
+            )
         ),
         (
             "A completed 5-minute bar can exit before the 15-minute bar that contains both the stop and the target. "
@@ -790,6 +848,11 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         lines.append("Entry already journaled. Not sent again.")
         return
     quote = _entry_quote(broker, built)
+    if quote and _dte() > 0:
+        session = str(built.get("fill_time") or built.get("signal_time") or "")[:10]
+        quoted = str(quote.get("expiry") or "")[:10]
+        if not quoted or quoted <= session:
+            quote = None
     model_ask = float(built["model_ask"])
     sandbox_ask = None
     source = "model"
@@ -1061,7 +1124,7 @@ def _exit_model_bid(position, underlying: float, when) -> float:
     iv = float(position.get("iv") or 0.0)
     strike = float(position.get("model_strike") or position.get("strike") or 0.0)
     right = "call" if position.get("direction") == "long" else "put"
-    mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
+    mid = _priced_mid(right, float(underlying), strike, pd.Timestamp(when), iv)
     return max(0.0, mid - _half_spread(mid))
 
 
@@ -1157,7 +1220,8 @@ def _quote_volatility(broker, spot, option_type, when) -> Optional[float]:
     if not math.isfinite(spot_value) or spot_value <= 0:
         return None
     try:
-        quote = broker.option_zero_dte_quote(_symbol(), option_type, spot_value, _as_date(when))
+        target = _expiry_for(_as_date(when)) if _dte() > 0 else _as_date(when)
+        quote = broker.option_zero_dte_quote(_symbol(), option_type, spot_value, target)
     except Exception:
         return None
     if not quote:
@@ -1185,7 +1249,7 @@ def _positive(value) -> Optional[float]:
 def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Optional[float]:
     if mid <= 0 or spot <= 0 or strike <= 0:
         return None
-    years = _years(pd.Timestamp(when), 0)
+    years = _model_years(when)
 
     def price(sigma: float) -> float:
         return float(option_price(right, spot, strike, years, sigma, RATE, DIVIDEND))
@@ -1280,7 +1344,8 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "no VIX1D prior close, VIX prior close, cached close, or sandbox option quote",
         )
     strike = listed_strike(spot, spot)
-    entry_mid = _option_mid(right, spot, strike, now_ts, iv, 0)
+    expiry = _expiry_for(day)
+    entry_mid = _priced_mid(right, spot, strike, now_ts, iv)
     model_ask = entry_mid + _half_spread(entry_mid)
     qty = _quantity()
     debit = model_ask * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, model_ask, sell=False)
@@ -1313,7 +1378,7 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "right": right,
             "option_type": option_type,
             "strike": strike,
-            "expiry": day.isoformat(),
+            "expiry": expiry.isoformat(),
             "iv": iv,
             "iv_source": iv_source,
             "qty": qty,
@@ -1333,7 +1398,7 @@ def _mark_exit(built: dict, reason: str, underlying: float, when) -> None:
     iv = float(built["iv"])
     strike = float(built["strike"])
     right = str(built["right"])
-    exit_mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
+    exit_mid = _priced_mid(right, float(underlying), strike, pd.Timestamp(when), iv)
     model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
     qty = _lot(built)
     credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)

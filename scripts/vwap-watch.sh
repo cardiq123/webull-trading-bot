@@ -17,4 +17,4 @@ cd "$(dirname "$0")/.."
 export WEBULL_ENV="${WEBULL_ENV:-sandbox}"
 PY="${PYTHON:-python3}"
 exec "$PY" -m webull_bot forward-watch \
-  vwap_band_15m vwap_band_15m_qqq_aggr neckline_trapdoor_qqq "$@"
+  vwap_band_15m vwap_band_15m_qqq_aggr vwap_band_15m_qqq_aggr_1dte neckline_trapdoor_qqq "$@"
