@@ -1,0 +1,867 @@
+{
+  "calibration": {
+    "vix1d_points": 10.24,
+    "vix1d": 0.1024,
+    "quote_mid": 1.1349999999999998,
+    "implied_0dte": 0.17099468605518126,
+    "multiplier_0dte": 1.6698699810076294,
+    "additive_points": 6.859468605518125,
+    "morning_implied": 0.1519483455701931,
+    "morning_multiplier": 1.483870562208917,
+    "book_minutes": 263.99999999999994,
+    "minutes_if_vol_unchanged": 727.9150268759017,
+    "model_at_prior": 0.659017456749666
+  },
+  "multiplier": 1.6698699810076294,
+  "quote": {
+    "bid": 1.13,
+    "ask": 1.14,
+    "spot": 776.885,
+    "strike": 777.0
+  },
+  "morning_fill": 1.05,
+  "morning_spot": 775.63,
+  "model_oct6": 0.5515745652838291,
+  "term": [
+    {
+      "expiry": "0DTE",
+      "calendar_days": 0,
+      "market": 1.1349999999999998,
+      "logged_model": 0.548,
+      "model_at_vix1d": 0.659017456749666,
+      "unused": [
+        null,
+        2.155,
+        2.8,
+        3.675
+      ]
+    },
+    {
+      "expiry": "1DTE",
+      "calendar_days": 3,
+      "market": 2.155,
+      "logged_model": 2.51,
+      "model_at_vix1d": 2.97410595893723,
+      "unused": [
+        null,
+        2.155,
+        2.8,
+        3.675
+      ]
+    },
+    {
+      "expiry": "2DTE",
+      "calendar_days": 4,
+      "market": 2.8,
+      "logged_model": 2.9,
+      "model_at_vix1d": 3.429154335656733,
+      "unused": [
+        null,
+        2.155,
+        2.8,
+        3.675
+      ]
+    },
+    {
+      "expiry": "3DTE",
+      "calendar_days": 5,
+      "market": 3.675,
+      "logged_model": 3.25,
+      "model_at_vix1d": 3.8348090283280953,
+      "unused": [
+        null,
+        2.155,
+        2.8,
+        3.675
+      ]
+    }
+  ],
+  "books": [
+    {
+      "id": "spy_vwap",
+      "name": "SPY VWAP",
+      "qty": 1,
+      "stake": 1000.0,
+      "cap": null,
+      "rolling": false,
+      "blurb": "One at-the-money 0 DTE contract, 1R, $1,000, no daily count cap.",
+      "cases": [
+        {
+          "label": "x1.0, book spread",
+          "scale": 1.0,
+          "width": "model",
+          "rolling": {},
+          "train": {
+            "trades": 255,
+            "win_rate": 0.36470588235294116,
+            "profit_factor": 0.5644631314140037,
+            "sharpe": -0.9332767262542639,
+            "max_drawdown": -0.9992499849332482,
+            "ending_equity": 0.7546672798090732
+          },
+          "holdout": {
+            "trades": 1373,
+            "win_rate": 0.482884195193008,
+            "profit_factor": 1.5090992358122142,
+            "sharpe": 2.8118678102544967,
+            "max_drawdown": -0.1836001542575263,
+            "ending_equity": 19136.7138870513
+          }
+        },
+        {
+          "label": "x1.0, 1 cent wide",
+          "scale": 1.0,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 3282,
+            "win_rate": 0.47989031078610606,
+            "profit_factor": 1.3557438864493834,
+            "sharpe": 1.2424756491391387,
+            "max_drawdown": -0.7655359669657749,
+            "ending_equity": 22203.296479833076
+          },
+          "holdout": {
+            "trades": 1373,
+            "win_rate": 0.48361252731245447,
+            "profit_factor": 1.6021324352588886,
+            "sharpe": 3.1568131873774274,
+            "max_drawdown": -0.17760020575752622,
+            "ending_equity": 21902.44630273569
+          }
+        },
+        {
+          "label": "x1.0, 2 cents wide",
+          "scale": 1.0,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 257,
+            "win_rate": 0.3657587548638132,
+            "profit_factor": 0.5666039909954976,
+            "sharpe": -0.8082304321053336,
+            "max_drawdown": -0.9994079805292768,
+            "ending_equity": 0.5956916645683279
+          },
+          "holdout": {
+            "trades": 1373,
+            "win_rate": 0.482884195193008,
+            "profit_factor": 1.5525330487761833,
+            "sharpe": 2.9274159245274114,
+            "max_drawdown": -0.1836001542575263,
+            "ending_equity": 20557.272295286642
+          }
+        },
+        {
+          "label": "x1.5, 1 cent wide",
+          "scale": 1.5,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 183,
+            "win_rate": 0.36065573770491804,
+            "profit_factor": 0.4550415771447932,
+            "sharpe": -0.5118615054388351,
+            "max_drawdown": -0.9997210443040592,
+            "ending_equity": 0.2789556959407893
+          },
+          "holdout": {
+            "trades": 1373,
+            "win_rate": 0.47341587764020393,
+            "profit_factor": 1.1355347362490635,
+            "sharpe": 1.215555916637259,
+            "max_drawdown": -0.5710541923454431,
+            "ending_equity": 6815.227628100751
+          }
+        },
+        {
+          "label": "x1.5, 2 cents wide",
+          "scale": 1.5,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 137,
+            "win_rate": 0.3284671532846715,
+            "profit_factor": 0.3492590523777894,
+            "sharpe": -1.4594368884273379,
+            "max_drawdown": -0.9983559886803801,
+            "ending_equity": 1.6440113196198691
+          },
+          "holdout": {
+            "trades": 1371,
+            "win_rate": 0.47191830780452226,
+            "profit_factor": 1.1017960157958961,
+            "sharpe": 1.0697243900803435,
+            "max_drawdown": -0.77646192208056,
+            "ending_equity": 5432.837828888158
+          }
+        },
+        {
+          "label": "x2.0, 1 cent wide",
+          "scale": 2.0,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 103,
+            "win_rate": 0.32038834951456313,
+            "profit_factor": 0.2892747029503296,
+            "sharpe": -1.5550883547458958,
+            "max_drawdown": -0.9979077533159353,
+            "ending_equity": 2.0922466840647655
+          },
+          "holdout": {
+            "trades": 154,
+            "win_rate": 0.42857142857142855,
+            "profit_factor": 0.7239819212218399,
+            "sharpe": -1.2934745716100875,
+            "max_drawdown": -0.9846954826830725,
+            "ending_equity": 15.30451731692752
+          }
+        },
+        {
+          "label": "x2.0, 2 cents wide",
+          "scale": 2.0,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 97,
+            "win_rate": 0.32989690721649484,
+            "profit_factor": 0.2686818114186125,
+            "sharpe": -1.5699809614586373,
+            "max_drawdown": -0.9975872646213138,
+            "ending_equity": 2.412735378686273
+          },
+          "holdout": {
+            "trades": 149,
+            "win_rate": 0.436241610738255,
+            "profit_factor": 0.7184670738620124,
+            "sharpe": -0.21303263136180886,
+            "max_drawdown": -0.9793016062791696,
+            "ending_equity": 20.69839372083034
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 1 cent wide",
+          "scale": 1.6698699810076294,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 163,
+            "win_rate": 0.3619631901840491,
+            "profit_factor": 0.4256637722321577,
+            "sharpe": -0.09146079911745218,
+            "max_drawdown": -0.9998017036237139,
+            "ending_equity": 0.19829637628614272
+          },
+          "holdout": {
+            "trades": 311,
+            "win_rate": 0.44694533762057875,
+            "profit_factor": 0.8640000443783836,
+            "sharpe": -0.654161312176188,
+            "max_drawdown": -0.989303542071901,
+            "ending_equity": 12.41593392758162
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 2 cents wide",
+          "scale": 1.6698699810076294,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 123,
+            "win_rate": 0.3333333333333333,
+            "profit_factor": 0.3218287294601218,
+            "sharpe": -1.4567149418090957,
+            "max_drawdown": -0.9982799326292349,
+            "ending_equity": 1.720067370765106
+          },
+          "holdout": {
+            "trades": 258,
+            "win_rate": 0.437984496124031,
+            "profit_factor": 0.8356450822758476,
+            "sharpe": -0.4994599096950133,
+            "max_drawdown": -0.9988183501627981,
+            "ending_equity": 1.2402727805840144
+          }
+        }
+      ]
+    },
+    {
+      "id": "qqq_aggr",
+      "name": "QQQ Aggressive",
+      "qty": 3,
+      "stake": 2500.0,
+      "cap": 5,
+      "rolling": true,
+      "blurb": "Three at-the-money 0 DTE contracts, 1R, $2,500, at most 5 fills a day.",
+      "cases": [
+        {
+          "label": "x1.0, book spread",
+          "scale": 1.0,
+          "width": "model",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.8354166666666667,
+              "p_ruin": 0.0,
+              "median_ending": 14346.64623612688,
+              "p10_ending": 6204.135688120109
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 1.0,
+              "p_ruin": 0.0,
+              "median_ending": 35316.365612310125,
+              "p10_ending": 28379.473272849602
+            }
+          },
+          "train": {
+            "trades": 2873,
+            "win_rate": 0.4872955099199443,
+            "profit_factor": 1.713944183579715,
+            "sharpe": 2.3785299024391784,
+            "max_drawdown": -0.3430658048038979,
+            "ending_equity": 104070.40923132712
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.475177304964539,
+            "profit_factor": 1.9798922014641513,
+            "sharpe": 3.4804506109888034,
+            "max_drawdown": -0.2508154222806446,
+            "ending_equity": 96136.46474715552
+          }
+        },
+        {
+          "label": "x1.0, 1 cent wide",
+          "scale": 1.0,
+          "width": "0.01",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.8479166666666667,
+              "p_ruin": 0.0,
+              "median_ending": 15980.211082427511,
+              "p10_ending": 7455.505328295399
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 1.0,
+              "p_ruin": 0.0,
+              "median_ending": 37862.9026005196,
+              "p10_ending": 30865.84030498768
+            }
+          },
+          "train": {
+            "trades": 2873,
+            "win_rate": 0.4900800556909154,
+            "profit_factor": 1.8220325323449211,
+            "sharpe": 2.864270318078606,
+            "max_drawdown": -0.2841019853380219,
+            "ending_equity": 115935.12276282138
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.47606382978723405,
+            "profit_factor": 2.0779440835783163,
+            "sharpe": 3.6905729707782835,
+            "max_drawdown": -0.22839021168823648,
+            "ending_equity": 103296.10651932475
+          }
+        },
+        {
+          "label": "x1.0, 2 cents wide",
+          "scale": 1.0,
+          "width": "0.02",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.8354166666666667,
+              "p_ruin": 0.0,
+              "median_ending": 14738.944509767702,
+              "p10_ending": 6264.26493943792
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 1.0,
+              "p_ruin": 0.0,
+              "median_ending": 36672.118943786816,
+              "p10_ending": 29622.662050342784
+            }
+          },
+          "train": {
+            "trades": 2873,
+            "win_rate": 0.4872955099199443,
+            "profit_factor": 1.740757933214028,
+            "sharpe": 2.405800465805835,
+            "max_drawdown": -0.3430658048038979,
+            "ending_equity": 107699.42503500788
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.47606382978723405,
+            "profit_factor": 2.0252501359065307,
+            "sharpe": 3.532965878545248,
+            "max_drawdown": -0.2465813246586379,
+            "ending_equity": 100047.64235238306
+          }
+        },
+        {
+          "label": "x1.5, 1 cent wide",
+          "scale": 1.5,
+          "width": "0.01",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.3333333333333333,
+              "p_ruin": 0.2263888888888889,
+              "median_ending": 5470.461149638018,
+              "p10_ending": 47.345081840751725
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.9308755760368663,
+              "p_ruin": 0.06912442396313365,
+              "median_ending": 20359.083484933617,
+              "p10_ending": 13481.442899283224
+            }
+          },
+          "train": {
+            "trades": 2873,
+            "win_rate": 0.4765053950574313,
+            "profit_factor": 1.2718904048712303,
+            "sharpe": 1.287600877016693,
+            "max_drawdown": -0.6503332667889334,
+            "ending_equity": 49588.89945116098
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.4627659574468085,
+            "profit_factor": 1.433413525767036,
+            "sharpe": 2.081159094930173,
+            "max_drawdown": -0.46954892727819353,
+            "ending_equity": 54455.8273129101
+          }
+        },
+        {
+          "label": "x1.5, 2 cents wide",
+          "scale": 1.5,
+          "width": "0.02",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.27361111111111114,
+              "p_ruin": 0.29930555555555555,
+              "median_ending": 4041.215306992934,
+              "p10_ending": 26.77592443378892
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.9262672811059908,
+              "p_ruin": 0.07834101382488479,
+              "median_ending": 19181.364251190244,
+              "p10_ending": 12298.72038577041
+            }
+          },
+          "train": {
+            "trades": 569,
+            "win_rate": 0.4270650263620387,
+            "profit_factor": 0.8535702315511968,
+            "sharpe": -0.8168888576977981,
+            "max_drawdown": -0.9992927427458187,
+            "ending_equity": 2.4370071583137136
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.4627659574468085,
+            "profit_factor": 1.3998012031270994,
+            "sharpe": 1.9254824228989917,
+            "max_drawdown": -0.5113666091998068,
+            "ending_equity": 51130.077240607185
+          }
+        },
+        {
+          "label": "x2.0, 1 cent wide",
+          "scale": 2.0,
+          "width": "0.01",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.03958333333333333,
+              "p_ruin": 0.7458333333333333,
+              "median_ending": 53.77334965173387,
+              "p10_ending": 13.518929539317584
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.5944700460829493,
+              "p_ruin": 0.4815668202764977,
+              "median_ending": 6037.591696799134,
+              "p10_ending": 49.93404992699045
+            }
+          },
+          "train": {
+            "trades": 400,
+            "win_rate": 0.4225,
+            "profit_factor": 0.7843515709250539,
+            "sharpe": 0.033159252802836894,
+            "max_drawdown": -0.9986505801164044,
+            "ending_equity": 3.3735497089888953
+          },
+          "holdout": {
+            "trades": 170,
+            "win_rate": 0.4294117647058823,
+            "profit_factor": 0.835858440355257,
+            "sharpe": -0.2875680088606846,
+            "max_drawdown": -0.9944474552980909,
+            "ending_equity": 13.88136175477278
+          }
+        },
+        {
+          "label": "x2.0, 2 cents wide",
+          "scale": 2.0,
+          "width": "0.02",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.03125,
+              "p_ruin": 0.7923611111111111,
+              "median_ending": 45.8634134948987,
+              "p10_ending": 11.889660700760757
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.4147465437788018,
+              "p_ruin": 0.6866359447004609,
+              "median_ending": 2460.5501284816637,
+              "p10_ending": 26.665932075295437
+            }
+          },
+          "train": {
+            "trades": 281,
+            "win_rate": 0.4234875444839858,
+            "profit_factor": 0.6551231832764721,
+            "sharpe": -0.8228827187314988,
+            "max_drawdown": -0.9978217831446132,
+            "ending_equity": 5.445542138466955
+          },
+          "holdout": {
+            "trades": 66,
+            "win_rate": 0.42424242424242425,
+            "profit_factor": 0.588484103614656,
+            "sharpe": -0.7455863023275534,
+            "max_drawdown": -0.9916366719696529,
+            "ending_equity": 36.843232279191994
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 1 cent wide",
+          "scale": 1.6698699810076294,
+          "width": "0.01",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.2298611111111111,
+              "p_ruin": 0.3638888888888889,
+              "median_ending": 2800.935747354486,
+              "p10_ending": 23.983149961458423
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.9170506912442397,
+              "p_ruin": 0.08755760368663594,
+              "median_ending": 15664.291633677343,
+              "p10_ending": 9000.761090354188
+            }
+          },
+          "train": {
+            "trades": 587,
+            "win_rate": 0.43100511073253833,
+            "profit_factor": 0.8589933907233144,
+            "sharpe": -0.6721681089944476,
+            "max_drawdown": -0.9997421317770382,
+            "ending_equity": 0.9700200674976376
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.4601063829787234,
+            "profit_factor": 1.2996473412409195,
+            "sharpe": 1.6481434934033377,
+            "max_drawdown": -0.5828812659801019,
+            "ending_equity": 40755.372888142854
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 2 cents wide",
+          "scale": 1.6698699810076294,
+          "width": "0.02",
+          "rolling": {
+            "train": {
+              "starts": 1440,
+              "p_reach_12": 0.18541666666666667,
+              "p_ruin": 0.5159722222222223,
+              "median_ending": 1312.3957349119137,
+              "p10_ending": 14.594535910793333
+            },
+            "holdout": {
+              "starts": 434,
+              "p_reach_12": 0.9101382488479263,
+              "p_ruin": 0.09907834101382489,
+              "median_ending": 14426.494540898862,
+              "p10_ending": 7682.4651749983805
+            }
+          },
+          "train": {
+            "trades": 514,
+            "win_rate": 0.42996108949416345,
+            "profit_factor": 0.8394770101653871,
+            "sharpe": -0.496383353674746,
+            "max_drawdown": -0.9989708564790876,
+            "ending_equity": 2.6350539517675795
+          },
+          "holdout": {
+            "trades": 1128,
+            "win_rate": 0.4601063829787234,
+            "profit_factor": 1.2697687616489501,
+            "sharpe": 1.51376171272842,
+            "max_drawdown": -0.6445463244233081,
+            "ending_equity": 37420.463512044735
+          }
+        }
+      ]
+    },
+    {
+      "id": "trapdoor",
+      "name": "QQQ Trapdoor",
+      "qty": 1,
+      "stake": 2500.0,
+      "cap": 3,
+      "rolling": false,
+      "blurb": "One at-the-money 0 DTE put, 1R, $2,500, at most 3 fills a day.",
+      "cases": [
+        {
+          "label": "x1.0, book spread",
+          "scale": 1.0,
+          "width": "model",
+          "rolling": {},
+          "train": {
+            "trades": 1167,
+            "win_rate": 0.40531276778063413,
+            "profit_factor": 1.6656947131201196,
+            "sharpe": 2.009381467772174,
+            "max_drawdown": -0.16182453524111928,
+            "ending_equity": 14425.05094981601
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.4057142857142857,
+            "profit_factor": 1.7667514198940582,
+            "sharpe": 2.9946000426581643,
+            "max_drawdown": -0.06463183666996153,
+            "ending_equity": 12264.920661955377
+          }
+        },
+        {
+          "label": "x1.0, 1 cent wide",
+          "scale": 1.0,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 1167,
+            "win_rate": 0.4104541559554413,
+            "profit_factor": 1.7665447326705372,
+            "sharpe": 2.2844787195790652,
+            "max_drawdown": -0.13439388673380281,
+            "ending_equity": 15798.668319319506
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.4114285714285714,
+            "profit_factor": 1.849285989815947,
+            "sharpe": 3.16853657201958,
+            "max_drawdown": -0.05927635405306675,
+            "ending_equity": 13081.02506137198
+          }
+        },
+        {
+          "label": "x1.0, 2 cents wide",
+          "scale": 1.0,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 1167,
+            "win_rate": 0.40531276778063413,
+            "profit_factor": 1.6849916131431384,
+            "sharpe": 2.043453336014796,
+            "max_drawdown": -0.15798654128618472,
+            "ending_equity": 14765.316471829756
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.4057142857142857,
+            "profit_factor": 1.7949893953653844,
+            "sharpe": 3.0452487000926305,
+            "max_drawdown": -0.06380278584136789,
+            "ending_equity": 12608.809139554862
+          }
+        },
+        {
+          "label": "x1.5, 1 cent wide",
+          "scale": 1.5,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 1167,
+            "win_rate": 0.39845758354755784,
+            "profit_factor": 1.1377643852788406,
+            "sharpe": 0.48924671713493406,
+            "max_drawdown": -0.8290402587823594,
+            "ending_equity": 5718.336028431288
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.38857142857142857,
+            "profit_factor": 1.151809762677488,
+            "sharpe": 1.0432419006990308,
+            "max_drawdown": -0.2101690150893133,
+            "ending_equity": 5129.714282723196
+          }
+        },
+        {
+          "label": "x1.5, 2 cents wide",
+          "scale": 1.5,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 805,
+            "win_rate": 0.3701863354037267,
+            "profit_factor": 0.8265415237906503,
+            "sharpe": -0.952740836249256,
+            "max_drawdown": -0.9989923576373988,
+            "ending_equity": 3.496253922484176
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.38476190476190475,
+            "profit_factor": 1.1209384606168238,
+            "sharpe": 0.8847518678548567,
+            "max_drawdown": -0.2381710699736671,
+            "ending_equity": 4630.7242032294525
+          }
+        },
+        {
+          "label": "x2.0, 1 cent wide",
+          "scale": 2.0,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 579,
+            "win_rate": 0.3609671848013817,
+            "profit_factor": 0.7208522618055155,
+            "sharpe": -1.2205810649900148,
+            "max_drawdown": -0.9980561003926446,
+            "ending_equity": 5.126597025282357
+          },
+          "holdout": {
+            "trades": 436,
+            "win_rate": 0.38073394495412843,
+            "profit_factor": 0.852819385216257,
+            "sharpe": -0.9306615070120757,
+            "max_drawdown": -0.9941588423386912,
+            "ending_equity": 17.414315181622424
+          }
+        },
+        {
+          "label": "x2.0, 2 cents wide",
+          "scale": 2.0,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 558,
+            "win_rate": 0.3602150537634409,
+            "profit_factor": 0.7064601333237439,
+            "sharpe": -0.8229367635278386,
+            "max_drawdown": -0.9975294941606659,
+            "ending_equity": 6.255706541716367
+          },
+          "holdout": {
+            "trades": 416,
+            "win_rate": 0.37740384615384615,
+            "profit_factor": 0.8425315383576004,
+            "sharpe": -1.288585934997296,
+            "max_drawdown": -0.992148800145799,
+            "ending_equity": 22.207746070745635
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 1 cent wide",
+          "scale": 1.6698699810076294,
+          "width": "0.01",
+          "rolling": {},
+          "train": {
+            "trades": 755,
+            "win_rate": 0.36821192052980134,
+            "profit_factor": 0.8125139292856499,
+            "sharpe": -0.6872135954429354,
+            "max_drawdown": -0.9985021065075679,
+            "ending_equity": 5.054077040157333
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.38285714285714284,
+            "profit_factor": 1.011389010126831,
+            "sharpe": 0.2643308756458622,
+            "max_drawdown": -0.43730081064402637,
+            "ending_equity": 2714.7778562266976
+          }
+        },
+        {
+          "label": "x1.67 calibrated, 2 cents wide",
+          "scale": 1.6698699810076294,
+          "width": "0.02",
+          "rolling": {},
+          "train": {
+            "trades": 668,
+            "win_rate": 0.3652694610778443,
+            "profit_factor": 0.7769144996994887,
+            "sharpe": -1.0055538343498711,
+            "max_drawdown": -0.9983079128371536,
+            "ending_equity": 5.195414602009262
+          },
+          "holdout": {
+            "trades": 525,
+            "win_rate": 0.37714285714285717,
+            "profit_factor": 0.9848590886993835,
+            "sharpe": 0.0905416561258299,
+            "max_drawdown": -0.5132831201122792,
+            "ending_equity": 2209.845697109475
+          }
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "qqq_aggr": {
+      "holdout_trades": 1128,
+      "published_trades": 1128,
+      "holdout_ending": 96136.46474715552,
+      "published_ending": 96136.46474715552,
+      "train_trades": 2873,
+      "published_train_trades": 2873,
+      "train_ending": 104070.40923132712,
+      "published_train_ending": 104070.40923132712
+    },
+    "trapdoor": {
+      "holdout_trades": 525,
+      "published_trades": 525,
+      "holdout_ending": 12264.920661955377,
+      "published_ending": 12264.920661955377,
+      "train_trades": 1167,
+      "published_train_trades": 1167,
+      "train_ending": 14425.05094981601,
+      "published_train_ending": 14425.05094981601
+    }
+  },
+  "summary": "The 11:36 SPY 777 call mid is $1.135. Black-Scholes at the Oct 8 VIX1D close of 10.24 prices it at $0.659. Matching the mid takes 1.67 times that close, 17.1% instead of 10.24, or +6.9 volatility points. The morning $1.05 fill implies 1.48 times the same close. The logged model near $0.55 lines up with the Oct 6 VIX1D close of 8.69, not with 10.24, so the live log looked closer to half the market than the prior-close formula does. On the holdout, QQQ Aggressive at the published model ends at $96,136 (1128 trades, profit factor 1.98). At 1.67 times volatility and a 1 cent market, it ends at $40,755 (1128 trades, profit factor 1.30). At twice volatility it ends at $13.88 (170 trades, profit factor 0.84). The 12-month chance of reaching $10,000 goes from 100.0% on the published model to 91.7% at the calibrated vol, and the chance of falling under $500 goes from 0.0% to 8.8%. QQQ Trapdoor goes from $12,265 to $2,715. SPY VWAP, one contract from $1,000, goes from $19,137 to $12.42. A 1 cent or 2 cent spread is a small change next to the volatility. 1 DTE and 2 DTE were already richer in the model than in the market, so this bump is only for the 0 DTE price.",
+  "close": "The cash mirror in the sandbox still uses the unscaled model. This score does not change an order."
+}
