@@ -1258,3 +1258,180 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
     assert "QQQ Aggressive Compound" in report
     assert "5% of this book's equity" in report
 
+
+def _round_trip(signal_id: str, qty: int, buy: float, sell: float, model_buy: float, model_sell: float, when: str) -> dict:
+    from webull_bot.execution.forward_cash import option_cash
+
+    return {
+        "id": signal_id,
+        "qty": qty,
+        "buy": buy,
+        "sell": sell,
+        "when": when,
+        "model_debit": option_cash(model_buy, qty, sell=False),
+        "model_credit": option_cash(model_sell, qty, sell=True),
+    }
+
+
+def _book_state(stake: float, trips: list[dict], *, fills_on_orders: bool) -> dict:
+    signals = []
+    orders = []
+    fills = []
+    exits = []
+    for trip in trips:
+        signal_id = trip["id"]
+        when = trip["when"]
+        signals.append(
+            {
+                "id": signal_id,
+                "status": "closed",
+                "direction": "long",
+                "right": "call",
+                "qty": trip["qty"],
+                "signal_time": when,
+                "entry_time": when,
+                "exit_time": when,
+                "entry": 100.0,
+                "stop": 99.0,
+                "target": 101.0,
+                "model_ask": 0.5,
+                "model_bid": 0.4,
+                "model_debit": trip["model_debit"],
+                "model_credit": trip["model_credit"],
+                "pnl": trip["model_credit"] - trip["model_debit"],
+                "reason": "target",
+                "exit": 100.0,
+            }
+        )
+        orders.append(
+            {
+                "key": f"{signal_id}|entry",
+                "id": f"{signal_id}-buy",
+                "kind": "entry",
+                "side": "BUY",
+                "qty": str(trip["qty"]),
+                "status": "submitted",
+                "limit": f"{trip['buy']:.2f}",
+                "fill": trip["buy"] if fills_on_orders else None,
+            }
+        )
+        orders.append(
+            {
+                "key": f"{signal_id}|exit",
+                "id": f"{signal_id}-sell",
+                "kind": "exit",
+                "side": "SELL",
+                "qty": str(trip["qty"]),
+                "status": "submitted",
+                "limit": f"{trip['sell']:.2f}",
+                "fill": trip["sell"] if fills_on_orders else None,
+            }
+        )
+        fills.append({"id": signal_id, "side": "BUY", "qty": str(trip["qty"]), "price": f"{trip['buy']:.2f}", "time": when})
+        fills.append({"id": signal_id, "side": "SELL", "qty": str(trip["qty"]), "price": f"{trip['sell']:.2f}", "time": when})
+        exits.append({"id": signal_id, "time": when, "right": "call", "reason": "target", "underlying": 100.0, "pnl": trip["model_credit"] - trip["model_debit"]})
+    return {
+        "stake": stake,
+        "settled": stake,
+        "unsettled": [],
+        "signals": signals,
+        "orders": orders,
+        "fills": fills,
+        "exits": exits,
+        "positions": [],
+    }
+
+
+def test_cash_mirror_uses_the_sandbox_fill_and_keeps_model_pnl(tmp_path):
+    from webull_bot.execution.forward_cash import option_cash, prepare_cash
+    from webull_bot.execution.forward_vwap import COMBINED_ENTRY_CAP
+
+    assert COMBINED_ENTRY_CAP == 5
+    assert compound_contracts(2_500, 2.51) == (0, "dear")
+    friday = date(2026, 10, 9)
+    monday = date(2026, 10, 12)
+    when = "2026-10-09T10:50:00-04:00"
+    books = {
+        NAME: (
+            1_000.0,
+            [
+                _round_trip("spy-1", 1, 1.05, 1.06, 0.8577, 1.2959, when),
+                _round_trip("spy-2", 1, 0.68, 1.20, 0.6484, 0.7927, "2026-10-09T12:50:00-04:00"),
+            ],
+        ),
+        QQQ_AGGR_NAME: (2_500.0, [_round_trip("aggr", 3, 0.61, 0.60, 0.5390, 0.1445, "2026-10-09T11:05:00-04:00")]),
+        QQQ_AGGR_1DTE_NAME: (2_500.0, [_round_trip("dte", 1, 2.59, 2.58, 2.7549, 2.0781, "2026-10-09T11:05:00-04:00")]),
+    }
+    journal = Journal(tmp_path / "fills.sqlite")
+    for book, (stake, trips) in books.items():
+        state = _book_state(stake, trips, fills_on_orders=True)
+        assert prepare_cash(state, None, stake, friday)
+        settled = stake - sum(option_cash(trip["buy"], trip["qty"], sell=False) for trip in trips)
+        pending = sum(option_cash(trip["sell"], trip["qty"], sell=True) for trip in trips)
+        assert state["settled"] == pytest.approx(settled)
+        assert sum(item["amount"] for item in state["unsettled"]) == pytest.approx(pending)
+        assert {item["date"] for item in state["unsettled"]} == {"2026-10-12"}
+        fill_pnl = sum(signal["fill_pnl"] for signal in state["signals"])
+        model_pnl = sum(signal["model_pnl"] for signal in state["signals"])
+        assert fill_pnl == pytest.approx(pending - (stake - settled))
+        assert fill_pnl != pytest.approx(model_pnl)
+        journal.forward_save(book, state)
+        text = report_text(journal, book=book)
+        assert "fill P&L" in text
+        assert "model P&L" in text
+        assert "Realized fill P&L" in text
+        assert f"${fill_pnl:.2f}" in text
+        assert f"${model_pnl:.2f}" in text
+        assert "super-secret" not in text
+        prepare_cash(state, None, stake, monday)
+        assert state["unsettled"] == []
+        assert state["settled"] == pytest.approx(settled + pending)
+
+    class Detail:
+        def __init__(self):
+            self.calls = []
+
+        def get_order_detail(self, account_id, client_order_id):
+            self.calls.append(client_order_id)
+            price = {"spy-1-buy": "1.05", "spy-1-sell": "1.06"}[client_order_id]
+            return {"avg_filled_price": price, "filled_time": "2026-10-09T10:05:30-04:00"}
+
+    class Trade:
+        order_v3 = Detail()
+
+    broker = SimpleNamespace(_trade=Trade(), account_id="sandbox-account")
+    looked = _book_state(1_000.0, [_round_trip("spy-1", 1, 1.05, 1.06, 0.8577, 1.2959, when)], fills_on_orders=False)
+    looked["settled"] = 1_000.0 - looked["signals"][0]["model_debit"]
+    prepare_cash(looked, broker, 1_000.0, friday)
+    assert broker._trade.order_v3.calls == ["spy-1-buy", "spy-1-sell"]
+    assert looked["orders"][0]["fill"] == 1.05
+    assert looked["fills"][0]["fill"] == 1.05
+    assert looked["settled"] == pytest.approx(1_000.0 - option_cash(1.05, 1, sell=False))
+    again = list(broker._trade.order_v3.calls)
+    prepare_cash(looked, broker, 1_000.0, friday)
+    assert broker._trade.order_v3.calls == again
+
+    winner = _book_state(
+        2_500.0,
+        [_round_trip("win", 1, 0.20, 8.00, 0.20, 0.20, "2024-01-02T15:45:00-05:00")],
+        fills_on_orders=True,
+    )
+    winner["book"] = QQQ_COMPOUND_NAME
+    compound = Journal(tmp_path / "compound-fill.sqlite")
+    compound.forward_save(QQQ_COMPOUND_NAME, winner)
+    room = Quoted(0.40, "2024-01-04")
+    lines = run_cycle(
+        journal=compound,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=room,
+        book=QQQ_COMPOUND_NAME,
+    )
+    pre_trade = 2_500.0 - option_cash(0.20, 1, sell=False) + option_cash(8.00, 1, sell=True)
+    sized = compound_contracts(pre_trade, 0.40)[0]
+    assert sized > compound_contracts(2_500, 0.40)[0]
+    assert room.orders[0]["quantity"] == str(sized)
+    assert any("QQQ Aggressive Compound" in line for line in lines)
+

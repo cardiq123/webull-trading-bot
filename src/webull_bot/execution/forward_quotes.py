@@ -116,7 +116,7 @@ def report_lines(state: dict) -> list[str]:
         (
             "The bid and ask are the live snapshot at the quote time, not a historical print. "
             "The model uses the underlying stored for that signal when the journal has it. "
-            "The cash mirror is unchanged."
+            "The cash mirror uses the sandbox fill when the journal has one."
         ),
     ]
     error = state.get("quote_error") if isinstance(state, dict) else None
@@ -157,7 +157,7 @@ def report_lines(state: dict) -> list[str]:
     )
     lines.append(
         "A positive entry number means the live option was richer than Black-Scholes. "
-        "The cash mirror still uses the model."
+        "The cash mirror uses the sandbox fill. The model P&L stays beside it."
     )
     lines.extend(_shadow_lines(state if isinstance(state, dict) else {}))
     lines.append("")

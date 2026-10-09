@@ -295,14 +295,15 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     """Exits and pending entries for the cached bars. Quote failures stay local."""
     from webull_bot.calendar import to_ny
     from webull_bot.execution.forward_quotes import prime_forward_quotes
+    from webull_bot.execution.forward_cash import prepare_cash
     from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_trapdoor import STAKE as TRAP_STAKE
     from webull_bot.execution.forward_trapdoor import _log_market as trap_log
     from webull_bot.execution.forward_trapdoor import _manage_open as trap_manage
-    from webull_bot.execution.forward_trapdoor import _settle as trap_settle
     from webull_bot.execution.forward_trapdoor import _take_signals as trap_take
     from webull_bot.execution.forward_trapdoor import load_state as trap_load
     from webull_bot.execution.forward_vwap import BOOKS, _ACTIVE, _activate, load_state
-    from webull_bot.execution.forward_vwap import _log_market, _manage_open, _settle, _take_signals
+    from webull_bot.execution.forward_vwap import _log_market, _manage_open, _stake, _take_signals
 
     lines: list[str] = []
     view = _LivePrice(broker, prices)
@@ -327,7 +328,8 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
         token = _activate(name)
         try:
             state = load_state(journal)
-            _settle(state, local.date())
+            if prepare_cash(state, broker, _stake(), local.date()):
+                journal.forward_save(name, state)
             try:
                 _manage_open(state, _frame(bars5, symbol), now, view, lines, journal)
             except Exception:
@@ -344,11 +346,14 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
                     _log_market(state, _frame(bars5, symbol), now, broker, lines, journal, save=True)
                 except Exception:
                     lines.append(f"{name} minute quote log failed. Entry and exit were not changed.")
+            if prepare_cash(state, broker, _stake(), local.date()):
+                journal.forward_save(name, state)
         finally:
             _ACTIVE.reset(token)
     if TRAP_NAME in names:
         state = trap_load(journal)
-        trap_settle(state, local.date())
+        if prepare_cash(state, broker, TRAP_STAKE, local.date()):
+            journal.forward_save(TRAP_NAME, state)
         try:
             trap_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
         except Exception:
@@ -363,6 +368,8 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
                 trap_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
             except Exception:
                 lines.append("QQQ Trapdoor minute quote log failed. Entry and exit were not changed.")
+        if prepare_cash(state, broker, TRAP_STAKE, local.date()):
+            journal.forward_save(TRAP_NAME, state)
     if log_minute:
         LATEST["minute"] = minute_key
     if not lines:

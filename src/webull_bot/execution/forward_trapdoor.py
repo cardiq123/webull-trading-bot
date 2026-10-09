@@ -112,6 +112,7 @@ def empty_state() -> dict[str, Any]:
         "quote_log": [],
         "quote_error": None,
         "last_cycle": None,
+        "cash_session": None,
     }
 
 
@@ -154,7 +155,10 @@ def run_cycle(
         state = load_state(journal)
         if state.get("last_cycle") == cycle_id(now):
             lines.append(f"Already journaled {cycle_id(now)}. No new orders.")
-            _log_market(state, bars5, now, broker, lines, journal, save=True)
+            _account(state, broker, local.date(), lines)
+            _log_market(state, bars5, now, broker, lines, journal, save=False)
+            _account(state, broker, local.date(), lines)
+            journal.forward_save(NAME, state)
             return lines
     else:
         state = empty_state()
@@ -168,7 +172,7 @@ def run_cycle(
             )
             _flatten_open(state, bars5, now, broker, lines, journal)
             _log_market(state, bars5, now, broker, lines, journal, save=False)
-            _finish(state, journal, now, dry_run=False)
+            _finish(state, journal, now, dry_run=False, broker=broker)
             return lines
         lines.append(
             f"Refusing to trade {NAME}. Data is stale: "
@@ -194,15 +198,16 @@ def run_cycle(
         lines.append("Dry run: orders are not sent and the journal is not written.")
         return lines
 
-    _settle(state, local.date())
+    _account(state, broker, local.date(), lines)
     lines.append(f"Last completed 5-minute bar {_last_key(bars5, now, '5m')}.")
     _manage_open(state, bars5, now, broker, lines, journal)
     _take_signals(state, bars5, now, points, iv_closes, broker, lines, journal)
     _log_market(state, bars5, now, broker, lines, journal, save=False)
+    _account(state, broker, local.date(), lines)
     if not any(line.startswith("Signal ") or line.startswith("Exit ") or line.startswith("Skip ") for line in lines):
         if not state.get("positions"):
             lines.append("No new QQQ trapdoor. No open position.")
-    _finish(state, journal, now, dry_run=False)
+    _finish(state, journal, now, dry_run=False, broker=broker)
     return lines
 
 
@@ -301,6 +306,10 @@ def report_text(journal: Journal) -> str:
     state = load_state(journal)
     if not state.get("signals") and not state.get("orders") and not state.get("exits"):
         return f"No forward-test journal for {NAME} yet.\n"
+    from webull_bot.execution.forward_cash import mirror_sentence, pnl_phrase, prepare_cash, session_day
+
+    if prepare_cash(state, None, STAKE, session_day(state)):
+        journal.forward_save(NAME, state)
     lines = [
         f"{DISPLAY} ({NAME}) sandbox forward test. Live trading stays off.",
         (
@@ -315,7 +324,7 @@ def report_text(journal: Journal) -> str:
             f"This book opens at most {BOOK_CAP} trades a day. "
             f"The forward books together open at most {COMBINED_ENTRY_CAP}."
         ),
-        f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
+        mirror_sentence(state, STAKE),
         (
             f"A new entry has to be within {max_entry_delay_minutes():g} minutes of the signal bar close. "
             "A position already open still exits at the stop, the target, or 15:45."
@@ -345,19 +354,27 @@ def report_text(journal: Journal) -> str:
     for row in fills:
         lines.append(
             f"- {row.get('time')} {row.get('side')} {row.get('qty')} {row.get('right')} "
-            f"@ {row.get('price')} underlying {row.get('underlying')} {row.get('price_source')}"
+            f"limit {row.get('price')} fill {row.get('fill') or 'pending'} "
+            f"underlying {row.get('underlying')} {row.get('price_source')}"
         )
     lines.append("Exits")
     realized = 0.0
+    fill_realized = 0.0
     exits = state.get("exits") or []
     if not exits:
         lines.append("(none)")
     for row in exits:
-        pnl = float(row.get("pnl") or 0.0)
-        realized += pnl
+        model = row.get("model_pnl")
+        if model is None:
+            model = row.get("pnl")
+        if model is not None:
+            realized += float(model)
+        fill = row.get("fill_pnl")
+        if fill is not None:
+            fill_realized += float(fill)
         lines.append(
             f"- {row.get('time')} {row.get('right')} reason {row.get('reason')} "
-            f"underlying {row.get('underlying')} P&L ${pnl:.2f}"
+            f"underlying {row.get('underlying')} {pnl_phrase(row)}"
         )
     lines.append("Open position")
     positions = state.get("positions") or []
@@ -369,7 +386,7 @@ def report_text(journal: Journal) -> str:
             f"- {row.get('right')} strike {row.get('strike')} expiry {row.get('expiry')} "
             f"stop {row.get('stop')} target {row.get('target')}{note}"
         )
-    lines.append(f"Realized P&L on the model mirror ${realized:.2f}.")
+    lines.append(f"Realized fill P&L ${fill_realized:.2f}. Model P&L ${realized:.2f}.")
     from webull_bot.execution.forward_quotes import report_lines
 
     lines.extend(report_lines(state))
@@ -490,9 +507,20 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
     return lines
 
 
-def _finish(state: dict, journal: Journal, now: datetime, dry_run: bool) -> None:
+def _account(state: dict, broker, day: date, lines: list[str]) -> None:
+    """Rebuild the mirror from sandbox fills before an entry or a save."""
+    from webull_bot.execution.forward_cash import mirror_sentence, prepare_cash
+
+    if prepare_cash(state, broker, STAKE, day):
+        lines.append(mirror_sentence(state, STAKE))
+
+
+def _finish(state: dict, journal: Journal, now: datetime, dry_run: bool, broker=None) -> None:
     if dry_run:
         return
+    from webull_bot.execution.forward_cash import prepare_cash
+
+    prepare_cash(state, broker, STAKE, to_ny(now).date())
     state["last_cycle"] = cycle_id(now)
     journal.forward_save(NAME, state)
 
