@@ -8,14 +8,16 @@ and it enters a journaled pending signal when the live price is inside
 the stop and the target. The full signal cycle still runs, once, three
 seconds after each five-minute bar close.
 
-Documented OpenAPI market-data limits (per endpoint, per app key):
-stock snapshot and option snapshot are 30 requests / 60s in sandbox and
-60 / 60s in production.
-https://developer.webull.com/apis/docs/rate-limits
-This process stays at or under 10 requests / 60s on each of those
-endpoints, about one third of the sandbox cap. A 429 backs off and does
-not retry in a loop. A quote failure does not change an open position
-and does not block the bar-based exit on the full cycle.
+Documented OpenAPI market-data limits, checked 2026-10-09
+(https://developer.webull.com/apis/docs/rate-limits), per endpoint and
+per app key. Stock snapshot ``GET /market-data/stocks/snapshots/list``
+and option snapshot ``GET /market-data/options/snapshots/list`` are
+30 requests / 60s in sandbox and 60 / 60s in production. Option depth
+on the stock endpoint is not a supported category.
+This process stays at or under 15 requests / 60s on each snapshot
+endpoint, half the sandbox cap. One call passes every symbol for that
+category. A 429 backs off and does not retry in a loop. A quote failure
+does not change an open position and does not block the bar-based exit.
 
 The file lock ``data/forward/cycle.lock`` is shared with ``forward-test``.
 The two never send orders at the same time.
@@ -25,6 +27,8 @@ from __future__ import annotations
 
 import csv
 import fcntl
+import logging
+import re
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -35,8 +39,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 NY = ZoneInfo("America/New_York")
-# One third of the sandbox snapshot cap (30/60s). Production is 60/60s.
-REQUESTS_PER_MINUTE = 10
+# Half the sandbox snapshot cap (30/60s). Production is 60/60s.
+REQUESTS_PER_MINUTE = 15
 WINDOW_SECONDS = 60.0
 BACKOFF_SECONDS = (15.0, 30.0, 60.0)
 BAR_LAG = timedelta(seconds=3)
@@ -157,8 +161,55 @@ def remember_frames(bars15, bars5, points, closes) -> None:
     LATEST["closes"] = closes or {}
 
 
+class _SdkOneLine(logging.Filter):
+    """One short line for an SDK error, then silence the same line for a minute.
+
+    The SDK logs the whole request on HTTP 417 and 429. That dump can carry
+    the signed request. This filter keeps the status and drops the body.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._last = ""
+        self._last_at = 0.0
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno < logging.ERROR:
+            return True
+        text = record.getMessage()
+        short = _sdk_line(text)
+        now = time.monotonic()
+        if short == self._last and now - self._last_at < 60.0:
+            return False
+        self._last = short
+        self._last_at = now
+        record.msg = short
+        record.args = ()
+        return True
+
+
+def _sdk_line(text: str) -> str:
+    if "UNSUPPORTED_CATEGORY" in text or re.search(r"\b417\b", text):
+        return "Webull market data rejected the category (HTTP 417). The request was not logged."
+    if "Too Many Requests" in text or re.search(r"\b429\b", text):
+        return "Webull market data rate limit (HTTP 429). The request was not logged."
+    match = re.search(r"\b([45]\d\d)\b", text)
+    if match:
+        return f"Webull market data error (HTTP {match.group(1)}). The request was not logged."
+    return "Webull market data error. The request was not logged."
+
+
+def quiet_sdk_errors() -> None:
+    """Attach the one-line filter to the SDK client logger. Safe to call twice."""
+    log = logging.getLogger("webull.core.client")
+    if any(isinstance(item, _SdkOneLine) for item in log.filters):
+        return
+    log.addFilter(_SdkOneLine())
+
+
 def guard_market_data(broker, budget: Optional[EndpointBudget] = None) -> EndpointBudget:
     """Count snapshot and bar calls, and back off on HTTP 429."""
+    quiet_sdk_errors()
     book = budget or getattr(broker, "_watch_budget", None) or EndpointBudget()
     broker._watch_budget = book
     client = getattr(broker, "_data", None)
@@ -243,6 +294,7 @@ def option_snapshot(broker, symbols: list[str]) -> dict[str, dict]:
 def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: list[str]) -> list[str]:
     """Exits and pending entries for the cached bars. Quote failures stay local."""
     from webull_bot.calendar import to_ny
+    from webull_bot.execution.forward_quotes import prime_forward_quotes
     from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_trapdoor import _log_market as trap_log
     from webull_bot.execution.forward_trapdoor import _manage_open as trap_manage
@@ -261,6 +313,13 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     closes = LATEST.get("closes") or {}
     minute_key = local.strftime("%Y-%m-%d %H:%M")
     log_minute = LATEST.get("minute") != minute_key
+    specs = [(name, BOOKS[name], _frame(bars5, BOOKS[name])) for name in names if name in BOOKS]
+    if TRAP_NAME in names:
+        specs.append((TRAP_NAME, "QQQ", _frame(bars5, "QQQ")))
+    try:
+        prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
+    except Exception:
+        lines.append("Option snapshot was not taken. Open positions were not changed.")
     for name in names:
         if name not in BOOKS:
             continue
@@ -319,11 +378,12 @@ def _frame(book, symbol: str) -> pd.DataFrame:
 
 
 def _write_ticks(book: str, symbol: str, state: dict, underlying, broker, now: datetime) -> None:
+    from webull_bot.execution.forward_quotes import cached_option
+
     positions = [row for row in (state.get("positions") or []) if isinstance(row, dict)]
     if not positions:
         return
-    symbols = [str(row.get("option_symbol") or "") for row in positions if row.get("option_symbol")]
-    quotes = option_snapshot(broker, symbols) if symbols else {}
+    quotes = {str(row.get("option_symbol") or ""): cached_option(str(row.get("option_symbol") or "")) for row in positions}
     folder = Path("data/forward")
     try:
         folder.mkdir(parents=True, exist_ok=True)
@@ -344,10 +404,10 @@ def _write_ticks(book: str, symbol: str, state: dict, underlying, broker, now: d
                         "symbol": symbol,
                         "underlying": "" if underlying is None else f"{float(underlying):.4f}",
                         "option_symbol": contract,
-                        "bid": quote.get("bid", ""),
-                        "ask": quote.get("ask", ""),
-                        "bid_size": quote.get("bid_size", ""),
-                        "ask_size": quote.get("ask_size", ""),
+                        "bid": _cell(quote.get("bid")),
+                        "ask": _cell(quote.get("ask")),
+                        "bid_size": _cell(quote.get("bid_size")),
+                        "ask_size": _cell(quote.get("ask_size")),
                     }
                 )
     except Exception:
@@ -453,9 +513,17 @@ def _prefer(fallback, fresh) -> dict:
     return base
 
 
+def _cell(value) -> str:
+    if value in (None, ""):
+        return ""
+    return str(value)
+
+
 def run_watch(config, args, names: list[str]) -> int:
     """Long-running loop. ``--once`` performs a single tick and returns."""
     from webull_bot.execution.forward_vwap import in_forward_window
+
+    quiet_sdk_errors()
 
     once = bool(getattr(args, "once", False))
     dry_run = bool(getattr(args, "dry_run", False))

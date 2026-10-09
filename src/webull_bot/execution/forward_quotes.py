@@ -225,6 +225,7 @@ def occ_symbol(symbol: str, expiry: date, right: str, strike: float) -> str:
 def _note(state, *, book, symbol, now, underlying, broker, client, bars=None) -> bool:
     changed = False
     local = to_ny(now)
+    _ensure_option_quotes(state, client, symbol, underlying, local)
     state.setdefault("quote_log", [])
     state.setdefault("shadow", [])
     for position in list(state.get("positions") or []):
@@ -642,7 +643,192 @@ def _stamp_flat(shadow, *, now, spot) -> None:
         leg["flat_time"] = now.isoformat()
 
 
+# Option snapshot accepts at most 20 symbols. The stock depth endpoint does not.
+OPTION_BATCH = 20
+_OPTION_CACHE: dict[str, dict] = {}
+_PRIMED = False
+
+
+def clear_option_cache() -> None:
+    """Drop quotes from the previous tick. The next read fetches again."""
+    global _PRIMED
+    _OPTION_CACHE.clear()
+    _PRIMED = False
+
+
+def cached_option(symbol: str) -> dict:
+    return dict(_OPTION_CACHE.get(str(symbol or "")) or {})
+
+
+def prime_forward_quotes(journal, broker, specs, now, include_ladder: bool) -> None:
+    """One option snapshot for the open contracts, and the 0-3 DTE shadows when asked.
+
+    ``specs`` is ``(book, underlying symbol, 5-minute bars)``. Underlyings stay
+    on the stock snapshot. Options stay on the option snapshot. A failure here
+    leaves the cache empty and does not change a position.
+    """
+    global _PRIMED
+    from webull_bot.execution.forward_vwap import _spot
+
+    clear_option_cache()
+    client = getattr(broker, "_data", None)
+    if client is None or journal is None:
+        return
+    symbols: list[str] = []
+    clock = pd.Timestamp(now)
+    for book, symbol, bars in specs:
+        try:
+            state = journal.forward_load(book) or {}
+        except Exception:
+            state = {}
+        spot = _spot(bars, clock) if bars is not None and len(getattr(bars, "index", ())) else None
+        for item in option_symbols_for(state, client, symbol, spot, now, include_ladder):
+            if item not in symbols:
+                symbols.append(item)
+    if symbols:
+        _fetch_option_quotes(client, symbols)
+    _PRIMED = True
+
+
+def option_symbols_for(state, client, symbol: str, spot, now, include_ladder: bool) -> list[str]:
+    """Contracts this book will read. The ladder is the chain lookup, not a quote."""
+    found: list[str] = []
+
+    def add(value) -> None:
+        text = str(value or "")
+        if text and text not in found:
+            found.append(text)
+
+    if not isinstance(state, dict):
+        return found
+    for position in state.get("positions") or []:
+        if isinstance(position, dict):
+            add(position.get("option_symbol"))
+    for row in list(state.get("signals") or []) + list(state.get("exits") or []):
+        if isinstance(row, dict):
+            add(row.get("option_symbol") or row.get("order_symbol"))
+    if not include_ladder or client is None:
+        return found
+    local = to_ny(now)
+    rights = []
+    for row in list(state.get("positions") or []) + list(state.get("signals") or []):
+        if not isinstance(row, dict):
+            continue
+        if row in (state.get("signals") or []) and row.get("market"):
+            continue
+        right = str(row.get("right") or row.get("option_type") or "")
+        kind = "CALL" if right.lower().startswith("c") else "PUT" if right.lower().startswith("p") else ""
+        if kind and kind not in rights:
+            rights.append(kind)
+    for kind in rights:
+        for item in _ladder_plan(client, symbol, kind, spot or 0.0, local.date()):
+            add(item.get("contract"))
+    return found
+
+
+def _ensure_option_quotes(state, client, symbol: str, spot, now) -> None:
+    """One batched option snapshot for this book, unless the tick already took it."""
+    if client is None:
+        return
+    if not _PRIMED:
+        _OPTION_CACHE.clear()
+    needed = option_symbols_for(state, client, symbol, spot, now, True)
+    missing = [item for item in needed if item not in _OPTION_CACHE]
+    if missing:
+        _fetch_option_quotes(client, missing)
+
+
+def _fetch_option_quotes(client, symbols: list[str]) -> None:
+    """``get_option_snapshot`` with a list. No stock snapshot and no depth."""
+    market = getattr(client, "option_market_data", None)
+    method = getattr(market, "get_option_snapshot", None)
+    wanted = []
+    for symbol in symbols:
+        text = str(symbol or "")
+        if text and text not in wanted:
+            wanted.append(text)
+    if method is None:
+        for symbol in wanted:
+            _OPTION_CACHE[symbol] = {"contract": symbol, "error": "no option snapshot"}
+        return
+    for start in range(0, len(wanted), OPTION_BATCH):
+        chunk = wanted[start : start + OPTION_BATCH]
+        try:
+            payload = _call(method, chunk, "US_OPTION")
+        except Exception as exc:
+            message = _short(exc)
+            for symbol in chunk:
+                _OPTION_CACHE[symbol] = {"contract": symbol, "error": f"option snapshot: {message}"}
+            continue
+        parsed = _parse_option_batch(payload, chunk)
+        for symbol in chunk:
+            _OPTION_CACHE[symbol] = parsed.get(symbol) or {
+                "contract": symbol,
+                "error": "option snapshot had no bid or ask",
+            }
+
+
+def _parse_option_batch(payload, symbols: list[str]) -> dict[str, dict]:
+    body = _json(payload)
+    rows = _snapshot_rows(body)
+    found: dict[str, dict] = {}
+    for row in rows:
+        parsed = parse_snapshot(row)
+        key = str(parsed.get("contract") or "")
+        if not key and isinstance(row, dict):
+            key = str(row.get("symbol") or row.get("option_symbol") or "")
+        if not key and len(symbols) == 1:
+            key = symbols[0]
+        if not key:
+            continue
+        parsed["contract"] = key
+        if parsed.get("bid") is not None or parsed.get("ask") is not None or parsed.get("last") is not None:
+            parsed["error"] = None
+        found[key] = parsed
+    if len(symbols) == 1 and symbols[0] not in found:
+        parsed = parse_snapshot(body)
+        parsed["contract"] = parsed.get("contract") or symbols[0]
+        if parsed.get("bid") is not None or parsed.get("ask") is not None or parsed.get("last") is not None:
+            parsed["error"] = None
+            found[symbols[0]] = parsed
+    return found
+
+
+def _snapshot_rows(payload) -> list:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    for key in ("data", "result", "quotes", "items", "records"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, dict):
+            nested = _snapshot_rows(value)
+            return nested or [value]
+    return [payload]
+
+
 def _ladder(client, symbol, option_type, spot, day: date) -> list[dict]:
+    built = _ladder_plan(client, symbol, option_type, spot, day)
+    for item in built:
+        occ = str(item.get("contract") or "")
+        if not occ:
+            continue
+        if occ not in _OPTION_CACHE:
+            _fetch_option_quotes(client, [occ])
+        quote = dict(_OPTION_CACHE.get(occ) or {"error": "no contract symbol"})
+        error = quote.get("error")
+        if item.get("error") and error:
+            error = f"{item['error']}; {error}"
+        elif item.get("error") and quote.get("bid") is None and quote.get("ask") is None:
+            error = item["error"]
+        item["quote"] = quote
+        item["error"] = error
+    return built
+
+
+def _ladder_plan(client, symbol, option_type, spot, day: date) -> list[dict]:
     contracts = _list_contracts(client, symbol, option_type, spot, day)
     chain_error = _chain_error(contracts)
     if chain_error:
@@ -663,21 +849,16 @@ def _ladder(client, symbol, option_type, spot, day: date) -> list[dict]:
         chosen = _contract_on(contracts, expiry, option_type, spot)
         strike = chosen.get("strike") if chosen else listed_strike(spot, spot) if spot else None
         occ = chosen.get("option_symbol") if chosen else (occ_symbol(symbol, expiry, option_type, strike) if strike else "")
-        quote = _quote_contract(client, occ) if occ else {"error": "no contract symbol"}
-        error = quote.get("error")
-        if chain_error and error:
-            error = f"{chain_error}; {error}"
-        elif chain_error and not quote.get("bid") and not quote.get("ask"):
-            error = chain_error
-        item = {
-            "offset": offset,
-            "expiry": expiry.isoformat(),
-            "contract": occ,
-            "strike": strike,
-            "quote": quote,
-            "error": error,
-        }
-        built.append(item)
+        built.append(
+            {
+                "offset": offset,
+                "expiry": expiry.isoformat() if expiry is not None else None,
+                "contract": occ,
+                "strike": strike,
+                "quote": {},
+                "error": chain_error,
+            }
+        )
     return built
 
 
@@ -746,38 +927,14 @@ def _contract_on(contracts, expiry: date, option_type: str, spot: float) -> Opti
 
 
 def _quote_contract(client, option_symbol: str) -> dict:
+    """The option snapshot only. Stock depth is not a quote for an option."""
     if not option_symbol:
         return {"error": "no option symbol"}
-    errors = []
-    attempts = (
-        ("option snapshot US_OPTION", lambda: client.option_market_data.get_option_snapshot(option_symbol, "US_OPTION")),
-        ("stock snapshot US_OPTION", lambda: client.market_data.get_snapshot(option_symbol, "US_OPTION")),
-        ("level-1 quote US_OPTION", lambda: client.market_data.get_quotes(option_symbol, "US_OPTION", depth=1)),
-    )
-    for label, method in attempts:
-        if not _has_call(client, label):
-            continue
-        try:
-            payload = _call(method)
-        except Exception as exc:
-            errors.append(f"{label}: {_short(exc)}")
-            continue
-        parsed = parse_snapshot(payload)
-        parsed["contract"] = parsed.get("contract") or option_symbol
-        if parsed.get("bid") is not None or parsed.get("ask") is not None or parsed.get("last") is not None:
-            parsed["error"] = None
-            return parsed
-        errors.append(f"{label}: snapshot had no bid or ask")
-    return {"contract": option_symbol, "error": "; ".join(errors) or "no option quote method on the data client"}
-
-
-def _has_call(client, label: str) -> bool:
-    if label.startswith("option"):
-        return hasattr(getattr(client, "option_market_data", None), "get_option_snapshot")
-    market = getattr(client, "market_data", None)
-    if "snapshot" in label:
-        return hasattr(market, "get_snapshot")
-    return hasattr(market, "get_quotes")
+    cached = _OPTION_CACHE.get(str(option_symbol))
+    if cached is not None:
+        return dict(cached)
+    _fetch_option_quotes(client, [option_symbol])
+    return dict(_OPTION_CACHE.get(str(option_symbol)) or {"contract": option_symbol, "error": "no option snapshot"})
 
 
 def _fresh_leg_quote(client, leg, fallback) -> dict:

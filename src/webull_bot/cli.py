@@ -772,6 +772,22 @@ def _forward_vwap_body(config, args, names: list[str], trap_names: list[str], no
     points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
     remember_frames(bars15, bars5, points, closes)
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    if broker is not None:
+        from webull_bot.execution.forward_quotes import prime_forward_quotes
+        from webull_bot.execution.forward_trapdoor import NAME as trap_name
+
+        specs = []
+        for name in names:
+            symbol = BOOKS[name]
+            five = bars5.get(symbol) if isinstance(bars5, dict) else None
+            specs.append((name, symbol, five if five is not None else pd.DataFrame()))
+        if trap_names:
+            five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+            specs.append((trap_name, "QQQ", five if five is not None else pd.DataFrame()))
+        try:
+            prime_forward_quotes(journal, broker, specs, now, include_ladder=True)
+        except Exception:
+            pass
     blocks = []
     for name in names:
         symbol = BOOKS[name]

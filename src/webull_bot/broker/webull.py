@@ -849,9 +849,14 @@ class WebullBroker(Broker):
         if self._data is None or not option_symbol:
             return None
         try:
+            from webull_bot.execution.forward_quotes import cached_option
             from webull_bot.execution.option_quote import snapshot_sides
 
-            ask, bid = snapshot_sides(self._data, option_symbol)
+            cached = cached_option(option_symbol)
+            ask = cached.get("ask") if cached else None
+            bid = cached.get("bid") if cached else None
+            if ask is None and bid is None:
+                ask, bid = snapshot_sides(self._data, option_symbol)
             out: dict[str, float] = {}
             if ask is not None and ask > 0:
                 out["ask"] = ask

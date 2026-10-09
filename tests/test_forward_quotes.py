@@ -52,12 +52,33 @@ class _Market:
         self.book = book
         self.option_market_data = self
         self.instrument = self
+        self.market_data = self
+        self.snapshot_calls = []
+        self.depth_calls = []
+        self.stock_calls = []
 
     def list_option_contracts(self, **kwargs):
         return {"contracts": _contracts()}
 
-    def get_option_snapshot(self, symbol, category):
-        return {"data": [dict(self.book[symbol], symbol=symbol)]}
+    def get_option_snapshot(self, symbols, category):
+        self.snapshot_calls.append((symbols, category))
+        if isinstance(symbols, str):
+            symbols = [item for item in symbols.split(",") if item]
+        rows = []
+        for symbol in symbols:
+            row = self.book.get(symbol)
+            if row is None:
+                continue
+            rows.append(dict(row, symbol=symbol))
+        return {"data": rows}
+
+    def get_snapshot(self, symbols, category):
+        self.stock_calls.append((symbols, category))
+        raise AssertionError("an option quote does not use the stock snapshot")
+
+    def get_quotes(self, *args, **kwargs):
+        self.depth_calls.append((args, kwargs))
+        raise AssertionError("an option quote does not use stock depth")
 
 
 class _Broker:
@@ -133,6 +154,9 @@ def _bars() -> pd.DataFrame:
 
 
 def _use(tmp_path, monkeypatch) -> None:
+    from webull_bot.execution.forward_quotes import clear_option_cache
+
+    clear_option_cache()
     monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
 
 
@@ -497,3 +521,90 @@ def test_late_shadow_is_labeled(tmp_path, monkeypatch):
     text = "\n".join(report_lines(state))
     assert "first live quote after this logger started" in text
     assert broker.sent == []
+
+
+def _open_state():
+    signal = _signal()
+    return {
+        "signals": [signal],
+        "orders": [],
+        "positions": [_position(signal)],
+        "exits": [],
+        "settled": 1000.0,
+        "quote_log": [],
+        "shadow": [],
+    }
+
+
+def test_open_contract_and_shadows_share_one_option_snapshot(tmp_path, monkeypatch):
+    _use(tmp_path, monkeypatch)
+    market = _Market(_book({0: 1.00, 1: 2.00, 2: 3.00, 3: 4.00}, {0: 1.05, 1: 2.10, 2: 3.20, 3: 4.30}))
+    state = _open_state()
+    note_quotes(
+        state,
+        book="vwap_band_15m",
+        symbol="SPY",
+        now=_at("10:00"),
+        underlying=775.63,
+        broker=_Broker(market),
+        lines=[],
+        bars=_bars(),
+    )
+    assert market.depth_calls == []
+    assert market.stock_calls == []
+    assert len(market.snapshot_calls) == 1
+    symbols, category = market.snapshot_calls[0]
+    assert category == "US_OPTION"
+    assert isinstance(symbols, list)
+    assert set(symbols) == {_occ(expiry) for expiry in EXPIRES}
+    assert state["positions"][0]["qty"] == 1
+    assert state["settled"] == 1000.0
+
+
+def test_a_blank_option_snapshot_does_not_fall_through_to_depth(tmp_path, monkeypatch):
+    _use(tmp_path, monkeypatch)
+    blank = {symbol: {} for symbol in _book({0: 1, 1: 1, 2: 1, 3: 1}, {0: 1, 1: 1, 2: 1, 3: 1})}
+    market = _Market(blank)
+    state = _open_state()
+    note_quotes(
+        state,
+        book="vwap_band_15m",
+        symbol="SPY",
+        now=_at("10:00"),
+        underlying=775.63,
+        broker=_Broker(market),
+        lines=[],
+        bars=_bars(),
+    )
+    assert market.depth_calls == []
+    assert market.stock_calls == []
+    assert len(market.snapshot_calls) == 1
+    assert state["positions"]
+    assert state["settled"] == 1000.0
+
+
+def test_a_primed_cycle_quotes_the_ladder_once(tmp_path, monkeypatch):
+    from webull_bot.execution.forward_quotes import prime_forward_quotes
+
+    _use(tmp_path, monkeypatch)
+    market = _Market(_book({0: 1.00, 1: 2.00, 2: 3.00, 3: 4.00}, {0: 1.05, 1: 2.10, 2: 3.20, 3: 4.30}))
+    state = _open_state()
+
+    class Journal:
+        def forward_load(self, book):
+            return state
+
+    prime_forward_quotes(Journal(), _Broker(market), [("vwap_band_15m", "SPY", _bars())], _at("10:00"), True)
+    note_quotes(
+        state,
+        book="vwap_band_15m",
+        symbol="SPY",
+        now=_at("10:00"),
+        underlying=775.63,
+        broker=_Broker(market),
+        lines=[],
+        bars=_bars(),
+    )
+    assert len(market.snapshot_calls) == 1
+    assert market.depth_calls == []
+    assert set(market.snapshot_calls[0][0]) == {_occ(expiry) for expiry in EXPIRES}

@@ -75,16 +75,80 @@ def test_bar_close_is_three_seconds_past_the_boundary():
 
 
 def test_budget_stays_under_the_sandbox_snapshot_cap_and_backs_off():
-    budget = EndpointBudget(cap=10)
-    for _ in range(10):
-        budget.gate("stock_snapshot")
+    from webull_bot.execution.forward_watch import REQUESTS_PER_MINUTE, snapshot_prices
+
+    assert REQUESTS_PER_MINUTE == 15
+    budget = EndpointBudget()
+    for _ in range(15):
+        budget.gate("option_snapshot")
     with pytest.raises(BudgetExceeded):
-        budget.gate("stock_snapshot")
-    delay = budget.penalize("option_snapshot")
+        budget.gate("option_snapshot")
+    budget.gate("stock_snapshot")
+
+    tight = EndpointBudget(cap=10)
+    for _ in range(10):
+        tight.gate("stock_snapshot")
+    with pytest.raises(BudgetExceeded):
+        tight.gate("stock_snapshot")
+    delay = tight.penalize("option_snapshot")
     assert delay == 15.0
-    assert budget.cooling("option_snapshot")
+    assert tight.cooling("option_snapshot")
     assert rate_limited(RuntimeError("HTTP 429 Too Many Requests"))
     assert not rate_limited(RuntimeError("timeout"))
+
+    class Market:
+        def __init__(self):
+            self.calls = []
+
+        def get_snapshot(self, symbols, category):
+            self.calls.append((list(symbols), category))
+            return {"data": [{"symbol": item, "price": 500.0 + index} for index, item in enumerate(symbols)]}
+
+    class Data:
+        def __init__(self):
+            self.market_data = Market()
+
+    class QuoteBroker:
+        def __init__(self):
+            self._data = Data()
+
+    broker = QuoteBroker()
+    prices = snapshot_prices(broker, ["SPY", "QQQ"], EndpointBudget())
+    assert broker._data.market_data.calls == [(["SPY", "QQQ"], "US_ETF")]
+    assert prices == {"SPY": 500.0, "QQQ": 501.0}
+
+
+def test_sdk_errors_are_one_line_and_do_not_repeat():
+    import logging
+
+    from webull_bot.execution.forward_watch import _SdkOneLine, quiet_sdk_errors
+
+    log = logging.getLogger("webull.core.client")
+    log.setLevel(logging.ERROR)
+    log.filters[:] = [item for item in log.filters if not isinstance(item, _SdkOneLine)]
+    quiet_sdk_errors()
+    quiet_sdk_errors()
+    seen = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            seen.append(record.getMessage())
+
+    handler = Capture(level=logging.ERROR)
+    log.addHandler(handler)
+    try:
+        dump = (
+            "ServerException occurred. Request:"
+            "{'path': '/market-data/stocks/depths/list', 'category': 'US_OPTION'} "
+            "HTTP 417 UNSUPPORTED_CATEGORY"
+        )
+        log.error(dump)
+        log.error(dump)
+        assert seen == ["Webull market data rejected the category (HTTP 417). The request was not logged."]
+        assert "Request" not in seen[0]
+        assert "depths" not in seen[0]
+    finally:
+        log.removeHandler(handler)
 
 
 def test_the_cycle_lock_does_not_overlap(tmp_path):
