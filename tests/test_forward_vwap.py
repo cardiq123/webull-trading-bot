@@ -17,9 +17,11 @@ from webull_bot.execution.forward_vwap import (
     NAME,
     QQQ_AGGR_1DTE_NAME,
     QQQ_AGGR_NAME,
+    QQQ_COMPOUND_NAME,
     QQQ_NAME,
     SKIPS_EVENT_DAYS,
     combined_entries,
+    compound_contracts,
     data_problems,
     empty_state,
     in_forward_window,
@@ -1011,4 +1013,248 @@ def test_an_open_three_lot_still_closes_at_three_after_the_book_is_one(tmp_path)
     assert broker.orders[-1]["legs"][0]["option_expire_date"] == "2024-01-04"
     assert journal.forward_load(QQQ_AGGR_1DTE_NAME)["positions"] == []
     assert all(order["side"] != "BUY" for order in broker.orders)
+
+
+class Quoted(Broker):
+    def __init__(self, ask: float, expiry: str):
+        super().__init__(ask=ask, bid=max(ask - 0.01, 0.01))
+        self.expiry = expiry
+
+    def option_zero_dte_quote(self, symbol, option_type, spot, as_of):
+        quote = super().option_zero_dte_quote(symbol, option_type, spot, as_of)
+        quote["expiry"] = self.expiry
+        return quote
+
+
+def test_compound_contracts_is_five_percent_with_a_ten_percent_rescue_and_a_thirty_cap():
+    assert compound_contracts(2_500, 1.0) == (1, "size")
+    assert compound_contracts(10_000, 1.0) == (5, "size")
+    assert compound_contracts(2_500, 2.0) == (1, "rescue")
+    assert compound_contracts(2_500, 2.5) == (1, "rescue")
+    assert compound_contracts(2_500, 2.51) == (0, "dear")
+    assert compound_contracts(100_000, 0.40) == (30, "cap")
+    assert compound_contracts(0, 1.0) == (0, "skip")
+
+
+def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    monkeypatch.setenv("WEBULL_APP_SECRET", "super-secret-value")
+    assert QQQ_COMPOUND_NAME == "vwap_band_15m_qqq_compound"
+    assert QQQ_COMPOUND_NAME in ENTRY_BOOKS
+    with pytest.raises(KeyError, match="not in the paper or live book"):
+        strategy_by_name(QQQ_COMPOUND_NAME)
+    with pytest.raises(SystemExit, match="Live trading stays off"):
+        refuse_if_forward_only([QQQ_COMPOUND_NAME])
+    parser = build_parser()
+    assert parser.parse_args(["forward-report", QQQ_COMPOUND_NAME]).strategy == QQQ_COMPOUND_NAME
+    watch = Path(__file__).resolve().parents[1] / "scripts" / "vwap-watch.sh"
+    text = watch.read_text()
+    assert (
+        "vwap_band_15m vwap_band_15m_qqq_aggr vwap_band_15m_qqq_aggr_1dte "
+        "vwap_band_15m_qqq_compound neckline_trapdoor_qqq"
+        in text
+    )
+
+    one = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(1.0, "2024-01-04"),
+        book=QQQ_COMPOUND_NAME,
+    )
+    held = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_1DTE_NAME)
+    assert one[0]["status"] == "open"
+    assert one[0]["qty"] == 1
+    assert one[0]["size_tag"] == "size"
+    assert one[0]["stop"] == pytest.approx(held[0]["stop"])
+    assert one[0]["target"] == pytest.approx(held[0]["target"])
+    assert one[0]["direction"] == held[0]["direction"]
+    assert one[0]["entry_time"] == held[0]["entry_time"]
+    assert one[0]["expiry"] == "2024-01-04"
+
+    rescue = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(2.0, "2024-01-04"),
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert rescue[0]["status"] == "open"
+    assert rescue[0]["qty"] == 1
+    assert rescue[0]["size_tag"] == "rescue"
+
+    dear = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(3.0, "2024-01-04"),
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert dear[0]["status"] == "skip"
+    assert dear[0]["qty"] == 0
+    assert "10% of equity" in dear[0]["detail"]
+
+    capped = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(0.40, "2024-01-04"),
+        settled=100_000.0,
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert capped[0]["status"] == "open"
+    assert capped[0]["qty"] == 30
+    assert capped[0]["size_tag"] == "cap"
+
+    model = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_COMPOUND_NAME)
+    same_day = plan_day(
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(0.05, DAY),
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert same_day[0]["qty"] == model[0]["qty"]
+    assert same_day[0]["status"] == model[0]["status"]
+
+    flat = plan_day(
+        bars15=_long_day(),
+        bars5=_five(special={"15:45": (131.0, 180.0, 129.0, 179.0, 1000.0)}),
+        now=_at("15:50"),
+        iv_points=IV,
+        broker=Quoted(1.0, "2024-01-04"),
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert flat[0]["reason"] == "flat"
+    assert flat[0]["exit_time"].startswith(DAY)
+    assert "15:45" in flat[0]["exit_time"]
+    assert flat[0]["expiry"] == "2024-01-04"
+
+    journal = Journal(tmp_path / "compound.sqlite")
+    broker = Quoted(1.0, "2024-01-04")
+    lines = run_cycle(
+        journal=journal,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=broker,
+        book=QQQ_COMPOUND_NAME,
+    )
+    text = "\n".join(lines)
+    assert "super-secret-value" not in text
+    assert "QQQ Aggressive Compound" in text
+    assert "5% of equity" in text
+    assert broker.orders[0]["quantity"] == "1"
+    assert broker.orders[0]["legs"][0]["option_expire_date"] == "2024-01-04"
+    saved = journal.forward_load(QQQ_COMPOUND_NAME)
+    assert saved["book"] == QQQ_COMPOUND_NAME
+    assert saved["stake"] == 2500.0
+    assert saved["positions"][0]["qty"] == 1
+    assert journal.forward_load(QQQ_AGGR_1DTE_NAME) is None or journal.forward_load(QQQ_AGGR_1DTE_NAME) == {}
+
+    short = Journal(tmp_path / "short.sqlite")
+    short.forward_save(
+        QQQ_COMPOUND_NAME,
+        {
+            "book": QQQ_COMPOUND_NAME,
+            "stake": 2500.0,
+            "settled": 80.0,
+            "unsettled": [{"date": "2024-01-04", "amount": 100_000.0}],
+            "signals": [],
+            "positions": [],
+            "orders": [],
+            "fills": [],
+            "exits": [],
+        },
+    )
+    room = Quoted(0.50, "2024-01-04")
+    skipped = run_cycle(
+        journal=short,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=room,
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert room.orders == []
+    assert any("does not fit" in line for line in skipped)
+    row = short.forward_load(QQQ_COMPOUND_NAME)["signals"][0]
+    assert row["skip"] == "premium"
+    assert row["qty"] == 30
+
+    blocked = Journal(tmp_path / "blocked.sqlite")
+    blocked.forward_save(
+        NAME,
+        {
+            "signals": [
+                {"id": f"seed-{i}", "status": "closed", "entry_time": f"{DAY}T10:0{i}:00"}
+                for i in range(5)
+            ]
+        },
+    )
+    late = Quoted(1.0, "2024-01-04")
+    denied = run_cycle(
+        journal=blocked,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=late,
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert late.orders == []
+    assert any("already opened 5 trades today" in line for line in denied)
+    assert blocked.forward_load(QQQ_COMPOUND_NAME)["signals"][0]["skip"] == "cap"
+
+    legacy = Journal(tmp_path / "legacy-compound.sqlite")
+    state = empty_state()
+    state["book"] = QQQ_COMPOUND_NAME
+    state["stake"] = 2500.0
+    state["positions"] = [
+        {
+            "id": "open-4",
+            "direction": "long",
+            "right": "call",
+            "option_type": "CALL",
+            "strike": 130.0,
+            "model_strike": 130.0,
+            "expiry": "2024-01-04",
+            "signal_time": f"{DAY}T11:30:00-05:00",
+            "fill_time": f"{DAY}T11:45:00-05:00",
+            "entry_time": f"{DAY}T11:47:00-05:00",
+            "entry": 130.0,
+            "stop": 99.0,
+            "target": 200.0,
+            "qty": 4,
+            "model_debit": 400.0,
+            "iv": 0.2,
+        }
+    ]
+    legacy.forward_save(QQQ_COMPOUND_NAME, state)
+    seller = Quoted(1.0, "2024-01-04")
+    closed = run_cycle(
+        journal=legacy,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("15:50"),
+        iv_points=IV,
+        broker=seller,
+        book=QQQ_COMPOUND_NAME,
+    )
+    assert any("Order SELL 4" in line for line in closed)
+    assert seller.orders[-1]["quantity"] == "4"
+    assert seller.orders[-1]["side"] == "SELL"
+    assert legacy.forward_load(QQQ_COMPOUND_NAME)["positions"] == []
+    report = report_text(legacy, book=QQQ_COMPOUND_NAME)
+    assert report.splitlines()[0].startswith("vwap_band_15m_qqq_compound ")
+    assert "QQQ Aggressive Compound" in report
+    assert "5% of this book's equity" in report
 

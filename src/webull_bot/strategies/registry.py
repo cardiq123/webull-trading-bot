@@ -63,6 +63,7 @@ def strategy_by_name(name: str) -> Strategy:
         "vwap_band_15m_qqq",
         "vwap_band_15m_qqq_aggr",
         "vwap_band_15m_qqq_aggr_1dte",
+        "vwap_band_15m_qqq_compound",
         "neckline_trapdoor_qqq",
     }:
         raise KeyError(

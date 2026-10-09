@@ -14,7 +14,16 @@ session. The scored book still sells at the 15:45 open the entry day.
 It does not hold overnight. The ticket is one contract
 or it is skipped and journaled. It is never cut down and never sized
 above one. A position opened at the previous three-contract size keeps
-that recorded quantity on the exit. One position per book. The one-contract books use the scored
+that recorded quantity on the exit. ``vwap_band_15m_qqq_compound`` is
+QQQ Aggressive Compound: that same signal, stop, target, 10-minute
+entry, and same-day 15:45 flatten, on the next session's expiry. The
+lot is 5% of this book's own equity, using the sandbox ask when the
+quote is for that expiry and the model ask when it is not.
+``floor(0.05 * equity / (ask * 100))``. Equity is settled cash plus
+credits that have not settled yet. A fresh mirror starts at $2,500.
+When the fraction rounds to 0, one contract is bought only if it costs
+at most 10% of equity. Otherwise the signal is skipped and journaled.
+The lot is capped at 30 and is not cut down to fit. One position per book. The one-contract books use the scored
 $1,000 mirror: the model debit has to fit settled cash, a sale settles
 the next session, and equity at or under $1 stops new entries.
 
@@ -48,11 +57,11 @@ CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
 
 ``--dry-run`` replays the session from a fresh cash mirror ($1,000 on the
-one-contract books, $2,500 on both QQQ Aggressive books) and does not connect or
+one-contract books, $2,500 on the QQQ Aggressive books) and does not connect or
 write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
 trading stays off. The runner names ``vwap_band_15m``,
-``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``, and
-``neckline_trapdoor_qqq``. The one-contract
+``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``,
+``vwap_band_15m_qqq_compound``, and ``neckline_trapdoor_qqq``. The one-contract
 QQQ book stays available so its journal can still be read.
 """
 
@@ -94,32 +103,40 @@ NAME = "vwap_band_15m"
 QQQ_NAME = "vwap_band_15m_qqq"
 QQQ_AGGR_NAME = "vwap_band_15m_qqq_aggr"
 QQQ_AGGR_1DTE_NAME = "vwap_band_15m_qqq_aggr_1dte"
+QQQ_COMPOUND_NAME = "vwap_band_15m_qqq_compound"
 SYMBOL = "SPY"
 BOOKS = {
     NAME: "SPY",
     QQQ_NAME: "QQQ",
     QQQ_AGGR_NAME: "QQQ",
     QQQ_AGGR_1DTE_NAME: "QQQ",
+    QQQ_COMPOUND_NAME: "QQQ",
 }
 DISPLAY = {
     NAME: "SPY VWAP",
     QQQ_NAME: "QQQ VWAP",
     QQQ_AGGR_NAME: "QQQ Aggressive",
     QQQ_AGGR_1DTE_NAME: "QQQ Aggressive 1DTE",
+    QQQ_COMPOUND_NAME: "QQQ Aggressive Compound",
 }
 # One contract on the scored books and on QQQ Aggressive 1DTE.
 # QQQ Aggressive 0 DTE stays a fixed 3-lot.
+# QQQ Aggressive Compound uses 30 as a cap, not as the order size.
+COMPOUND_FRACTION = 0.05
+COMPOUND_CAP = 30
 QUANTITIES = {
     NAME: 1,
     QQQ_NAME: 1,
     QQQ_AGGR_NAME: 3,
     QQQ_AGGR_1DTE_NAME: 1,
+    QQQ_COMPOUND_NAME: COMPOUND_CAP,
 }
 STAKES = {
     NAME: 1_000.0,
     QQQ_NAME: 1_000.0,
     QQQ_AGGR_NAME: 2_500.0,
     QQQ_AGGR_1DTE_NAME: 2_500.0,
+    QQQ_COMPOUND_NAME: 2_500.0,
 }
 # 0 is same-day expiry. 1 is the next trading session, sold the entry day.
 DTE = {
@@ -127,11 +144,20 @@ DTE = {
     QQQ_NAME: 0,
     QQQ_AGGR_NAME: 0,
     QQQ_AGGR_1DTE_NAME: 1,
+    QQQ_COMPOUND_NAME: 1,
 }
 # New entries across the sandbox forward books, including QQQ Trapdoor.
 # The one-contract QQQ journal still counts when the runner no longer calls it.
+# Each book's fill counts as its own entry. The cap stays 5.
 COMBINED_ENTRY_CAP = 5
-ENTRY_BOOKS = (NAME, QQQ_NAME, QQQ_AGGR_NAME, QQQ_AGGR_1DTE_NAME, "neckline_trapdoor_qqq")
+ENTRY_BOOKS = (
+    NAME,
+    QQQ_NAME,
+    QQQ_AGGR_NAME,
+    QQQ_AGGR_1DTE_NAME,
+    QQQ_COMPOUND_NAME,
+    "neckline_trapdoor_qqq",
+)
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
@@ -160,9 +186,107 @@ def _stake() -> float:
 
 
 def _quantity() -> int:
-    """Fixed lot for a new entry. QQQ Aggressive 0 DTE is 3. 1 DTE is 1."""
+    """Fixed lot for a new entry. QQQ Aggressive 0 DTE is 3. 1 DTE is 1.
+
+    QQQ Aggressive Compound returns its 30-contract cap. The order size is
+    ``compound_contracts``, and ``_lot`` uses this only as the ceiling.
+    """
     qty = int(QUANTITIES.get(_book(), 1))
     return qty if qty > 0 else 1
+
+
+def _is_compound() -> bool:
+    return _book() == QQQ_COMPOUND_NAME
+
+
+def compound_contracts(equity: float, ask: float) -> tuple[int, str]:
+    """The 5% lot. The tag is size, rescue, cap, dear, or skip.
+
+    ``contracts = floor(0.05 * equity / (ask * 100))``. A zero lot buys one
+    contract when that contract costs at most 10% of equity. The cap is 30.
+    """
+    unit = float(ask) * float(CONTRACT_MULTIPLIER)
+    if equity <= 0 or unit <= 0 or not math.isfinite(unit):
+        return 0, "skip"
+    raw = math.floor((COMPOUND_FRACTION * float(equity)) / unit + 1e-9)
+    if raw <= 0:
+        if unit <= 2.0 * COMPOUND_FRACTION * float(equity) + 1e-6:
+            return 1, "rescue"
+        return 0, "dear"
+    if raw > COMPOUND_CAP:
+        return COMPOUND_CAP, "cap"
+    return int(raw), "size"
+
+
+def _ticket_debit(ask: float, qty: int) -> float:
+    return float(ask) * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, float(ask), sell=False)
+
+
+def _compound_decision(equity: float, settled: float, ask: float) -> dict:
+    """Size the 5% ticket. A lot that does not fit settled cash is not cut down."""
+    qty, tag = compound_contracts(equity, ask)
+    if qty < 1:
+        detail = "1 contract costs more than 10% of equity"
+        if tag == "skip":
+            detail = "there is no equity to size"
+        return {
+            "qty": 0,
+            "tag": tag,
+            "ask": float(ask),
+            "debit": 0.0,
+            "ok": False,
+            "skip": "premium",
+            "detail": detail,
+        }
+    debit = _ticket_debit(ask, qty)
+    if debit <= 0 or debit > float(settled) + 1e-9:
+        noun = "contract" if qty == 1 else "contracts"
+        return {
+            "qty": qty,
+            "tag": "cash",
+            "ask": float(ask),
+            "debit": debit,
+            "ok": False,
+            "skip": "premium",
+            "detail": f"the {qty}-{noun} ticket does not fit settled cash",
+        }
+    return {
+        "qty": qty,
+        "tag": tag,
+        "ask": float(ask),
+        "debit": debit,
+        "ok": True,
+        "skip": "",
+        "detail": "",
+    }
+
+
+def _mirror_equity(state: dict) -> float:
+    """Settled cash plus sale proceeds that have not settled yet."""
+    settled = float(state.get("settled") or 0.0)
+    pending = 0.0
+    for item in state.get("unsettled") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            pending += float(item.get("amount") or 0.0)
+        except (TypeError, ValueError):
+            continue
+    return settled + pending
+
+
+def _live_ask(broker, option_type: str, spot: float, expiry: date, session: date) -> Optional[float]:
+    """The sandbox ask when the quote is for this book's expiry. A same-day quote is ignored on 1 DTE."""
+    if broker is None:
+        return None
+    quote = _entry_quote(broker, {"option_type": option_type, "entry": spot, "expiry": expiry.isoformat()})
+    if not quote:
+        return None
+    if _dte() > 0:
+        quoted = str(quote.get("expiry") or "")[:10]
+        if not quoted or quoted <= session.isoformat():
+            return None
+    return _positive(quote.get("ask"))
 
 
 def _dte() -> int:
@@ -221,6 +345,8 @@ def _lot(row: dict | None = None, *, closing: bool = False) -> int:
 
 
 def _contract_phrase() -> str:
+    if _is_compound():
+        return "ATM 1 DTE QQQ, 5% of this book's equity, at most 30 contracts"
     qty = _quantity()
     word = {1: "One", 3: "Three"}.get(qty, str(qty))
     noun = "contract" if qty == 1 else "contracts"
@@ -515,6 +641,7 @@ def _plan_day(
     points = iv_points or {}
     cash = float(settled)
     equity = cash
+    pending = 0.0
     bust = bool(stopped) or equity <= 1.0
     busy: Optional[pd.Timestamp] = None
     position: Optional[dict] = None
@@ -526,6 +653,7 @@ def _plan_day(
             outcome = _exit_after(position, path, moment)
             if outcome is not None:
                 _mark_exit(position, *outcome)
+                pending += float(position["model_credit"])
                 equity = cash + float(position["model_credit"])
                 busy = pd.Timestamp(position["exit_time"])
                 position = None
@@ -548,7 +676,9 @@ def _plan_day(
                 events.append(row)
                 seen.add(sid)
                 continue
-            built = _decide_entry(signal, bars15, bars5, moment, points, cash, iv_closes, broker)
+            built = _decide_entry(
+                signal, bars15, bars5, moment, points, cash, iv_closes, broker, equity=cash + pending
+            )
             if built.get("status") == "wait":
                 continue
             seen.add(sid)
@@ -559,6 +689,7 @@ def _plan_day(
             outcome = _exit_after(built, path, moment)
             if outcome is not None:
                 _mark_exit(built, *outcome)
+                pending += float(built["model_credit"])
                 equity = cash + float(built["model_credit"])
                 busy = pd.Timestamp(built["exit_time"])
             else:
@@ -725,9 +856,17 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
         (
             f"Window {local.isoformat()}. Cash mirror ${_stake():,.0f}. One position. "
             + (
-                "1 contract."
-                if _quantity() == 1
-                else f"{_quantity()} contracts. A smaller lot is not bought, and the size does not go above {_quantity()}."
+                "5% of equity on the ask, at most 30 contracts. "
+                "One contract is bought when the fraction rounds to 0 and that contract costs at most 10% of equity. "
+                "Otherwise the signal is skipped and journaled. The size is not cut down. "
+                "A live cycle uses the sandbox ask when the quote is for the next session. "
+                "A dry run uses the model ask."
+                if _is_compound()
+                else (
+                    "1 contract."
+                    if _quantity() == 1
+                    else f"{_quantity()} contracts. A smaller lot is not bought, and the size does not go above {_quantity()}."
+                )
             )
         ),
         (
@@ -823,8 +962,18 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
         frozen = None
         if prior is not None and prior.get("modeled_entry") not in (None, ""):
             frozen = _positive(prior.get("modeled_entry"))
+        settled_now = float(state.get("settled") or 0.0)
         built = _decide_entry(
-            signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker, frozen
+            signal,
+            bars15,
+            bars5,
+            now_ts,
+            points,
+            settled_now,
+            iv_closes,
+            broker,
+            frozen,
+            equity=_mirror_equity(state),
         )
         if built.get("status") == "wait":
             _remember_pending(state, signal, built)
@@ -879,6 +1028,27 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             expiry = str(quote["expiry"])[:10]
         option_symbol = str(quote.get("option_symbol") or "")
     limit = _buy_limit(limit_basis)
+    if _is_compound() and sandbox_ask is not None:
+        decision = _compound_decision(_mirror_equity(state), float(state.get("settled") or 0.0), sandbox_ask)
+        if not decision["ok"]:
+            skipped = dict(built)
+            skipped["status"] = "skip"
+            skipped["skip"] = decision["skip"]
+            skipped["reason"] = decision["skip"]
+            skipped["detail"] = decision["detail"]
+            skipped["qty"] = decision["qty"]
+            skipped["model_ask"] = model_ask
+            skipped["sandbox_ask"] = sandbox_ask
+            skipped["size_tag"] = decision["tag"]
+            _drop_pending(state, skipped.get("id"))
+            state["signals"].append(skipped)
+            lines.append("Skip " + _event_line(skipped))
+            journal.forward_save(_book(), state)
+            return
+        built["qty"] = decision["qty"]
+        built["model_debit"] = decision["debit"]
+        built["size_tag"] = decision["tag"]
+        built["sandbox_ask"] = sandbox_ask
     qty = _lot(built)
     if existing is None:
         order = {
@@ -1278,7 +1448,18 @@ def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Op
     return 0.5 * (lo + hi)
 
 
-def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_closes=None, broker=None, frozen_open: Optional[float] = None) -> dict:
+def _decide_entry(
+    signal,
+    bars15,
+    bars5,
+    now_ts,
+    points,
+    settled: float,
+    iv_closes=None,
+    broker=None,
+    frozen_open: Optional[float] = None,
+    equity: Optional[float] = None,
+) -> dict:
     """Price the order at this cycle. A missing open waits. It is not a skip.
 
     The stop and the 1R target stay on the modeled next open. The order uses
@@ -1356,22 +1537,50 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
     expiry = _expiry_for(day)
     entry_mid = _priced_mid(right, spot, strike, now_ts, iv)
     model_ask = entry_mid + _half_spread(entry_mid)
-    qty = _quantity()
-    debit = model_ask * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, model_ask, sell=False)
-    if debit <= 0 or debit > settled + 1e-9:
-        detail = "the model debit does not fit settled cash"
-        if qty != 1:
-            detail = f"the model debit for {qty} contracts does not fit settled cash"
-        row = _skip(signal, "premium", detail)
-        row["qty"] = qty
-        row["model_ask"] = model_ask
-        row["model_debit"] = debit
-        row["strike"] = strike
-        row["modeled_entry"] = modeled
-        row["entry"] = spot
-        row["iv"] = iv
-        row["iv_source"] = iv_source
-        return row
+    marked = float(settled if equity is None else equity)
+    live_ask = None
+    sizing_ask = model_ask
+    source = "model"
+    size_tag = None
+    if _is_compound():
+        live_ask = _live_ask(broker, option_type, spot, expiry, day)
+        if live_ask is not None:
+            sizing_ask = live_ask
+            source = "webull"
+        decision = _compound_decision(marked, settled, sizing_ask)
+        qty = int(decision["qty"])
+        debit = float(decision["debit"])
+        size_tag = decision["tag"]
+        if not decision["ok"]:
+            row = _skip(signal, decision["skip"], decision["detail"])
+            row["qty"] = qty
+            row["model_ask"] = model_ask
+            row["model_debit"] = debit
+            row["sandbox_ask"] = live_ask
+            row["size_tag"] = size_tag
+            row["strike"] = strike
+            row["modeled_entry"] = modeled
+            row["entry"] = spot
+            row["iv"] = iv
+            row["iv_source"] = iv_source
+            return row
+    else:
+        qty = _quantity()
+        debit = model_ask * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, model_ask, sell=False)
+        if debit <= 0 or debit > settled + 1e-9:
+            detail = "the model debit does not fit settled cash"
+            if qty != 1:
+                detail = f"the model debit for {qty} contracts does not fit settled cash"
+            row = _skip(signal, "premium", detail)
+            row["qty"] = qty
+            row["model_ask"] = model_ask
+            row["model_debit"] = debit
+            row["strike"] = strike
+            row["modeled_entry"] = modeled
+            row["entry"] = spot
+            row["iv"] = iv
+            row["iv_source"] = iv_source
+            return row
     row = dict(_base(signal))
     row.update(
         {
@@ -1396,8 +1605,9 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "model_debit": debit,
             "model_credit": None,
             "pnl": None,
-            "price_source": "model",
-            "sandbox_ask": None,
+            "price_source": source,
+            "sandbox_ask": live_ask,
+            "size_tag": size_tag,
         }
     )
     return row

@@ -82,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "One sandbox cycle. Pass chop_breakout_60m, or any of vwap_band_15m, "
             "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, vwap_band_15m_qqq_aggr_1dte, "
-            "and neckline_trapdoor_qqq. Live trading stays off. "
+            "vwap_band_15m_qqq_compound, and neckline_trapdoor_qqq. Live trading stays off. "
             "--dry-run does not connect."
         ),
     )
@@ -96,6 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
             "vwap_band_15m_qqq",
             "vwap_band_15m_qqq_aggr",
             "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
             "neckline_trapdoor_qqq",
         ],
     )
@@ -123,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
             "vwap_band_15m_qqq",
             "vwap_band_15m_qqq_aggr",
             "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
             "neckline_trapdoor_qqq",
         ],
     )
@@ -144,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
             "vwap_band_15m_qqq",
             "vwap_band_15m_qqq_aggr",
             "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
             "neckline_trapdoor_qqq",
         ],
     )
@@ -196,6 +199,7 @@ FORWARD_ONLY = {
     "vwap_band_15m_qqq",
     "vwap_band_15m_qqq_aggr",
     "vwap_band_15m_qqq_aggr_1dte",
+    "vwap_band_15m_qqq_compound",
     "neckline_trapdoor_qqq",
 }
 
@@ -636,14 +640,15 @@ def _forward_test(config, args) -> int:
             "Run chop_breakout_60m on its own command. "
             "The VWAP books and QQQ Trapdoor share one command: "
             "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq_aggr "
-            "vwap_band_15m_qqq_aggr_1dte neckline_trapdoor_qqq"
+            "vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq"
         )
     if vwap or trap:
         return _forward_vwap(config, args, vwap, trap)
     if len(chop) != 1:
         raise SystemExit(
             "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, "
-            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, vwap_band_15m_qqq_aggr_1dte, neckline_trapdoor_qqq"
+            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, vwap_band_15m_qqq_aggr_1dte, "
+            "vwap_band_15m_qqq_compound, neckline_trapdoor_qqq"
         )
     args.strategy = chop[0]
     from zoneinfo import ZoneInfo
@@ -836,7 +841,7 @@ def _forward_watch(config, args) -> int:
     if not names:
         raise SystemExit(
             "Name at least one book: vwap_band_15m vwap_band_15m_qqq_aggr "
-            "vwap_band_15m_qqq_aggr_1dte neckline_trapdoor_qqq"
+            "vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq"
         )
     return run_watch(config, args, names)
 
