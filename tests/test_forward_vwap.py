@@ -649,7 +649,7 @@ def test_five_opens_across_the_forward_books_block_another_vwap_entry(tmp_path):
     journal.forward_save(NAME, state)
     broker = Broker()
     lines = _cycle(journal, _long_day(), _five(), "11:50", broker=broker)
-    assert any("already opened 5 trades today" in line for line in lines)
+    assert any("already used 5 signals today" in line for line in lines)
     assert broker.orders == []
 
 
@@ -783,7 +783,7 @@ def test_the_one_contract_qqq_journal_still_counts_toward_the_daily_cap(tmp_path
         broker=broker,
         book=QQQ_AGGR_NAME,
     )
-    assert any("already opened 5 trades today" in line for line in lines)
+    assert any("already used 5 signals today" in line for line in lines)
     assert broker.orders == []
     saved = journal.forward_load(QQQ_AGGR_NAME)
     assert saved["signals"][0]["skip"] == "cap"
@@ -908,7 +908,7 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
     assert broker.orders[0]["legs"][0]["option_expire_date"] == DAY
     assert combined_entries(
         journal, date.fromisoformat(DAY), QQQ_AGGR_1DTE_NAME, journal.forward_load(QQQ_AGGR_1DTE_NAME)
-    ) == 2
+    ) == 1
     saved = journal.forward_load(QQQ_AGGR_1DTE_NAME)
     assert saved["book"] == QQQ_AGGR_1DTE_NAME
     assert saved["stake"] == 2500.0
@@ -957,7 +957,7 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
         broker=room,
         book=QQQ_AGGR_NAME,
     )
-    blocked = run_cycle(
+    shared = run_cycle(
         journal=capped,
         bars15=_long_day(),
         bars5=_five(),
@@ -966,10 +966,16 @@ def test_qqq_aggressive_1dte_is_the_next_session_and_flattens_the_same_day(tmp_p
         broker=room,
         book=QQQ_AGGR_1DTE_NAME,
     )
-    assert len(room.orders) == 1
-    assert any("already opened 5 trades today" in line for line in blocked)
-    assert capped.forward_load(QQQ_AGGR_1DTE_NAME)["signals"][0]["skip"] == "cap"
+    assert len(room.orders) == 2
+    assert not any("already used 5 signals today" in line for line in shared)
+    assert capped.forward_load(QQQ_AGGR_1DTE_NAME)["positions"]
     assert capped.forward_load(QQQ_AGGR_NAME)["positions"]
+    from webull_bot.execution.forward_vwap import signal_cap_reached
+
+    qqq_id = capped.forward_load(QQQ_AGGR_NAME)["positions"][0]["id"]
+    assert combined_entries(capped, date.fromisoformat(DAY), QQQ_COMPOUND_NAME, empty_state()) == 5
+    assert not signal_cap_reached(capped, date.fromisoformat(DAY), QQQ_COMPOUND_NAME, empty_state(), qqq_id)
+    assert signal_cap_reached(capped, date.fromisoformat(DAY), "neckline_trapdoor_qqq", empty_state(), "QQQ|other|short|trapdoor")
 
 
 def test_an_open_three_lot_still_closes_at_three_after_the_book_is_one(tmp_path):
@@ -1066,7 +1072,7 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
     )
     held = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_1DTE_NAME)
     assert one[0]["status"] == "open"
-    assert one[0]["qty"] == 1
+    assert one[0]["qty"] == 2
     assert one[0]["size_tag"] == "size"
     assert one[0]["stop"] == pytest.approx(held[0]["stop"])
     assert one[0]["target"] == pytest.approx(held[0]["target"])
@@ -1079,7 +1085,7 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
         bars5=_five(),
         now=_at("11:50"),
         iv_points=IV,
-        broker=Quoted(2.0, "2024-01-04"),
+        broker=Quoted(3.0, "2024-01-04"),
         book=QQQ_COMPOUND_NAME,
     )
     assert rescue[0]["status"] == "open"
@@ -1091,7 +1097,7 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
         bars5=_five(),
         now=_at("11:50"),
         iv_points=IV,
-        broker=Quoted(3.0, "2024-01-04"),
+        broker=Quoted(6.0, "2024-01-04"),
         book=QQQ_COMPOUND_NAME,
     )
     assert dear[0]["status"] == "skip"
@@ -1151,12 +1157,13 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
     assert "super-secret-value" not in text
     assert "QQQ Aggressive Compound" in text
     assert "5% of equity" in text
-    assert broker.orders[0]["quantity"] == "1"
+    assert broker.orders[0]["quantity"] == "2"
     assert broker.orders[0]["legs"][0]["option_expire_date"] == "2024-01-04"
     saved = journal.forward_load(QQQ_COMPOUND_NAME)
     assert saved["book"] == QQQ_COMPOUND_NAME
-    assert saved["stake"] == 2500.0
-    assert saved["positions"][0]["qty"] == 1
+    assert saved["stake"] == 5000.0
+    assert saved["settled"] < 5000.0
+    assert saved["positions"][0]["qty"] == 2
     assert journal.forward_load(QQQ_AGGR_1DTE_NAME) is None or journal.forward_load(QQQ_AGGR_1DTE_NAME) == {}
 
     short = Journal(tmp_path / "short.sqlite")
@@ -1211,7 +1218,7 @@ def test_qqq_aggressive_compound_sizes_five_percent_of_its_own_mirror(tmp_path, 
         book=QQQ_COMPOUND_NAME,
     )
     assert late.orders == []
-    assert any("already opened 5 trades today" in line for line in denied)
+    assert any("already used 5 signals today" in line for line in denied)
     assert blocked.forward_load(QQQ_COMPOUND_NAME)["signals"][0]["skip"] == "cap"
 
     legacy = Journal(tmp_path / "legacy-compound.sqlite")
@@ -1434,4 +1441,56 @@ def test_cash_mirror_uses_the_sandbox_fill_and_keeps_model_pnl(tmp_path):
     assert sized > compound_contracts(2_500, 0.40)[0]
     assert room.orders[0]["quantity"] == str(sized)
     assert any("QQQ Aggressive Compound" in line for line in lines)
+
+
+def test_unused_compound_mirror_resets_to_5000_and_qqq_books_share_a_signal(tmp_path):
+    from webull_bot.execution.forward_vwap import signal_cap_reached
+
+    stale = Journal(tmp_path / "stale.sqlite")
+    stale.forward_save(
+        QQQ_COMPOUND_NAME,
+        {
+            "book": QQQ_COMPOUND_NAME,
+            "stake": 2500.0,
+            "settled": 2500.0,
+            "unsettled": [],
+            "signals": [{"id": "skipped", "status": "skip", "entry_time": f"{DAY}T10:00:00"}],
+            "positions": [],
+            "orders": [],
+        },
+    )
+    lines = run_cycle(
+        journal=stale,
+        bars15=_long_day(),
+        bars5=_five(),
+        now=_at("11:50"),
+        iv_points=IV,
+        broker=Quoted(1.0, "2024-01-04"),
+        book=QQQ_COMPOUND_NAME,
+    )
+    saved = stale.forward_load(QQQ_COMPOUND_NAME)
+    assert saved["stake"] == 5000.0
+    assert any("Cash mirror $5,000" in line for line in lines)
+    assert saved["positions"][0]["qty"] == 2
+
+    shared = Journal(tmp_path / "shared.sqlite")
+    signal = plan_day(bars15=_long_day(), bars5=_five(), now=_at("11:50"), iv_points=IV, book=QQQ_AGGR_NAME)[0]
+    for book in (QQQ_AGGR_NAME, QQQ_AGGR_1DTE_NAME, QQQ_COMPOUND_NAME):
+        shared.forward_save(
+            book,
+            {
+                "signals": [{"id": signal["id"], "status": "closed", "entry_time": f"{DAY}T11:00:00"}],
+            },
+        )
+    shared.forward_save(
+        NAME,
+        {"signals": [{"id": "SPY|other|long|extension", "status": "closed", "entry_time": f"{DAY}T10:00:00"}]},
+    )
+    shared.forward_save(
+        "neckline_trapdoor_qqq",
+        {"signals": [{"id": "QQQ|other|short|trapdoor", "status": "closed", "entry_time": f"{DAY}T10:05:00"}]},
+    )
+    qqq_state = shared.forward_load(QQQ_AGGR_NAME)
+    assert combined_entries(shared, date.fromisoformat(DAY), QQQ_AGGR_NAME, qqq_state) == 3
+    assert not signal_cap_reached(shared, date.fromisoformat(DAY), QQQ_COMPOUND_NAME, {"signals": []}, signal["id"])
 

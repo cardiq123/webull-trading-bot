@@ -12,8 +12,8 @@ The target is 1R from the modeled next open. The position is flat at the
 
 One at-the-money 0 DTE QQQ put. The cash mirror is the scored $2,500.
 One position. This book opens at most three trades a day, which is the
-scored cap. A new entry is also refused when the sandbox forward books
-together have already opened five trades today.
+scored cap. The sandbox forward books together use at most five signals
+a day. Books on the same signal share one slot.
 
 The order goes out on the first cycle after the signal bar closes, and
 only when QQQ is still strictly between the stop and the 1R target. Those
@@ -47,7 +47,7 @@ from webull_bot.chart_reads.vwap_band import _half_spread, _option_mid, walk_exi
 from webull_bot.data.yfinance_provider import bar_end
 from webull_bot.execution.forward_vwap import (
     COMBINED_ENTRY_CAP,
-    combined_entries,
+    signal_cap_reached,
     in_forward_window,
     max_entry_delay_minutes,
     opened_on,
@@ -322,7 +322,8 @@ def report_text(journal: Journal) -> str:
         ),
         (
             f"This book opens at most {BOOK_CAP} trades a day. "
-            f"The forward books together open at most {COMBINED_ENTRY_CAP}."
+            f"The forward books together use at most {COMBINED_ENTRY_CAP} signals a day. "
+            "Books on the same signal share one slot."
         ),
         mirror_sentence(state, STAKE),
         (
@@ -492,7 +493,8 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
         ),
         (
             f"This book opens at most {BOOK_CAP} trades a day. "
-            f"The forward books together open at most {COMBINED_ENTRY_CAP} new trades a day."
+            f"The forward books together use at most {COMBINED_ENTRY_CAP} signals a day. "
+            "Books on the same signal share one slot."
         ),
         f"Window {local.isoformat()}. Cash mirror ${STAKE:,.0f}. One position.",
         (
@@ -589,8 +591,8 @@ def _take_signals(state, bars5, now, points, iv_closes, broker, lines, journal) 
             lines.append("Skip " + _event_line(row))
             journal.forward_save(NAME, state)
             continue
-        if combined_entries(journal, now_ts.date(), NAME, state) >= COMBINED_ENTRY_CAP:
-            row = _skip(signal, "cap", "the forward books already opened 5 trades today")
+        if signal_cap_reached(journal, now_ts.date(), NAME, state, sid):
+            row = _skip(signal, "cap", "the forward books already used 5 signals today")
             state["signals"].append(row)
             lines.append("Skip " + _event_line(row))
             journal.forward_save(NAME, state)

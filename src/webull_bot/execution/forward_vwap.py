@@ -21,7 +21,8 @@ lot is 5% of this book's own equity, using the sandbox ask when the
 quote is for that expiry and the model ask when it is not. Equity for
 that size is the sandbox-fill mirror.
 ``floor(0.05 * equity / (ask * 100))``. Equity is settled cash plus
-credits that have not settled yet. A fresh mirror starts at $2,500.
+credits that have not settled yet. A fresh mirror starts at $5,000.
+An unused $2,500 compound journal is reset to that stake.
 When the fraction rounds to 0, one contract is bought only if it costs
 at most 10% of equity. Otherwise the signal is skipped and journaled.
 The lot is capped at 30 and is not cut down to fit. One position per book. The one-contract books use the scored
@@ -61,12 +62,17 @@ CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
 
 ``--dry-run`` replays the session from a fresh cash mirror ($1,000 on the
-one-contract books, $2,500 on the QQQ Aggressive books) and does not connect or
+one-contract books, $2,500 on QQQ Aggressive and QQQ Aggressive 1DTE,
+$5,000 on QQQ Aggressive Compound) and does not connect or
 write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
 trading stays off. The runner names ``vwap_band_15m``,
 ``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``,
 ``vwap_band_15m_qqq_compound``, and ``neckline_trapdoor_qqq``. The one-contract
-QQQ book stays available so its journal can still be read.
+QQQ book stays available so its journal can still be read. The forward
+books together use at most five signals a day. QQQ Aggressive 0 DTE,
+1 DTE, and Compound share one slot on the same 15-minute bar. SPY VWAP
+and QQQ Trapdoor each count as their own signal. Trapdoor still opens
+at most three trades a day.
 """
 
 from __future__ import annotations
@@ -140,7 +146,7 @@ STAKES = {
     QQQ_NAME: 1_000.0,
     QQQ_AGGR_NAME: 2_500.0,
     QQQ_AGGR_1DTE_NAME: 2_500.0,
-    QQQ_COMPOUND_NAME: 2_500.0,
+    QQQ_COMPOUND_NAME: 5_000.0,
 }
 # 0 is same-day expiry. 1 is the next trading session, sold the entry day.
 DTE = {
@@ -150,10 +156,13 @@ DTE = {
     QQQ_AGGR_1DTE_NAME: 1,
     QQQ_COMPOUND_NAME: 1,
 }
-# New entries across the sandbox forward books, including QQQ Trapdoor.
+# New signals across the sandbox forward books, including QQQ Trapdoor.
 # The one-contract QQQ journal still counts when the runner no longer calls it.
-# Each book's fill counts as its own entry. The cap stays 5.
+# One slot per signal. The QQQ Aggressive books share a slot when they take
+# the same 15-minute bar. SPY VWAP and QQQ Trapdoor each count alone.
+# The cap stays 5. Trapdoor also keeps its own 3-trades-a-day cap.
 COMBINED_ENTRY_CAP = 5
+COMPOUND_STAKE = 5_000.0
 ENTRY_BOOKS = (
     NAME,
     QQQ_NAME,
@@ -375,16 +384,40 @@ def opened_on(state: dict | None, day: date) -> int:
     return count
 
 
-def combined_entries(journal, day: date, book: str, state: dict) -> int:
-    """Entries already opened today on this book plus the other forward journals.
+def signal_slot(row: dict, book: str) -> str:
+    """The shared cap key. The same signal id is one slot on every book."""
+    sid = str(row.get("id") or "").strip()
+    if sid:
+        return sid
+    when = str(row.get("signal_time") or row.get("entry_time") or "")
+    return f"{book}|{when}"
+
+
+def slots_opened_on(state: dict | None, day: date, book: str) -> set[str]:
+    """Signals this book opened on ``day``. Skips do not take a slot."""
+    if not isinstance(state, dict):
+        return set()
+    found: set[str] = set()
+    for row in state.get("signals") or []:
+        if not isinstance(row, dict) or row.get("status") not in {"open", "closed"}:
+            continue
+        if str(row.get("entry_time") or "")[:10] != day.isoformat():
+            continue
+        found.add(signal_slot(row, book))
+    return found
+
+
+def combined_slots(journal, day: date, book: str, state: dict) -> set[str]:
+    """Signal slots already opened today across the forward books.
 
     The in-memory state is the current book, so a fill that has not been
     saved yet is still counted. The other books are whatever the journal
-    last saved.
+    last saved. QQQ Aggressive 0 DTE, 1 DTE, and Compound share a slot when
+    their signal ids match. SPY and QQQ Trapdoor use different ids.
     """
-    total = opened_on(state, day)
+    slots = set(slots_opened_on(state, day, book))
     if journal is None:
-        return total
+        return slots
     for name in ENTRY_BOOKS:
         if name == book:
             continue
@@ -392,8 +425,24 @@ def combined_entries(journal, day: date, book: str, state: dict) -> int:
             saved = journal.forward_load(name)
         except Exception:
             saved = None
-        total += opened_on(saved, day)
-    return total
+        slots |= slots_opened_on(saved, day, name)
+    return slots
+
+
+def combined_entries(journal, day: date, book: str, state: dict) -> int:
+    """How many signal slots are already open today."""
+    return len(combined_slots(journal, day, book, state))
+
+
+def signal_cap_reached(journal, day: date, book: str, state: dict, signal_id: str) -> bool:
+    """True when ``signal_id`` would be a new slot past the shared cap.
+
+    A signal another book already opened today does not take another slot.
+    """
+    slots = combined_slots(journal, day, book, state)
+    if signal_id and signal_id in slots:
+        return False
+    return len(slots) >= COMBINED_ENTRY_CAP
 
 
 def max_entry_delay_minutes() -> float:
@@ -466,6 +515,37 @@ def empty_state() -> dict[str, Any]:
     }
 
 
+def _opened_trade(state: dict) -> bool:
+    if state.get("positions"):
+        return True
+    for row in state.get("signals") or []:
+        if isinstance(row, dict) and row.get("status") in {"open", "closed"}:
+            return True
+    for row in state.get("orders") or []:
+        if isinstance(row, dict) and row.get("status") in {"submitted", "intent"}:
+            return True
+    return False
+
+
+def _reset_unused_compound_mirror(state: dict, journal: Journal) -> None:
+    """The unused $2,500 compound mirror becomes the fresh $5,000 mirror.
+
+    A book that already opened a trade, or a mirror whose cash is not the
+    old starting stake, is left as it was.
+    """
+    if _book() != QQQ_COMPOUND_NAME or _opened_trade(state):
+        return
+    stake = float(state.get("stake") or 0.0)
+    settled = float(state.get("settled") or 0.0)
+    if stake != 2_500.0 or abs(settled - 2_500.0) > 1e-6 or state.get("unsettled"):
+        return
+    state["stake"] = COMPOUND_STAKE
+    state["settled"] = COMPOUND_STAKE
+    state["unsettled"] = []
+    state["stopped"] = False
+    journal.forward_save(_book(), state)
+
+
 def load_state(journal: Journal) -> dict[str, Any]:
     saved = journal.forward_load(_book())
     state = empty_state()
@@ -473,6 +553,7 @@ def load_state(journal: Journal) -> dict[str, Any]:
         for key in state:
             if key in saved:
                 state[key] = saved[key]
+    _reset_unused_compound_mirror(state, journal)
     return state
 
 
@@ -987,8 +1068,8 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
             lines.append("Skip " + _event_line(row))
             journal.forward_save(_book(), state)
             continue
-        if combined_entries(journal, now_ts.date(), _book(), state) >= COMBINED_ENTRY_CAP:
-            row = _skip(signal, "cap", "the forward books already opened 5 trades today")
+        if signal_cap_reached(journal, now_ts.date(), _book(), state, sid):
+            row = _skip(signal, "cap", "the forward books already used 5 signals today")
             state["signals"].append(row)
             lines.append("Skip " + _event_line(row))
             journal.forward_save(_book(), state)

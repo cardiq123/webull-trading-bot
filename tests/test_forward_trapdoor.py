@@ -218,7 +218,7 @@ def test_the_book_stops_at_three_and_five_across_books_stops_it_sooner(tmp_path)
     ]
     other.forward_save(VWAP_NAME, seeded)
     lines = _cycle(other, "14:25:30", broker=Broker())
-    assert any("already opened 5 trades today" in line for line in lines)
+    assert any("already used 5 signals today" in line for line in lines)
     assert other.forward_load(NAME)["signals"][0]["skip"] == "cap"
 
 
