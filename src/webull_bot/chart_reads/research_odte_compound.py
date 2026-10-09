@@ -39,7 +39,7 @@ from webull_bot.chart_reads.research_odte_stake2500 import (
     tier_contracts,
 )
 from webull_bot.chart_reads.vwap_band import metrics_from, passes_gate
-from webull_bot.options.fees import CONTRACT_MULTIPLIER
+from webull_bot.options.fees import CONTRACT_MULTIPLIER, option_leg_fees
 
 ROOT = Path(__file__).resolve().parents[3]
 MD_PATH = ROOT / "reports" / "odte_compound.md"
@@ -71,7 +71,28 @@ COMPOUND_RULE = (
 )
 
 
-def compound_contracts(equity: float, ask: float, fraction: float) -> tuple[int, str]:
+def size_slippage(qty: int) -> float:
+    """Extra dollars per share. $0.01 for every 10 contracts past the first 10.
+
+    Ten contracts pay the half-spread only. Twenty pay one extra cent per share
+    on the way in and on the way out. The charge scales with the contracts past 10.
+    """
+    if qty <= 10:
+        return 0.0
+    return 0.01 * (qty - 10) / 10.0
+
+
+def slipped_fill(ask: float, qty: int) -> tuple[float, float]:
+    """Per-contract debit and credit on a 1 cent market plus the size slippage."""
+    extra = size_slippage(qty)
+    entry = float(ask) + extra
+    exit_px = max(0.0, float(ask) - 0.01 - extra)
+    debit = entry * PREMIUM_UNIT + option_leg_fees(1, entry, sell=False)
+    credit = exit_px * PREMIUM_UNIT - option_leg_fees(1, exit_px, sell=True)
+    return debit, credit
+
+
+def compound_contracts(equity: float, ask: float, fraction: float, cap: int = CONTRACT_CAP) -> tuple[int, str]:
     """The pre-registered lot. The tag is size, rescue, cap, dear, or skip."""
     unit = float(ask) * PREMIUM_UNIT
     if equity <= 0 or unit <= 0 or fraction <= 0:
@@ -81,8 +102,8 @@ def compound_contracts(equity: float, ask: float, fraction: float) -> tuple[int,
         if unit <= 2.0 * float(fraction) * float(equity) + 1e-6:
             return 1, "rescue"
         return 0, "dear"
-    if raw > CONTRACT_CAP:
-        return CONTRACT_CAP, "cap"
+    if raw > cap:
+        return int(cap), "cap"
     return int(raw), "size"
 
 
@@ -103,21 +124,33 @@ def _settle(settled: float, pending: list[tuple[date, float]], day: date) -> tup
 
 
 def _resolve(
-    mode: str, fraction: float, equity: float, ask: float, debit: float, settled: float
-) -> tuple[int, str, bool]:
-    """Lot, skip tag, and whether the formula asked for more than 50."""
+    mode: str,
+    fraction: float,
+    equity: float,
+    ask: float,
+    debit: float,
+    credit: float,
+    settled: float,
+    cap: int = CONTRACT_CAP,
+    slip: bool = False,
+) -> tuple[int, str, bool, float, float]:
+    """Lot, tag, cap flag, and the per-contract debit and credit actually charged."""
     if mode == "fixed":
         qty, tag = 1, "fixed"
     elif mode == "tier":
         qty, tag = tier_contracts(equity), "tier"
+        if qty > cap:
+            qty, tag = int(cap), "cap"
     else:
-        qty, tag = compound_contracts(equity, ask, fraction)
+        qty, tag = compound_contracts(equity, ask, fraction, cap)
     capped = tag == "cap"
+    if slip and qty >= 1:
+        debit, credit = slipped_fill(ask, qty)
     if qty < 1:
-        return 0, tag, capped
+        return 0, tag, capped, debit, credit
     if contracts_for(qty, settled, debit) < 1:
-        return 0, "cash", capped
-    return qty, tag, capped
+        return 0, "cash", capped, debit, credit
+    return qty, tag, capped, debit, credit
 
 
 def _empty_info() -> dict:
@@ -153,7 +186,14 @@ def _note(info: dict, qty: int, tag: str, capped: bool, day: date, equity: float
         info["ruined"] = True
 
 
-def walk_daily(cands: list[tuple], sessions: list[date], mode: str, fraction: float) -> tuple[pd.Series, list[float], dict]:
+def walk_daily(
+    cands: list[tuple],
+    sessions: list[date],
+    mode: str,
+    fraction: float,
+    cap: int = CONTRACT_CAP,
+    slip: bool = False,
+) -> tuple[pd.Series, list[float], dict]:
     """One account from the first session. Same settlement as the fixed-lot walk."""
     info = _empty_info()
     if not sessions:
@@ -176,13 +216,15 @@ def walk_daily(cands: list[tuple], sessions: list[date], mode: str, fraction: fl
             if fill_i <= busy:
                 continue
             equity = _mark_equity(settled, pending)
-            qty, tag, capped = _resolve(mode, fraction, equity, float(ask), float(debit), settled)
+            qty, tag, capped, used_debit, used_credit = _resolve(
+                mode, fraction, equity, float(ask), float(debit), float(credit), settled, cap, slip
+            )
             if qty < 1:
                 _note(info, qty, tag, capped, day, equity)
                 continue
-            settled -= qty * float(debit)
-            pending.append((due, qty * float(credit)))
-            pnls.append(qty * (float(credit) - float(debit)))
+            settled -= qty * used_debit
+            pending.append((due, qty * used_credit))
+            pnls.append(qty * (used_credit - used_debit))
             _note(info, qty, tag, capped, day, _mark_equity(settled, pending))
             taken_n += 1
             busy = exit_i
@@ -196,7 +238,9 @@ def walk_daily(cands: list[tuple], sessions: list[date], mode: str, fraction: fl
     return pd.Series(values, index=index, dtype=float), pnls, info
 
 
-def walk_path(cands: list[tuple], start: date, end: date, mode: str, fraction: float) -> dict:
+def walk_path(
+    cands: list[tuple], start: date, end: date, mode: str, fraction: float, cap: int = CONTRACT_CAP, slip: bool = False
+) -> dict:
     """Fill-by-fill path used for the rolling starts. Same clock as the earlier studies."""
     settled = float(STAKE)
     pending: list[tuple[date, float]] = []
@@ -219,11 +263,13 @@ def walk_path(cands: list[tuple], start: date, end: date, mode: str, fraction: f
         if fill_i <= busy:
             continue
         marked = _mark_equity(settled, pending)
-        qty, _tag, _capped = _resolve(mode, fraction, marked, float(ask), float(debit), settled)
+        qty, _tag, _capped, used_debit, used_credit = _resolve(
+            mode, fraction, marked, float(ask), float(debit), float(credit), settled, cap, slip
+        )
         if qty < 1:
             continue
-        settled -= qty * float(debit)
-        pending.append((due, qty * float(credit)))
+        settled -= qty * used_debit
+        pending.append((due, qty * used_credit))
         taken_n += 1
         busy = exit_i
         equity = _mark_equity(settled, pending)
@@ -256,7 +302,15 @@ def _bisect_right(ords: list[int], target: int) -> int:
     return lo
 
 
-def rolling_bundle(cands: list[tuple], sessions: list[date], window_end: date, mode: str, fraction: float) -> dict:
+def rolling_bundle(
+    cands: list[tuple],
+    sessions: list[date],
+    window_end: date,
+    mode: str,
+    fraction: float,
+    cap: int = CONTRACT_CAP,
+    slip: bool = False,
+) -> dict:
     """12-month endings, plus the chance of $10k inside 4, 8, and 12 months."""
     ords = [row[0].toordinal() for row in cands]
     cached: dict[tuple[date, int], dict] = {}
@@ -269,7 +323,7 @@ def rolling_bundle(cands: list[tuple], sessions: list[date], window_end: date, m
         horizon = _add_months(start, months)
         left = _bisect_left(ords, start.toordinal())
         right = _bisect_right(ords, horizon.toordinal())
-        saved = walk_path(cands[left:right], start, horizon, mode, fraction)
+        saved = walk_path(cands[left:right], start, horizon, mode, fraction, cap, slip)
         cached[key] = saved
         return saved
 
@@ -333,16 +387,18 @@ def _lot_summary(lots: list[int], trades: int, cap_fills: int) -> dict:
     }
 
 
-def score_mode(cands, sessions, mode: str, fraction: float) -> dict:
+def score_mode(
+    cands, sessions, mode: str, fraction: float, cap: int = CONTRACT_CAP, slip: bool = False
+) -> dict:
     out = {}
     for window, start, end in (
         ("train", TRAIN_START, TRAIN_END),
         ("holdout", HOLDOUT_START, HOLDOUT_END),
     ):
         window_sessions = [day for day in sessions if start <= day <= end]
-        equity, pnls, info = walk_daily(cands, window_sessions, mode, fraction)
+        equity, pnls, info = walk_daily(cands, window_sessions, mode, fraction, cap, slip)
         metrics = metrics_from(equity, pnls, STAKE)
-        rolling = rolling_bundle(cands, window_sessions, end, mode, fraction)
+        rolling = rolling_bundle(cands, window_sessions, end, mode, fraction, cap, slip)
         reached = info["reached"]
         origin = window_sessions[0] if window_sessions else None
         days = None if reached is None or origin is None else (reached - origin).days
