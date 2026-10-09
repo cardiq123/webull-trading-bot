@@ -39,7 +39,15 @@ from webull_bot.chart_reads.research_odte_stake2500 import (
     tier_contracts,
 )
 from webull_bot.chart_reads.vwap_band import metrics_from, passes_gate
-from webull_bot.options.fees import CONTRACT_MULTIPLIER, option_leg_fees
+from webull_bot.options.fees import (
+    CAT_PER_CONTRACT,
+    CONTRACT_MULTIPLIER,
+    OCC_PER_CONTRACT,
+    ORF_PER_CONTRACT,
+    SEC_PER_DOLLAR,
+    TAF_MIN,
+    option_leg_fees,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 MD_PATH = ROOT / "reports" / "odte_compound.md"
@@ -82,14 +90,31 @@ def size_slippage(qty: int) -> float:
     return 0.01 * (qty - 10) / 10.0
 
 
-def slipped_fill(ask: float, qty: int) -> tuple[float, float]:
-    """Per-contract debit and credit on a 1 cent market plus the size slippage."""
+def _bid_from_credit(credit: float) -> float:
+    """The one-contract bid inside a sell credit. Fees are the published one-lot schedule."""
+    fixed = ORF_PER_CONTRACT + OCC_PER_CONTRACT + CAT_PER_CONTRACT + TAF_MIN
+    scale = PREMIUM_UNIT * (1.0 - SEC_PER_DOLLAR)
+    bid = (float(credit) + fixed) / scale
+    if bid < 1e-9:
+        return 0.0
+    return bid
+
+
+def slipped_fill(ask: float, qty: int, debit: float, credit: float) -> tuple[float, float]:
+    """Per-contract debit and credit after size slippage.
+
+    ``debit`` and ``credit`` already include the 1 cent half-spread and the modeled
+    exit. Ten contracts and fewer are returned unchanged. A larger ticket pays the
+    extra on the ask and gives the same extra back on the bid.
+    """
     extra = size_slippage(qty)
+    if extra <= 0.0 or qty < 1:
+        return float(debit), float(credit)
     entry = float(ask) + extra
-    exit_px = max(0.0, float(ask) - 0.01 - extra)
-    debit = entry * PREMIUM_UNIT + option_leg_fees(1, entry, sell=False)
-    credit = exit_px * PREMIUM_UNIT - option_leg_fees(1, exit_px, sell=True)
-    return debit, credit
+    new_debit = entry * PREMIUM_UNIT + option_leg_fees(1, entry, sell=False)
+    exit_px = max(0.0, _bid_from_credit(credit) - extra)
+    new_credit = exit_px * PREMIUM_UNIT - option_leg_fees(1, exit_px, sell=True)
+    return new_debit, new_credit
 
 
 def compound_contracts(equity: float, ask: float, fraction: float, cap: int = CONTRACT_CAP) -> tuple[int, str]:
@@ -145,7 +170,7 @@ def _resolve(
         qty, tag = compound_contracts(equity, ask, fraction, cap)
     capped = tag == "cap"
     if slip and qty >= 1:
-        debit, credit = slipped_fill(ask, qty)
+        debit, credit = slipped_fill(ask, qty, debit, credit)
     if qty < 1:
         return 0, tag, capped, debit, credit
     if contracts_for(qty, settled, debit) < 1:

@@ -66,18 +66,26 @@ def test_size_slippage_starts_after_ten_contracts_and_a_twenty_lot_is_worse():
     assert size_slippage(15) == 0.005
     assert size_slippage(20) == 0.01
     assert size_slippage(30) == 0.02
-    debit_one, credit_one = slipped_fill(2.0, 1)
-    debit_twenty, credit_twenty = slipped_fill(2.0, 20)
-    assert debit_twenty > debit_one
-    assert credit_twenty < credit_one
-    assert abs((debit_twenty - debit_one) - 1.0) < 1e-9
+    ask = 2.0
+    bid = 3.0
+    plain_debit = ask * 100 + option_leg_fees(1, ask, sell=False)
+    plain_credit = bid * 100 - option_leg_fees(1, bid, sell=True)
+    debit_one, credit_one = slipped_fill(ask, 1, plain_debit, plain_credit)
+    assert debit_one == plain_debit
+    assert credit_one == plain_credit
+    debit_twenty, credit_twenty = slipped_fill(ask, 20, plain_debit, plain_credit)
+    assert debit_twenty > plain_debit
+    assert credit_twenty < plain_credit
+    assert abs((debit_twenty - plain_debit) - 1.0) < 1e-9
+    assert 0.99 < (plain_credit - credit_twenty) < 1.01
+    assert credit_twenty > 250.0
 
 
 def test_a_slipped_ticket_is_skipped_whole_instead_of_cut_down():
     ask = 2.0
     assert compound_contracts(40_000, ask, 0.10, REALISTIC_CAP) == (20, "size")
     plain = ask * 100 + option_leg_fees(1, ask, sell=False)
-    slipped, _credit = slipped_fill(ask, 20)
+    slipped, _credit = slipped_fill(ask, 20, plain, 0.0)
     assert slipped > plain
     short = 20 * plain + 0.01
     qty, tag, _capped, _debit, _credit = _resolve("compound", 0.10, 40_000, ask, plain, 0.0, short, 30, True)
