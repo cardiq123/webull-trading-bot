@@ -1801,5 +1801,69 @@
     "sharpe": 1.6481434934033377
   },
   "summary": "Ranked by a holdout that finishes above the $2,500 start together with a train account that also finishes above that start. A cell whose train account ends under $500 fails that check, even when the holdout is large.\n\nThe cells that clear the usual gate on both windows: QQQ Aggressive 1 contract 1 DTE.\n\nThe overlapping 1-, 3-, and 5-contract QQQ Aggressive and QQQ Trapdoor rows match the earlier report, including Aggressive at 3 contracts, 0 DTE, holdout: 1128 trades and $40,755.\n\nThese finish above $2,500 on the train and on the holdout. Holdout gate-passers come first.\n\n1. QQQ Aggressive, 1 contract, 1 DTE. Holdout $18,069 on 1128 trades, profit factor 1.40, max drawdown -18.6%, 12-month median $8,247, P(reach $10k) 20.0%, P(ruin) 0.0%, gate yes. Train $19,797 on 2873 trades, profit factor 1.31, max drawdown -27.2%, 12-month median $4,571, P(reach $10k) 0.0%, P(ruin) 0.0%, gate yes.\n\n2. QQQ Aggressive, 1 contract, 0 DTE. Holdout $15,252 on 1128 trades, profit factor 1.30, max drawdown -22.9%, 12-month median $6,888, P(reach $10k) 16.4%, P(ruin) 0.0%, gate yes. Train $11,848 on 2873 trades, profit factor 1.15, max drawdown -65.5%, 12-month median $3,628, P(reach $10k) 0.0%, P(ruin) 7.0%, gate no (drawdown -65.5%).\n\n3. SPY VWAP, 1 contract, 1 DTE. Holdout $11,512 on 1373 trades, profit factor 1.23, max drawdown -29.0%, 12-month median $6,702, P(reach $10k) 0.0%, P(ruin) 0.0%, gate yes. Train $10,120 on 3282 trades, profit factor 1.12, max drawdown -72.5%, 12-month median $3,614, P(reach $10k) 0.0%, P(ruin) 16.7%, gate no (drawdown -72.5%).\n\n4. QQQ Trapdoor, 1 contract, 1 DTE. Holdout $5,326 on 525 trades, profit factor 1.18, max drawdown -17.8%, 12-month median $4,143, P(reach $10k) 0.0%, P(ruin) 0.0%, gate yes. Train $6,292 on 1167 trades, profit factor 1.18, max drawdown -42.1%, 12-month median $2,740, P(reach $10k) 0.0%, P(ruin) 0.0%, gate no (drawdown -42.1%).\n\n5. QQQ Aggressive, 3 contracts, 1 DTE. Holdout $49,206 on 1128 trades, profit factor 1.40, max drawdown -54.2%, 12-month median $19,597, P(reach $10k) 100.0%, P(ruin) 0.0%, gate no (drawdown -54.2%). Train $54,390 on 2873 trades, profit factor 1.31, max drawdown -54.3%, 12-month median $8,575, P(reach $10k) 41.2%, P(ruin) 3.8%, gate no (drawdown -54.3%).\n\n6. QQQ Trapdoor, 3 contracts, 1 DTE. Holdout $10,977 on 525 trades, profit factor 1.18, max drawdown -31.8%, 12-month median $7,392, P(reach $10k) 27.6%, P(ruin) 17.3%, gate no (drawdown -31.8%). Train $13,536 on 1165 trades, profit factor 1.17, max drawdown -80.9%, 12-month median $3,108, P(reach $10k) 5.6%, P(ruin) 15.8%, gate no (drawdown -80.9%).\n\nQQQ Aggressive at 3 contracts, 1 DTE, is the largest account that still takes every signal (2873 train, 1128 holdout). It misses the usual gate on drawdown: -54.3% on the train and -54.2% on the holdout.\n\nThese holdout accounts finish above $2,500 while the train account ends under $500.\n\nQQQ Trapdoor, 5 contracts, 1 DTE: holdout $16,628 on 525 trades, train $180 on 714 trades, train P(ruin) 26.5%.\n\nSPY VWAP, 3 contracts, 1 DTE: holdout $29,543 on 1366 trades, train $130 on 1568 trades, train P(ruin) 34.9%.\n\nQQQ Trapdoor, 3 contracts, 0 DTE: holdout $3,144 on 525 trades, train $7.82 on 579 trades, train P(ruin) 54.1%.\n\nQQQ Trapdoor, 1 contract, 0 DTE: holdout $2,715 on 525 trades, train $5.05 on 755 trades, train P(ruin) 7.1%.\n\nQQQ Aggressive, 3 contracts, 0 DTE: holdout $40,755 on 1128 trades, train $0.97 on 587 trades, train P(ruin) 36.4%.\n\nSPY VWAP, 1 contract, 0 DTE: holdout $4,067 on 1373 trades, train $0.78 on 1235 trades, train P(ruin) 42.2%.\n\nQQQ Trapdoor, 5 contracts, 0 DTE: holdout $3,574 on 525 trades, train $0.09 on 557 trades, train P(ruin) 64.8%.\n\nThe remaining cells finish the holdout at or under $2,500, or the train ends between $500 and the start.\n\nQQQ Aggressive, 5 contracts, 1 DTE: holdout $180 on 64 trades (gate no (trades 64<300, PF 0.714<1.10, Sharpe -0.05<0.40, drawdown -92.8%)), train $88,984 on 2873 trades.\n\nSPY VWAP, 5 contracts, 1 DTE: holdout $198 on 150 trades (gate no (trades 150<300, PF 0.857<1.10, Sharpe -0.06<0.40, drawdown -94.2%)), train $155 on 131 trades.\n\nSPY VWAP, 5 contracts, 0 DTE: holdout $55.65 on 138 trades (gate no (trades 138<300, PF 0.834<1.10, Sharpe -0.37<0.40, drawdown -98.1%)), train $5.92 on 70 trades.\n\nSPY VWAP, 3 contracts, 0 DTE: holdout $9.81 on 274 trades (gate no (trades 274<300, PF 0.870<1.10, Sharpe -0.31<0.40, drawdown -99.7%)), train $4.98 on 106 trades.\n\nQQQ Aggressive, 5 contracts, 0 DTE: holdout $14.45 on 59 trades (gate no (trades 59<300, PF 0.689<1.10, Sharpe 0.17<0.40, drawdown -99.4%)), train $1.10 on 538 trades.\n\nThe unscaled 1 DTE price rests on one session of live quotes, 2026-10-09 at 11:36 ET: the SPY 1 DTE call market mid was $2.155 and the model at the Oct 8 VIX1D close of 10.24 was $2.974. The same signals scored at 0.80 times and at 1.20 times that prior close, still with a 1 cent market and a same-day 15:45 flat, move as follows.\n\nSPY VWAP, 1 contract. Holdout 0.80x $14,826 on 1373 trades, base $11,512 on 1373 trades, 1.20x $9,017 on 1373 trades. Train 0.80x $15,140 on 3282 trades, base $10,120 on 3282 trades, 1.20x $59.69 on 1762 trades. The 1.20x train ends under $500. The 1.20x holdout misses the usual gate.\n\nSPY VWAP, 3 contracts. Holdout 0.80x $39,477 on 1373 trades, base $29,543 on 1366 trades, 1.20x $14,467 on 1241 trades. Train 0.80x $40,480 on 3281 trades, base $130 on 1568 trades, 1.20x $128 on 210 trades. The 0.80x train finishes above the $2,500 start.\n\nSPY VWAP, 5 contracts. Holdout 0.80x $64,637 on 1371 trades, base $198 on 150 trades, 1.20x $454 on 169 trades. Train 0.80x $101 on 141 trades, base $155 on 131 trades, 1.20x $203 on 123 trades. The 0.80x holdout is the vol at which that ticket fits.\n\nQQQ Aggressive, 1 contract. Holdout 0.80x $22,371 on 1128 trades, base $18,069 on 1128 trades, 1.20x $14,878 on 1128 trades. Train 0.80x $25,176 on 2873 trades, base $19,797 on 2873 trades, 1.20x $15,753 on 2873 trades.\n\nQQQ Aggressive, 3 contracts. Holdout 0.80x $62,113 on 1128 trades, base $49,206 on 1128 trades, 1.20x $180 on 59 trades. Train 0.80x $70,527 on 2873 trades, base $54,390 on 2873 trades, 1.20x $42,260 on 2873 trades. The 1.20x holdout takes fewer than half the base trades, so the dearer ticket stops fitting.\n\nQQQ Aggressive, 5 contracts. Holdout 0.80x $101,448 on 1105 trades, base $180 on 64 trades, 1.20x $314 on 47 trades. Train 0.80x $115,879 on 2873 trades, base $88,984 on 2873 trades, 1.20x $68,881 on 2872 trades. The 0.80x holdout is the vol at which that ticket fits.\n\nQQQ Trapdoor, 1 contract. Holdout 0.80x $6,973 on 525 trades, base $5,326 on 525 trades, 1.20x $4,083 on 525 trades. Train 0.80x $8,377 on 1167 trades, base $6,292 on 1167 trades, 1.20x $4,673 on 1167 trades. The 1.20x holdout misses the usual gate.\n\nQQQ Trapdoor, 3 contracts. Holdout 0.80x $15,919 on 525 trades, base $10,977 on 525 trades, 1.20x $7,249 on 525 trades. Train 0.80x $20,130 on 1167 trades, base $13,536 on 1165 trades, 1.20x $190 on 661 trades. The 1.20x train ends under $500. The 0.80x holdout clears the usual gate.\n\nQQQ Trapdoor, 5 contracts. Holdout 0.80x $24,865 on 525 trades, base $16,628 on 525 trades, 1.20x $10,414 on 525 trades. Train 0.80x $31,884 on 1167 trades, base $180 on 714 trades, 1.20x $306 on 584 trades. The 0.80x train finishes above the $2,500 start.",
-  "close": "The cash mirror in the sandbox still uses the unscaled 0 DTE model and the book's fixed lot. This score does not change an order."
+  "close": "The cash mirror in the sandbox still uses the unscaled 0 DTE model and the book's fixed lot. This score does not change an order.",
+  "tier": {
+    "rule": "QQQ Aggressive, 1 DTE, unscaled prior close, 1 cent market, same-day 15:45 flat, fresh $2,500, daily cap 5. Each fill buys N contracts where N = min(5, max(1, floor(equity / 2500))). Equity is settled cash plus credits that are not due yet, after credits due this session have been added and before this fill's debit is subtracted. If N contracts do not fit settled cash, the signal is skipped. N is not cut down to a smaller lot.",
+    "rows": [
+      {
+        "book": "QQQ Aggressive",
+        "book_id": "qqq_aggr",
+        "expiry": "1 DTE",
+        "iv": "prior close, 1 cent",
+        "scale": 1.0,
+        "qty": "tier",
+        "stake": 2500.0,
+        "window": "train",
+        "trades": 2873,
+        "win_rate": 0.5088757396449705,
+        "profit_factor": 1.3207959939815137,
+        "sharpe": 1.8281788369222594,
+        "max_drawdown": -0.27229322510733156,
+        "ending_equity": 69953.77870274479,
+        "starts": 1440,
+        "median_ending": 4570.881150975998,
+        "p_reach_12": 0.16666666666666666,
+        "p_ruin": 0.0,
+        "gate": "yes",
+        "gate_pass": true,
+        "lots": {
+          "1": 958,
+          "2": 321,
+          "3": 235,
+          "4": 188,
+          "5": 1171
+        }
+      },
+      {
+        "book": "QQQ Aggressive",
+        "book_id": "qqq_aggr",
+        "expiry": "1 DTE",
+        "iv": "prior close, 1 cent",
+        "scale": 1.0,
+        "qty": "tier",
+        "stake": 2500.0,
+        "window": "holdout",
+        "trades": 1128,
+        "win_rate": 0.4929078014184397,
+        "profit_factor": 1.4222995205505207,
+        "sharpe": 2.569034360252457,
+        "max_drawdown": -0.24827190370725594,
+        "ending_equity": 61876.656542706995,
+        "starts": 434,
+        "median_ending": 10463.997583843893,
+        "p_reach_12": 0.6013824884792627,
+        "p_ruin": 0.0,
+        "gate": "yes",
+        "gate_pass": true,
+        "lots": {
+          "1": 319,
+          "2": 179,
+          "3": 34,
+          "4": 15,
+          "5": 581
+        }
+      }
+    ],
+    "note": "Holdout $61,877 on 1128 trades, win 49.3%, profit factor 1.42, max drawdown -24.8%, 12-month median $10,464, P(reach $10k) 60.1%, P(ruin) 0.0%, gate yes. Fills: 319 fills at 1 contract, 179 fills at 2 contracts, 34 fills at 3 contracts, 15 fills at 4 contracts, 581 fills at 5 contracts. Train $69,954 on 2873 trades, win 50.9%, profit factor 1.32, max drawdown -27.2%, 12-month median $4,571, P(reach $10k) 16.7%, P(ruin) 0.0%, gate yes. Fills: 958 fills at 1 contract, 321 fills at 2 contracts, 235 fills at 3 contracts, 188 fills at 4 contracts, 1171 fills at 5 contracts."
+  }
 }

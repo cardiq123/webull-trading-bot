@@ -207,4 +207,19 @@ Same 1 DTE signals and the same 1 cent market. 0.80x and 1.20x replace the unsca
 | QQQ Trapdoor | 1 DTE | 1.20x prior close, 1 cent | 5 | train | 584 | 42.5% | 0.94 | -94.4% | $306 | $913 | 9.4% | 23.0% | no (PF 0.939<1.10, Sharpe -0.08<0.40, drawdown -94.4%) |
 | QQQ Trapdoor | 1 DTE | 1.20x prior close, 1 cent | 5 | holdout | 525 | 44.0% | 1.10 | -54.2% | $10,414 | $758 | 31.6% | 30.6% | no (PF 1.098<1.10, drawdown -54.2%) |
 
+## QQQ Aggressive 1 DTE, equity-tiered size
+
+Pre-registered. The rule was written down before this score and was not changed after the numbers.
+
+QQQ Aggressive, 1 DTE, unscaled prior close, 1 cent market, same-day 15:45 flat, fresh $2,500, daily cap 5. Each fill buys N contracts where N = min(5, max(1, floor(equity / 2500))). Equity is settled cash plus credits that are not due yet, after credits due this session have been added and before this fill's debit is subtracted. If N contracts do not fit settled cash, the signal is skipped. N is not cut down to a smaller lot.
+
+This variant is not the sandbox book. The score does not send an order.
+
+| Book | Expiry | IV | Contracts | Window | Trades | Win | PF | Max DD | Ending | Median 12m | P(reach $10k) | P(ruin) | Gate |
+| --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| QQQ Aggressive | 1 DTE | prior close, 1 cent | tier | train | 2873 | 50.9% | 1.32 | -27.2% | $69,954 | $4,571 | 16.7% | 0.0% | yes |
+| QQQ Aggressive | 1 DTE | prior close, 1 cent | tier | holdout | 1128 | 49.3% | 1.42 | -24.8% | $61,877 | $10,464 | 60.1% | 0.0% | yes |
+
+Holdout $61,877 on 1128 trades, win 49.3%, profit factor 1.42, max drawdown -24.8%, 12-month median $10,464, P(reach $10k) 60.1%, P(ruin) 0.0%, gate yes. Fills: 319 fills at 1 contract, 179 fills at 2 contracts, 34 fills at 3 contracts, 15 fills at 4 contracts, 581 fills at 5 contracts. Train $69,954 on 2873 trades, win 50.9%, profit factor 1.32, max drawdown -27.2%, 12-month median $4,571, P(reach $10k) 16.7%, P(ruin) 0.0%, gate yes. Fills: 958 fills at 1 contract, 321 fills at 2 contracts, 235 fills at 3 contracts, 188 fills at 4 contracts, 1171 fills at 5 contracts.
+
 The cash mirror in the sandbox still uses the unscaled 0 DTE model and the book's fixed lot. This score does not change an order. QQQ Trapdoor's daily cap stays 3.

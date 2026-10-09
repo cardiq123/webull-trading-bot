@@ -1,12 +1,17 @@
 """Gate label and ranking for the $2,500 lot study. No market data and no orders."""
 
+from datetime import date
+
 from webull_bot.chart_reads.research_odte_stake2500 import (
     CHECK_ENDING,
     CHECK_TRADES,
+    TIER_RULE,
     gate_label,
     published_reference,
     rank_cells,
     summary_paragraphs,
+    tier_contracts,
+    tier_daily,
 )
 
 
@@ -84,3 +89,29 @@ def test_a_spent_train_ranks_behind_a_book_that_survives_both_windows():
     assert text.index("1. QQQ Aggressive, 1 contract, 1 DTE") < text.index("3 contracts, 0 DTE: holdout")
     assert "1128 trades" in text
     assert "clear the usual gate on both windows" in text
+
+
+def test_tier_is_one_contract_per_full_2500_and_skips_the_whole_ticket():
+    assert "floor(equity / 2500)" in TIER_RULE
+    assert "not cut down" in TIER_RULE
+    assert tier_contracts(0) == 1
+    assert tier_contracts(2499.99) == 1
+    assert tier_contracts(2500) == 1
+    assert tier_contracts(4999.99) == 1
+    assert tier_contracts(5000) == 2
+    assert tier_contracts(7500) == 3
+    assert tier_contracts(10000) == 4
+    assert tier_contracts(12500) == 5
+    assert tier_contracts(50000) == 5
+    first = date(2024, 1, 3)
+    second = date(2024, 1, 4)
+    third = date(2024, 1, 5)
+    fourth = date(2024, 1, 8)
+    candidates = [
+        (first, second, 0, 1, 100.0, 2600.0, 1.0),
+        (second, third, 0, 1, 3000.0, 3000.0, 1.0),
+        (third, fourth, 0, 1, 100.0, 100.0, 1.0),
+    ]
+    _equity, pnls, lots = tier_daily(candidates, [first, second, third])
+    assert lots == [1, 2]
+    assert pnls == [2500.0, 0.0]

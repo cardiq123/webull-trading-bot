@@ -13,13 +13,19 @@ from pathlib import Path
 import pandas as pd
 
 from webull_bot.chart_reads.neckline import MAX_TRADES_PER_DAY
+import numpy as np
+
 from webull_bot.chart_reads.odte_calibration import (
+    GOAL,
     HOLDOUT_END,
     HOLDOUT_START,
+    RUIN,
     TRAIN_END,
     TRAIN_START,
     books,
     calibrate,
+    _add_months,
+    contracts_for,
     prepare,
     price_structures,
     score_window,
@@ -35,6 +41,7 @@ from webull_bot.chart_reads.vwap_band import (
     GATE_PF,
     GATE_SHARPE,
     GATE_TRADES,
+    metrics_from,
     passes_gate,
 )
 
@@ -48,6 +55,202 @@ QTYS = (1, 3, 5)
 CHECK_TRADES = 1128
 CHECK_ENDING = 40755.372888142854
 CHECK_SHARPE = 1.6481434934033377
+# Written down before the score. The result does not change these.
+TIER_STEP = 2_500.0
+TIER_FLOOR = 1
+TIER_CAP = 5
+TIER_DAILY_CAP = 5
+TIER_RULE = (
+    "QQQ Aggressive, 1 DTE, unscaled prior close, 1 cent market, same-day 15:45 flat, "
+    "fresh $2,500, daily cap 5. Each fill buys N contracts where "
+    "N = min(5, max(1, floor(equity / 2500))). Equity is settled cash plus credits "
+    "that are not due yet, after credits due this session have been added and before "
+    "this fill's debit is subtracted. If N contracts do not fit settled cash, the signal "
+    "is skipped. N is not cut down to a smaller lot."
+)
+
+
+def tier_contracts(equity: float) -> int:
+    """One contract per full $2,500 of equity. At least one. At most five."""
+    lots = int(float(equity) // TIER_STEP)
+    if lots < TIER_FLOOR:
+        return TIER_FLOOR
+    if lots > TIER_CAP:
+        return TIER_CAP
+    return lots
+
+
+def _mark_equity(settled: float, pending: list[tuple[date, float]]) -> float:
+    return settled + sum(amount for _when, amount in pending)
+
+
+def tier_daily(cands: list[tuple], sessions: list[date]) -> tuple[pd.Series, list[float], list[int]]:
+    """Same cash walk as the fixed lot, with the pre-registered tier on each fill."""
+    if not sessions:
+        index = pd.DatetimeIndex([pd.Timestamp(TRAIN_START)])
+        return pd.Series([STAKE], index=index), [], []
+    by_day: dict[date, list[tuple]] = {}
+    for row in cands:
+        by_day.setdefault(row[0], []).append(row)
+    settled = float(STAKE)
+    pending: list[tuple[date, float]] = []
+    pnls: list[float] = []
+    lots: list[int] = []
+    values = []
+    for day in sessions:
+        if pending:
+            still = []
+            for when, amount in pending:
+                if when <= day:
+                    settled += amount
+                else:
+                    still.append((when, amount))
+            pending = still
+        taken_n = 0
+        busy = -1
+        for _day, due, fill_i, exit_i, debit, credit, _ask in by_day.get(day, []):
+            if taken_n >= TIER_DAILY_CAP:
+                continue
+            if fill_i <= busy:
+                continue
+            qty = tier_contracts(_mark_equity(settled, pending))
+            if contracts_for(qty, settled, debit) < 1:
+                continue
+            settled -= qty * debit
+            pending.append((due, qty * credit))
+            pnls.append(qty * (credit - debit))
+            lots.append(qty)
+            taken_n += 1
+            busy = exit_i
+        values.append(_mark_equity(settled, pending))
+    index = pd.DatetimeIndex([pd.Timestamp(day) for day in sessions])
+    return pd.Series(values, index=index, dtype=float), pnls, lots
+
+
+def tier_path(cands: list[tuple], start: date, end: date) -> dict:
+    settled = float(STAKE)
+    pending: list[tuple[date, float]] = []
+    busy = -1
+    taken_day = None
+    taken_n = 0
+    equity = float(STAKE)
+    peak = float(STAKE)
+    reached = None
+    ruined = False
+
+    def _mark(day: date, value: float) -> None:
+        nonlocal peak, reached, ruined
+        if value > peak:
+            peak = value
+        if reached is None and value >= GOAL:
+            reached = day
+        if value < RUIN:
+            ruined = True
+
+    for day, due, fill_i, exit_i, debit, credit, _ask in cands:
+        if day < start or day > end:
+            continue
+        if pending:
+            still = []
+            for when, amount in pending:
+                if when <= day:
+                    settled += amount
+                else:
+                    still.append((when, amount))
+            pending = still
+        if taken_day != day:
+            taken_day = day
+            taken_n = 0
+            busy = -1
+        if taken_n >= TIER_DAILY_CAP:
+            continue
+        if fill_i <= busy:
+            continue
+        qty = tier_contracts(_mark_equity(settled, pending))
+        if contracts_for(qty, settled, debit) < 1:
+            continue
+        settled -= qty * debit
+        pending.append((due, qty * credit))
+        taken_n += 1
+        busy = exit_i
+        equity = _mark_equity(settled, pending)
+        _mark(day, equity)
+    return {"ending": equity, "reached": reached, "ruined": ruined}
+
+
+def tier_rolling(cands: list[tuple], sessions: list[date], window_end: date) -> dict:
+    eligible = [day for day in sessions if _add_months(day, 12) <= window_end]
+    empty = {"starts": 0, "p_reach_12": None, "p_ruin": None, "median_ending": None}
+    if not eligible:
+        return empty
+    ords = [row[0].toordinal() for row in cands]
+
+    def _bisect_left(target: int) -> int:
+        lo, hi = 0, len(ords)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if ords[mid] < target:
+                lo = mid + 1
+            else:
+                hi = mid
+        return lo
+
+    def _bisect_right(target: int) -> int:
+        lo, hi = 0, len(ords)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if ords[mid] <= target:
+                lo = mid + 1
+            else:
+                hi = mid
+        return lo
+
+    endings = []
+    reach = 0
+    ruins = 0
+    for start in eligible:
+        horizon = _add_months(start, 12)
+        left = _bisect_left(start.toordinal())
+        right = _bisect_right(horizon.toordinal())
+        path = tier_path(cands[left:right], start, horizon)
+        endings.append(path["ending"])
+        if path["ruined"]:
+            ruins += 1
+        if path["reached"] is not None and path["reached"] <= horizon:
+            reach += 1
+    count = len(eligible)
+    return {
+        "starts": count,
+        "p_reach_12": reach / count,
+        "p_ruin": ruins / count,
+        "median_ending": float(np.median(endings)),
+    }
+
+
+def _lot_counts(lots: list[int]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for qty in lots:
+        key = str(int(qty))
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def score_tier(cands, sessions) -> dict:
+    out = {}
+    for window, start, end in (
+        ("train", TRAIN_START, TRAIN_END),
+        ("holdout", HOLDOUT_START, HOLDOUT_END),
+    ):
+        window_sessions = [day for day in sessions if start <= day <= end]
+        equity, pnls, lots = tier_daily(cands, window_sessions)
+        scored = {
+            "metrics": metrics_from(equity, pnls, STAKE),
+            "rolling": tier_rolling(cands, window_sessions, end),
+        }
+        packed = _pack(scored)
+        packed["lots"] = _lot_counts(lots)
+        out[window] = packed
+    return out
 
 
 def gate_label(metrics: dict) -> str:
@@ -480,6 +683,26 @@ def _markdown(payload: dict) -> str:
         if row["expiry"] != "1 DTE":
             continue
         lines.append(_line(row))
+    tier = payload.get("tier")
+    if tier:
+        lines.extend(
+            [
+                "",
+                "## QQQ Aggressive 1 DTE, equity-tiered size",
+                "",
+                "Pre-registered. The rule was written down before this score and was not changed after the numbers.",
+                "",
+                tier["rule"],
+                "",
+                "This variant is not the sandbox book. The score does not send an order.",
+                "",
+                "| Book | Expiry | IV | Contracts | Window | Trades | Win | PF | Max DD | Ending | Median 12m | P(reach $10k) | P(ruin) | Gate |",
+                "| --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            ]
+        )
+        for row in tier["rows"]:
+            lines.append(_line(row))
+        lines.extend(["", tier["note"]])
     lines.extend(
         [
             "",
@@ -622,8 +845,99 @@ def _json(value):
     raise TypeError(type(value))
 
 
+def _lot_phrase(lots: dict) -> str:
+    if not lots:
+        return "no fills"
+    parts = []
+    for key in sorted(lots, key=lambda item: int(item)):
+        count = int(lots[key])
+        noun = "fill" if count == 1 else "fills"
+        contracts = "contract" if int(key) == 1 else "contracts"
+        parts.append(f"{count} {noun} at {key} {contracts}")
+    return ", ".join(parts)
+
+
+def _tier_note(rows: list[dict]) -> str:
+    by = {row["window"]: row for row in rows}
+    bits = []
+    for window in ("holdout", "train"):
+        row = by[window]
+        bits.append(
+            f"{window.capitalize()} {_money(row['ending_equity'])} on {row['trades']} trades, "
+            f"win {_pct(row['win_rate'])}, profit factor {_num(row['profit_factor'])}, "
+            f"max drawdown {_pct(row['max_drawdown'])}, 12-month median {_money(row['median_ending'])}, "
+            f"P(reach $10k) {_pct(row['p_reach_12'])}, P(ruin) {_pct(row['p_ruin'])}, "
+            f"gate {row['gate']}. Fills: {_lot_phrase(row.get('lots') or {})}."
+        )
+    return " ".join(bits)
+
+
+def write_tier() -> dict:
+    """Score the pre-registered tier and append it. The fixed-lot grid is left as stored."""
+    stored = json.loads(JSON_PATH.read_text())
+    print("loading QQQ", flush=True)
+    qqq = _load_bars("QQQ")
+    iv = prior_iv(_load_series("VIX1D"), _load_series("VIX"))
+    qqq15 = to_fifteen(qqq)
+    structures = vwap_structures(qqq15, "QQQ")
+    sessions = session_dates(qqq15)
+    print(f"signals {len(structures)} sessions {len(sessions)}", flush=True)
+    cands = price_structures(structures, iv, 1.0, "0.01", dte=1)
+    fixed = _score(cands, sessions, 1, TIER_DAILY_CAP)
+    published = {
+        (row["book_id"], row["expiry"], int(row["qty"]), row["iv"], row["window"]): row
+        for row in stored["rows"]
+    }
+    for window in ("train", "holdout"):
+        old = published[("qqq_aggr", "1 DTE", 1, "prior close, 1 cent", window)]
+        fresh = fixed[window]
+        trade_gap = int(fresh["trades"]) - int(old["trades"])
+        money_gap = abs(float(fresh["ending_equity"]) - float(old["ending_equity"]))
+        print(
+            f"fixed 1-lot {window} trade gap {trade_gap} ending gap {money_gap:.4f}",
+            flush=True,
+        )
+        if trade_gap or money_gap > 0.05:
+            raise SystemExit("The fixed 1-lot 1 DTE row moved. The tier score was not written.")
+    scored = score_tier(cands, sessions)
+    named = {spec["id"]: spec for spec in books()}
+    spec = named["qqq_aggr"]
+    rows = []
+    for window in ("train", "holdout"):
+        rows.append(
+            {
+                "book": spec["name"],
+                "book_id": spec["id"],
+                "expiry": "1 DTE",
+                "iv": "prior close, 1 cent",
+                "scale": 1.0,
+                "qty": "tier",
+                "stake": STAKE,
+                "window": window,
+                **scored[window],
+            }
+        )
+        side = scored[window]
+        print(
+            f"tier {window} trades {side['trades']} ending {side['ending_equity']:.2f} "
+            f"gate {side['gate']} lots {side['lots']}",
+            flush=True,
+        )
+    tier = {"rule": TIER_RULE, "rows": rows, "note": _tier_note(rows)}
+    stored["tier"] = tier
+    public = json.loads(json.dumps(stored, default=_json))
+    JSON_PATH.write_text(json.dumps(public, indent=2) + "\n")
+    MD_PATH.write_text(_markdown(public))
+    print(f"wrote {MD_PATH}", flush=True)
+    return tier
+
+
 def main() -> None:
     payload = run()
+    if JSON_PATH.exists():
+        old = json.loads(JSON_PATH.read_text())
+        if old.get("tier"):
+            payload["tier"] = old["tier"]
     MD_PATH.parent.mkdir(parents=True, exist_ok=True)
     public = json.loads(json.dumps(payload, default=_json))
     JSON_PATH.write_text(json.dumps(public, indent=2) + "\n")
