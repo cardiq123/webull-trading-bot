@@ -20,7 +20,7 @@ import pandas as pd
 from webull_bot.calendar import next_trading_day
 from webull_bot.chart_reads.detect import session_bands
 from webull_bot.costs import CostModel, buy_fees, buy_price, sell_price, sell_regulatory_fees
-from webull_bot.indicators import atr, ema
+from webull_bot.indicators import atr, ema, rsi
 from webull_bot.mtf_vwap.detect import rth
 
 NY = "America/New_York"
@@ -106,6 +106,13 @@ class Book:
         self.dates = np.asarray(bars.index.date, dtype=object)
         close = bars["close"].astype(float)
         self.ema9 = ema(close, 9).to_numpy(dtype=float)
+        self.ema20 = ema(close, 20).to_numpy(dtype=float)
+        self.atr14 = atr(bars, 14).to_numpy(dtype=float)
+        self.rsi14 = rsi(close, 14).to_numpy(dtype=float)
+        if "volume" in bars.columns:
+            self.volume = bars["volume"].to_numpy(dtype=float)
+        else:
+            self.volume = np.full(len(bars), np.nan)
         bands = session_bands(bars, deviations=2.0)
         self.vwap = bands["vwap"].to_numpy(dtype=float)
         self.upper = bands["upper"].to_numpy(dtype=float)
@@ -113,6 +120,7 @@ class Book:
         n = len(bars)
         self.h4_ema = np.zeros(n, dtype=int)
         self.h4_structure = np.zeros(n, dtype=int)
+        self.h4_slope = np.full(n, np.nan)
         self.h1_agree = np.zeros(n, dtype=int)
         self.h1_ema20 = np.full(n, np.nan)
         self.m15_done = np.zeros(n, dtype=bool)
@@ -343,9 +351,16 @@ def _map_higher(book: Book, bars: pd.DataFrame) -> None:
             np.asarray(h4_low, dtype=float),
             slow,
         )
+        slope = np.full(len(slow), np.nan)
+        for i in range(3, len(slow)):
+            prev = slow[i - 3]
+            cur = slow[i]
+            if _finite(cur) and _finite(prev) and float(prev) != 0.0:
+                slope[i] = (float(cur) - float(prev)) / float(prev)
         ends = np.asarray(h4_end, dtype=int)
         _stamp_last(book.h4_ema, ends, ema_dir)
         _stamp_last(book.h4_structure, ends, structure)
+        _stamp_last(book.h4_slope, ends, slope)
     if h1_end:
         closes = np.asarray(h1_close, dtype=float)
         series = pd.Series(closes)
@@ -395,8 +410,13 @@ def _aligned(book: Book, index: int, direction_mode: str) -> int:
     return trend
 
 
-def find_signals(book: Book, direction_mode: str, pullback: str) -> list[Event]:
-    """Causal signals. Bar i uses only blocks whose last 5-minute bar is i or earlier."""
+def find_signals(book: Book, direction_mode: str, pullback: str, hold_vwap: bool = False) -> list[Event]:
+    """Causal signals. Bar i uses only blocks whose last 5-minute bar is i or earlier.
+
+    ``hold_vwap`` is off for the original 72-cell study. When it is on, a
+    15-minute close through session VWAP against the trend disarms the pullback.
+    A close that lands on VWAP is not through.
+    """
     events: list[Event] = []
     armed = False
     arm_dir = 0
@@ -414,6 +434,14 @@ def find_signals(book: Book, direction_mode: str, pullback: str) -> list[Event]:
                 invalid = True
             if not invalid and aligned == -1 and close > level:
                 invalid = True
+            if not invalid and hold_vwap:
+                vwap_level = book.m15_vwap[i]
+                if not _finite(vwap_level):
+                    invalid = True
+                elif aligned == 1 and close < float(vwap_level):
+                    invalid = True
+                elif aligned == -1 and close > float(vwap_level):
+                    invalid = True
             if invalid:
                 armed = False
             elif _touch(book, i, pullback):
@@ -483,6 +511,8 @@ def _planned_target(book: Book, event: Event, fill: float, exit_name: str) -> Op
     if exit_name == "vwap2":
         band = book.upper[event.signal_i] if event.direction == "long" else book.lower[event.signal_i]
         return float(band) if _finite(band) else None
+    if exit_name == "be15":
+        return fill + 1.5 * risk if event.direction == "long" else fill - 1.5 * risk
     return None
 
 
@@ -534,6 +564,66 @@ def _walk(book: Book, fill_i: int, direction: str, stop: float, target: Optional
     return "flat", float(book.close[last]), book.index[last]
 
 
+def _walk_be15(book: Book, fill_i: int, direction: str, stop: float, target: Optional[float]):
+    """Move the stop to the fill after +0.5R, and aim at 1.5R.
+
+    Until breakeven is armed, the original stop wins if that same bar also
+    trades +0.5R. Arming applies on the next bar only. If the arming bar
+    also trades 1.5R and not the original stop, the target fills.
+    """
+    n = len(book.close)
+    last = fill_i
+    fill = float(book.open[fill_i])
+    risk = (fill - stop) if direction == "long" else (stop - fill)
+    trigger = fill + 0.5 * risk if direction == "long" else fill - 0.5 * risk
+    armed = False
+    active = float(stop)
+    for i in range(fill_i, n):
+        if book.dates[i] != book.dates[fill_i]:
+            return "flat", float(book.close[last]), book.index[last]
+        last = i
+        if int(book.minute[i]) >= FLAT_MINUTE:
+            return "flat", float(book.open[i]), book.index[i]
+        opened = float(book.open[i])
+        high = float(book.high[i])
+        low = float(book.low[i])
+        if direction == "long":
+            if opened <= active:
+                return "stop", opened, book.index[i]
+            if target is not None and _finite(target) and opened >= float(target):
+                return "target", opened, book.index[i]
+            if not armed:
+                if low <= stop:
+                    return "stop", float(stop), book.index[i]
+                if high >= trigger and target is not None and _finite(target) and high >= float(target):
+                    return "target", float(target), book.index[i]
+                if high >= trigger:
+                    armed = True
+                    active = fill
+            elif low <= active:
+                return "stop", float(active), book.index[i]
+            elif target is not None and _finite(target) and high >= float(target):
+                return "target", float(target), book.index[i]
+        else:
+            if opened >= active:
+                return "stop", opened, book.index[i]
+            if target is not None and _finite(target) and opened <= float(target):
+                return "target", opened, book.index[i]
+            if not armed:
+                if high >= stop:
+                    return "stop", float(stop), book.index[i]
+                if low <= trigger and target is not None and _finite(target) and low <= float(target):
+                    return "target", float(target), book.index[i]
+                if low <= trigger:
+                    armed = True
+                    active = fill
+            elif high >= active:
+                return "stop", float(active), book.index[i]
+            elif target is not None and _finite(target) and low <= float(target):
+                return "target", float(target), book.index[i]
+    return "flat", float(book.close[last]), book.index[last]
+
+
 def resolve(book: Book, events: list[Event], exit_name: str) -> list[dict]:
     """Underlying fills. The option price and the share count come later."""
     found = []
@@ -548,7 +638,10 @@ def resolve(book: Book, events: list[Event], exit_name: str) -> list[dict]:
         target = _planned_target(book, event, fill, exit_name)
         if not _target_ok(event.direction, fill, target, exit_name):
             continue
-        reason, exit_raw, when = _walk(book, event.fill_i, event.direction, event.stop, target, exit_name)
+        if exit_name == "be15":
+            reason, exit_raw, when = _walk_be15(book, event.fill_i, event.direction, event.stop, target)
+        else:
+            reason, exit_raw, when = _walk(book, event.fill_i, event.direction, event.stop, target, exit_name)
         exit_i = int(book.index.get_loc(when))
         day = book.dates[event.fill_i]
         if not isinstance(day, date):
