@@ -227,13 +227,6 @@ def _choose_compound(rows: list[dict]) -> tuple[dict, str]:
     return max(options, key=lambda row: (int(row["holdout"].get("trades") or 0), _rank(row))), "most holdout trades"
 
 
-def _choose_chart(rows: list[dict]) -> dict:
-    passed = [row for row in rows if row["passes"]]
-    if passed:
-        return max(passed, key=_rank)
-    return max(rows, key=lambda row: (int(row["holdout"].get("trades") or 0), _rank(row)))
-
-
 def _money(value) -> str:
     if value is None or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
         return "n/a"
@@ -386,11 +379,23 @@ def _table(rows: list[dict]) -> list[str]:
     return lines
 
 
+def _one_line_misses(rows: list[dict]) -> list[dict]:
+    found = []
+    for row in rows:
+        label = str(row.get("gate") or "")
+        if not label.startswith("no (") or not label.endswith(")"):
+            continue
+        reasons = [part.strip() for part in label[4:-1].split(",") if part.strip()]
+        if len(reasons) == 1 and int(row["holdout"].get("trades") or 0) >= GATE_TRADES:
+            found.append(row)
+    return sorted(found, key=_rank, reverse=True)
+
+
 def _prose(rows: list[dict], tapes: list[str], aggressive: dict, compound: dict, mag: list[dict], scale: float) -> str:
     passed = [row["id"] for row in rows if row["passes"]]
     busiest = max(int(row["holdout"].get("trades") or 0) for row in rows)
-    chart_row = _choose_chart(rows)
     compound_row = next(row for row in rows if row["id"] == compound["id"])
+    misses = _one_line_misses(rows)
     if passed:
         lead = (
             f"Cleared the full gate: {', '.join(passed)}. "
@@ -404,6 +409,11 @@ def _prose(rows: list[dict], tapes: list[str], aggressive: dict, compound: dict,
             f" The busiest holdout cell has {busiest} trades, so this setup is too rare "
             f"to reach the {GATE_TRADES}-trade line on 2024-01-01 through 2026-10-06."
         )
+    miss_bits = []
+    for row in misses:
+        reason = str(row["gate"])[4:-1]
+        miss_bits.append(f"{_plain(row)} fails only on {reason}. Holdout: {_line(row, 'holdout')}. Train: {_line(row, 'train')}.")
+    miss_text = " ".join(miss_bits) if miss_bits else "No holdout book with at least 300 trades failed on only one line."
     agg_hold = aggressive["holdout"]
     agg_train = aggressive["train"]
     lines = [
@@ -414,6 +424,8 @@ def _prose(rows: list[dict], tapes: list[str], aggressive: dict, compound: dict,
         "were written before any metric.",
         "",
         lead + rare,
+        "",
+        miss_text,
         "",
         "The 4-hour bars are the cash-session blocks, 9:30-13:30 and 13:30-16:00, built from "
         "completed 5-minute bars. The afternoon block is two and a half hours and counts as one bar. "
@@ -431,18 +443,18 @@ def _prose(rows: list[dict], tapes: list[str], aggressive: dict, compound: dict,
         "Exits, scored as separate cells, are 1R, 2R, and the outer session-VWAP 2 SD band. "
         "Every position is flat at the 15:45 open. One position. At most 5 new trades a day.",
         "",
-        f"The chart cell is {_plain(chart_row)} ({chart_row['id']}), chosen as the gate pass with the "
-        f"highest holdout Sharpe, or the busiest holdout cell when nothing passes. "
-        f"Holdout: {_line(chart_row, 'holdout')}. Train: {_line(chart_row, 'train')}. "
-        f"Gate: {chart_row['gate']}.",
+        f"The chart compares three holdout accounts. The 4hr line is {_plain(compound_row)} "
+        f"({compound_row['id']}). Selection: {compound['why']}. "
+        f"Holdout: {_line(compound_row, 'holdout')}. Train: {_line(compound_row, 'train')}. "
+        f"Gate: {compound_row['gate']}.",
         "",
         f"QQQ Aggressive, 1 contract, 1 DTE, the same unscaled prior close and 1 cent market, "
         f"same-day 15:45 flatten, fresh $2,500, at most 5 fills a day. "
         f"Holdout: {_line({'holdout': agg_hold}, 'holdout')}. "
         f"Train: {_line({'train': agg_train}, 'train')}.",
         "",
-        f"The 5% compound book is {_plain(compound_row)} ({compound_row['id']}). "
-        f"It is the option cell that {compound['why']}. It is outside the family of {n_trials()} cells. "
+        f"The 5% compound book uses the same signals as {compound_row['id']}. "
+        f"Selection rule: {compound['why']}. It is outside the family of {n_trials()} cells. "
         f"The lot is floor(0.05 times equity divided by ask times 100), capped at 30. "
         f"A zero lot still buys one contract when that contract costs at most 10% of equity. "
         f"Size slippage adds one cent per share for every ten contracts past the first ten. "
@@ -537,22 +549,27 @@ def _upsert(path: Path, body: str) -> None:
 
 def _blurb(rows: list[dict], compound: dict) -> str:
     passed = [row["id"] for row in rows if row["passes"]]
-    chart_row = _choose_chart(rows)
+    chart_row = next(row for row in rows if row["id"] == compound["id"])
     verdict = "No cell cleared the gate." if not passed else "Cleared the gate and was not promoted: " + ", ".join(passed) + "."
     return (
         "**4hr: does not join the book.** Session-aligned 4-hour trend, 1-hour agreement, "
         "15-minute pullback, and 5-minute entry on SPY and QQQ. Train 2017-2023, holdout 2024-01-01 "
         f"through 2026-10-06, fresh $2,500, family of {n_trials()} cells. "
-        f"The chart cell, {_plain(chart_row)}, holdout ended {_money(chart_row['holdout'].get('ending_equity'))} "
-        f"on {int(chart_row['holdout'].get('trades') or 0)} trades, profit factor {_num(chart_row['holdout'].get('profit_factor'))}. "
-        f"The 5% compound path on {compound['id']} ended {_money(compound['holdout'].get('ending_equity'))}. "
+        f"{_plain(chart_row)} holdout ended {_money(chart_row['holdout'].get('ending_equity'))} "
+        f"on {int(chart_row['holdout'].get('trades') or 0)} trades, profit factor {_num(chart_row['holdout'].get('profit_factor'))}, "
+        f"and the gate is {chart_row['gate']}. "
+        f"The 5% compound path on that cell ended {_money(compound['holdout'].get('ending_equity'))}. "
+        f"QQQ Aggressive 1 DTE, one contract, is the comparison book. "
         f"{verdict} The chart is `reports/four_hour_equity.png`. Nothing was sent to a broker."
     )
 
 
 def _jsonable(value):
     if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items() if key not in {"equity", "pnls", "cands_train", "cands_holdout"}}
+        skip = {"equity", "equity_holdout", "pnls", "pnls_train", "cands_train", "cands_holdout"}
+        return {key: _jsonable(item) for key, item in value.items() if key not in skip}
+    if isinstance(value, pd.Series):
+        return None
     if isinstance(value, list):
         return [_jsonable(item) for item in value]
     if isinstance(value, (np.floating, float)):
@@ -718,9 +735,8 @@ def main() -> None:
         aggressive[name]["published_trade_gap"] = gap_trades
         aggressive[name]["published_money_gap"] = gap_money
     mag = _mag_rows()
-    chart_row = _choose_chart(rows)
     series = [
-        (f"4hr {_plain(chart_row)}", chart_row["equity_holdout"]),
+        (f"4hr {_plain(compound_row)}", compound_row["equity_holdout"]),
         ("QQQ Aggressive 1 DTE, 1 contract", aggressive["holdout"]["equity"]),
         (f"5% compound {compound_row['id']}", compound["holdout"]["equity"]),
     ]
@@ -731,7 +747,7 @@ def main() -> None:
         "rules": rules,
         "scale_0dte": scale,
         "passed": [row["id"] for row in rows if row["passes"]],
-        "chart_cell": chart_row["id"],
+        "chart_cell": compound_row["id"],
         "compound": _jsonable(compound),
         "aggressive": _jsonable(aggressive),
         "mag7": _jsonable(mag),
