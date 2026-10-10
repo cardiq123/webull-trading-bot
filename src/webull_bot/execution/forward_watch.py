@@ -296,6 +296,12 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     from webull_bot.calendar import to_ny
     from webull_bot.execution.forward_quotes import prime_forward_quotes
     from webull_bot.execution.forward_cash import prepare_cash
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_four_hour import STAKE as HOUR_STAKE
+    from webull_bot.execution.forward_four_hour import _log_market as hour_log
+    from webull_bot.execution.forward_four_hour import _manage_open as hour_manage
+    from webull_bot.execution.forward_four_hour import _take_signals as hour_take
+    from webull_bot.execution.forward_four_hour import load_state as hour_load
     from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_trapdoor import STAKE as TRAP_STAKE
     from webull_bot.execution.forward_trapdoor import _log_market as trap_log
@@ -317,6 +323,8 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     specs = [(name, BOOKS[name], _frame(bars5, BOOKS[name])) for name in names if name in BOOKS]
     if TRAP_NAME in names:
         specs.append((TRAP_NAME, "QQQ", _frame(bars5, "QQQ")))
+    if HOUR_NAME in names:
+        specs.append((HOUR_NAME, "QQQ", _frame(bars5, "QQQ")))
     try:
         prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
     except Exception:
@@ -378,6 +386,30 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
                 lines.append("QQQ Trapdoor minute quote log failed. Entry and exit were not changed.")
         if prepare_cash(state, broker, TRAP_STAKE, local.date()):
             journal.forward_save(TRAP_NAME, state)
+    if HOUR_NAME in names:
+        state = hour_load(journal)
+        if prepare_cash(state, broker, HOUR_STAKE, local.date()):
+            journal.forward_save(HOUR_NAME, state)
+        from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_hour_exits
+
+        if chase_hour_exits(state, broker, now, lines):
+            journal.forward_save(HOUR_NAME, state)
+        try:
+            hour_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
+        except Exception:
+            lines.append("4hr exit check failed. The position was not changed.")
+        try:
+            hour_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
+        except Exception:
+            lines.append("4hr entry check failed. No order was sent for that failure.")
+        _write_ticks(HOUR_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
+        if log_minute:
+            try:
+                hour_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
+            except Exception:
+                lines.append("4hr minute quote log failed. Entry and exit were not changed.")
+        if prepare_cash(state, broker, HOUR_STAKE, local.date()):
+            journal.forward_save(HOUR_NAME, state)
     if log_minute:
         LATEST["minute"] = minute_key
     if not lines:
@@ -662,10 +694,11 @@ def _clock() -> datetime:
 
 
 def watch_symbols(names: list[str]) -> list[str]:
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
     from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS
 
     found = [BOOKS[name] for name in names if name in BOOKS]
-    if TRAP_NAME in names:
+    if TRAP_NAME in names or HOUR_NAME in names:
         found.append("QQQ")
     return list(dict.fromkeys(found))

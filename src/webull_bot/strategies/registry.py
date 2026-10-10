@@ -65,6 +65,7 @@ def strategy_by_name(name: str) -> Strategy:
         "vwap_band_15m_qqq_aggr_1dte",
         "vwap_band_15m_qqq_compound",
         "neckline_trapdoor_qqq",
+        "four_hour_qqq_1dte",
     }:
         raise KeyError(
             f"{name} is not in the paper or live book. "

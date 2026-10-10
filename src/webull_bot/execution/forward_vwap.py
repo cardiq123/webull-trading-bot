@@ -67,12 +67,13 @@ $5,000 on QQQ Aggressive Compound) and does not connect or
 write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
 trading stays off. The runner names ``vwap_band_15m``,
 ``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``,
-``vwap_band_15m_qqq_compound``, and ``neckline_trapdoor_qqq``. The one-contract
+``vwap_band_15m_qqq_compound``, ``neckline_trapdoor_qqq``, and
+``four_hour_qqq_1dte``. The one-contract
 QQQ book stays available so its journal can still be read. The forward
 books together use at most five signals a day. QQQ Aggressive 0 DTE,
-1 DTE, and Compound share one slot on the same 15-minute bar. SPY VWAP
-and QQQ Trapdoor each count as their own signal. Trapdoor still opens
-at most three trades a day.
+1 DTE, and Compound share one slot on the same 15-minute bar. SPY VWAP,
+QQQ Trapdoor, and 4hr each count as their own signal. Trapdoor still opens
+at most three trades a day. 4hr keeps the scored cap of five.
 """
 
 from __future__ import annotations
@@ -159,8 +160,9 @@ DTE = {
 # New signals across the sandbox forward books, including QQQ Trapdoor.
 # The one-contract QQQ journal still counts when the runner no longer calls it.
 # One slot per signal. The QQQ Aggressive books share a slot when they take
-# the same 15-minute bar. SPY VWAP and QQQ Trapdoor each count alone.
+# the same 15-minute bar. SPY VWAP, QQQ Trapdoor, and 4hr each count alone.
 # The cap stays 5. Trapdoor also keeps its own 3-trades-a-day cap.
+# 4hr keeps the scored cap of 5.
 COMBINED_ENTRY_CAP = 5
 COMPOUND_STAKE = 5_000.0
 ENTRY_BOOKS = (
@@ -170,6 +172,7 @@ ENTRY_BOOKS = (
     QQQ_AGGR_1DTE_NAME,
     QQQ_COMPOUND_NAME,
     "neckline_trapdoor_qqq",
+    "four_hour_qqq_1dte",
 )
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)

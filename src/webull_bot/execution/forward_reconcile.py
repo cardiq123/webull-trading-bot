@@ -720,6 +720,12 @@ def _load(journal, book: str):
 
     if book == TRAP_NAME:
         return trap_load(journal), TRAP_STAKE
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_four_hour import STAKE as HOUR_STAKE
+    from webull_bot.execution.forward_four_hour import load_state as hour_load
+
+    if book == HOUR_NAME:
+        return hour_load(journal), HOUR_STAKE
     from webull_bot.execution.forward_vwap import _ACTIVE, _activate, _stake, load_state
 
     token = _activate(book)
