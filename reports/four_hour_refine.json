@@ -1,0 +1,751 @@
+{
+  "rules_path": "/tmp/four-hour/reports/four_hour_refine_rules.json",
+  "n_trials": 80,
+  "prior_trials": 72,
+  "published_base_dsr_at_72": 0.9045376762526429,
+  "dead_tape_days": 64,
+  "selection": {
+    "winners": [
+      "chop"
+    ],
+    "id": "chop",
+    "kind": "single",
+    "parts": [
+      "chop"
+    ],
+    "extra_trial": false,
+    "base_mean_yearly_sharpe": 1.7171190912547192
+  },
+  "lead": "Refining this cell does not make it better. The chop filter is the only train winner, and the margin is thin: mean yearly Sharpe 1.77 against the base 1.72, with 2020 and 2021 a bit worse and 2022 and 2023 a bit better. The one 2020-2023 account, which was not the selection score, has a slightly lower Sharpe (1.30 against 1.31) and a slightly higher ending ($13,088 against $12,699). Scored once on the holdout, the chop filter ends at $18,527 on 1,209 trades, profit factor 1.39, Sharpe 2.31, max drawdown -23.5%. The base holdout is $19,204 on 1,241 trades, profit factor 1.40, Sharpe 2.35, max drawdown -22.2%. The chop filter gives a little back on every one of those figures. Gate: no (DSR 0.897<0.95). No other refinement won the walk-forward, so there is no combination.",
+  "overlap_prose": "The two books show up on the same days and rarely on the same bar. On the holdout, 89.0% of 4hr signal days are also QQQ Aggressive signal days, while 11.0% of filled 4hr trades share a 15-minute bucket with a filled Aggressive trade. Daily filled-trade P&L correlation is 0.12 across every holdout session and 0.12 on sessions where at least one book traded. The train figures are 90.6% of signal days in common, 9.6% of filled trades in the same 15-minute bucket, and a daily P&L correlation of 0.09. Running both is not the same fill twice. The day calendars overlap, and the profits are only loosely tied.",
+  "rows": [
+    {
+      "id": "base",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 11457,
+      "quoted": 11456,
+      "mean_yearly_sharpe": 1.7171190912547192,
+      "wf_trades": 1902,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.40912306112494473,
+          "trades": 502,
+          "ending_equity": 2699.663482941315
+        },
+        {
+          "year": 2021,
+          "sharpe": 1.3131034935295791,
+          "trades": 422,
+          "ending_equity": 3969.82279331712
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.582213126392352,
+          "trades": 473,
+          "ending_equity": 7340.321111107645
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.564036683972,
+          "trades": 505,
+          "ending_equity": 6188.968497824428
+        }
+      ],
+      "walk_forward": {
+        "trades": 1902,
+        "win_rate": 0.5005257623554153,
+        "profit_factor": 1.1918126879295579,
+        "sharpe": 1.3078806977135216,
+        "max_drawdown": -0.4812770752785437,
+        "ending_equity": 12698.775885190511
+      },
+      "wf_dsr": 0.5501439747452317,
+      "train": {
+        "trades": 3148,
+        "win_rate": 0.49714104193138503,
+        "profit_factor": 1.1924683643431886,
+        "sharpe": 1.4184011083226649,
+        "max_drawdown": -0.2912805347557298,
+        "ending_equity": 15188.834701549413
+      },
+      "train_dsr": 0.8978791448245987,
+      "holdout": {
+        "trades": 1241,
+        "win_rate": 0.5044319097502015,
+        "profit_factor": 1.3975994896826018,
+        "sharpe": 2.353261376437092,
+        "max_drawdown": -0.22249870899677426,
+        "ending_equity": 19204.08890378868
+      },
+      "holdout_dsr": 0.9490128241007909,
+      "random_train": {
+        "trades": 2016,
+        "win_rate": 0.3898809523809524,
+        "profit_factor": 0.6455336469012265,
+        "sharpe": -0.9978655838589917,
+        "max_drawdown": -0.9876701383926746,
+        "ending_equity": 30.824654018313435
+      },
+      "p": 0.00012063598178724266,
+      "q": 0.0016084797571632354,
+      "passes": false,
+      "gate": "no (DSR 0.898<0.95)"
+    },
+    {
+      "id": "chop",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 10759,
+      "quoted": 10759,
+      "mean_yearly_sharpe": 1.765576681909917,
+      "wf_trades": 1867,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.4030224348348626,
+          "trades": 504,
+          "ending_equity": 2686.2273405554215
+        },
+        {
+          "year": 2021,
+          "sharpe": 1.1594244600982395,
+          "trades": 414,
+          "ending_equity": 3751.5093605116263
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.760076974773638,
+          "trades": 456,
+          "ending_equity": 7787.9371926692165
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.739782857932928,
+          "trades": 493,
+          "ending_equity": 6362.673865960909
+        }
+      ],
+      "walk_forward": {
+        "trades": 1867,
+        "win_rate": 0.502410283877879,
+        "profit_factor": 1.2035803829919267,
+        "sharpe": 1.3026600930191357,
+        "max_drawdown": -0.4804333341818896,
+        "ending_equity": 13088.347759697173
+      },
+      "wf_dsr": 0.5454289151550208,
+      "train": {
+        "trades": 3094,
+        "win_rate": 0.4980607627666451,
+        "profit_factor": 1.2023009931301365,
+        "sharpe": 1.4191668843250171,
+        "max_drawdown": -0.29013877702291624,
+        "ending_equity": 15567.377119319694
+      },
+      "train_dsr": 0.8974363606377693,
+      "holdout": {
+        "trades": 1209,
+        "win_rate": 0.5012406947890818,
+        "profit_factor": 1.387675567407171,
+        "sharpe": 2.3138837069952234,
+        "max_drawdown": -0.23466412389388913,
+        "ending_equity": 18527.447817762273
+      },
+      "holdout_dsr": 0.9386560784498464,
+      "random_train": {
+        "trades": 2289,
+        "win_rate": 0.399737876802097,
+        "profit_factor": 0.692128680292737,
+        "sharpe": -1.9551667237444363,
+        "max_drawdown": -0.9864735206323321,
+        "ending_equity": 35.60516014437799
+      },
+      "p": 7.101506430728932e-05,
+      "q": 0.0014203012861457864,
+      "passes": false,
+      "gate": "no (DSR 0.897<0.95)"
+    },
+    {
+      "id": "time",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 8022,
+      "quoted": 8021,
+      "mean_yearly_sharpe": 1.230393326492114,
+      "wf_trades": 1701,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.13046849482015127,
+          "trades": 474,
+          "ending_equity": 2369.3985622333375
+        },
+        {
+          "year": 2021,
+          "sharpe": 0.30821621694591017,
+          "trades": 373,
+          "ending_equity": 2566.0859428895774
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.218189148535013,
+          "trades": 431,
+          "ending_equity": 6441.03670119219
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.2646994456673823,
+          "trades": 423,
+          "ending_equity": 5623.617437921864
+        }
+      ],
+      "walk_forward": {
+        "trades": 1701,
+        "win_rate": 0.4932392710170488,
+        "profit_factor": 1.1511779413214387,
+        "sharpe": 0.9823611444560224,
+        "max_drawdown": -0.5588534030573686,
+        "ending_equity": 9500.13864423696
+      },
+      "wf_dsr": 0.31256449633076316,
+      "train": {
+        "trades": 2842,
+        "win_rate": 0.488036593947924,
+        "profit_factor": 1.1487784959797227,
+        "sharpe": 1.0029416537832305,
+        "max_drawdown": -0.3915900726097904,
+        "ending_equity": 10985.117620658988
+      },
+      "train_dsr": 0.5713490174977927,
+      "holdout": {
+        "trades": 1105,
+        "win_rate": 0.5049773755656108,
+        "profit_factor": 1.3718499193592526,
+        "sharpe": 2.1154961582735505,
+        "max_drawdown": -0.282310529510452,
+        "ending_equity": 15886.919569211002
+      },
+      "holdout_dsr": 0.8990185330449083,
+      "random_train": {
+        "trades": 2193,
+        "win_rate": 0.40036479708162337,
+        "profit_factor": 0.679851341874229,
+        "sharpe": -1.7371566957208948,
+        "max_drawdown": -0.9800579868656935,
+        "ending_equity": 49.85503283576638
+      },
+      "p": 0.003138736610023063,
+      "q": 0.016006391391076846,
+      "passes": false,
+      "gate": "no (DSR 0.571<0.95)"
+    },
+    {
+      "id": "volume",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 6264,
+      "quoted": 6264,
+      "mean_yearly_sharpe": 1.507278256129771,
+      "wf_trades": 1367,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.09593681932853276,
+          "trades": 431,
+          "ending_equity": 2336.34090141299
+        },
+        {
+          "year": 2021,
+          "sharpe": 1.214906202334998,
+          "trades": 298,
+          "ending_equity": 3745.3291581418207
+        },
+        {
+          "year": 2022,
+          "sharpe": 1.8237148259440015,
+          "trades": 319,
+          "ending_equity": 5331.355048692431
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.894555176911552,
+          "trades": 319,
+          "ending_equity": 6142.729830469496
+        }
+      ],
+      "walk_forward": {
+        "trades": 1367,
+        "win_rate": 0.4879297732260424,
+        "profit_factor": 1.1913535739851966,
+        "sharpe": 1.1156331884021709,
+        "max_drawdown": -0.55156765516777,
+        "ending_equity": 10055.754938716753
+      },
+      "wf_dsr": 0.41180078066970394,
+      "train": {
+        "trades": 2369,
+        "win_rate": 0.48205994090333476,
+        "profit_factor": 1.1681862428847283,
+        "sharpe": 0.9434134614867319,
+        "max_drawdown": -0.46115131442517543,
+        "ending_equity": 10824.315759920366
+      },
+      "train_dsr": 0.5134533872968544,
+      "holdout": {
+        "trades": 816,
+        "win_rate": 0.5171568627450981,
+        "profit_factor": 1.522228054115524,
+        "sharpe": 2.407686236127854,
+        "max_drawdown": -0.21365637534918713,
+        "ending_equity": 18171.04748752362
+      },
+      "holdout_dsr": 0.9567410675982222,
+      "random_train": {
+        "trades": 1719,
+        "win_rate": 0.3787085514834206,
+        "profit_factor": 0.6043578509283518,
+        "sharpe": -1.7912243731484776,
+        "max_drawdown": -0.9849591733902995,
+        "ending_equity": 37.68498753511408
+      },
+      "p": 0.003344215963396957,
+      "q": 0.016006391391076846,
+      "passes": false,
+      "gate": "no (DSR 0.513<0.95)"
+    },
+    {
+      "id": "vwap_hold",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 6671,
+      "quoted": 6670,
+      "mean_yearly_sharpe": 1.6525402774571787,
+      "wf_trades": 1317,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 1.3949015372236377,
+          "trades": 361,
+          "ending_equity": 3798.372854937623
+        },
+        {
+          "year": 2021,
+          "sharpe": 0.996562061934181,
+          "trades": 297,
+          "ending_equity": 3596.5013460732002
+        },
+        {
+          "year": 2022,
+          "sharpe": 1.7855965065397494,
+          "trades": 325,
+          "ending_equity": 5185.231760875002
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.4331010041311467,
+          "trades": 334,
+          "ending_equity": 5837.767072759708
+        }
+      ],
+      "walk_forward": {
+        "trades": 1317,
+        "win_rate": 0.5011389521640092,
+        "profit_factor": 1.2271140492218064,
+        "sharpe": 1.4465129126358227,
+        "max_drawdown": -0.39820972279000977,
+        "ending_equity": 10917.873034645547
+      },
+      "wf_dsr": 0.6641904517824753,
+      "train": {
+        "trades": 2218,
+        "win_rate": 0.49413886384129846,
+        "profit_factor": 1.2318913607631865,
+        "sharpe": 1.4419449079071758,
+        "max_drawdown": -0.2660098269149317,
+        "ending_equity": 13238.606233751174
+      },
+      "train_dsr": 0.9189956810772292,
+      "holdout": {
+        "trades": 861,
+        "win_rate": 0.5098722415795587,
+        "profit_factor": 1.4351283396567711,
+        "sharpe": 2.0291412544739686,
+        "max_drawdown": -0.2648457433761672,
+        "ending_equity": 15646.936584138417
+      },
+      "holdout_dsr": 0.834544625338107,
+      "random_train": {
+        "trades": 2252,
+        "win_rate": 0.39831261101243337,
+        "profit_factor": 0.731722525341775,
+        "sharpe": -1.0349340038873853,
+        "max_drawdown": -0.9803532809475441,
+        "ending_equity": 49.2251112129819
+      },
+      "p": 0.00015426733536849646,
+      "q": 0.0017630552613542452,
+      "passes": false,
+      "gate": "no (DSR 0.919<0.95)"
+    },
+    {
+      "id": "slope",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 9607,
+      "quoted": 9607,
+      "mean_yearly_sharpe": 1.522743959347286,
+      "wf_trades": 1609,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.12083265650442937,
+          "trades": 440,
+          "ending_equity": 2337.175003317261
+        },
+        {
+          "year": 2021,
+          "sharpe": 0.7958094044285483,
+          "trades": 340,
+          "ending_equity": 3195.1382355678934
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.493553553919791,
+          "trades": 410,
+          "ending_equity": 6786.669124984601
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.6807802225363755,
+          "trades": 419,
+          "ending_equity": 5899.238976918778
+        }
+      ],
+      "walk_forward": {
+        "trades": 1608,
+        "win_rate": 0.4944029850746269,
+        "profit_factor": 1.1843119037616767,
+        "sharpe": 1.1285911109663846,
+        "max_drawdown": -0.5716619883294753,
+        "ending_equity": 10815.059628040677
+      },
+      "wf_dsr": 0.4179957102488329,
+      "train": {
+        "trades": 2591,
+        "win_rate": 0.4862987263604786,
+        "profit_factor": 1.1700427315925939,
+        "sharpe": 1.0620069325627832,
+        "max_drawdown": -0.41525230038427574,
+        "ending_equity": 11992.621489628093
+      },
+      "train_dsr": 0.6276163668851171,
+      "holdout": {
+        "trades": 982,
+        "win_rate": 0.5061099796334012,
+        "profit_factor": 1.3952161135860643,
+        "sharpe": 2.372384954962456,
+        "max_drawdown": -0.18113037782920216,
+        "ending_equity": 15710.538385110684
+      },
+      "holdout_dsr": 0.9579388454317064,
+      "random_train": {
+        "trades": 2232,
+        "win_rate": 0.3844086021505376,
+        "profit_factor": 0.6880806930046478,
+        "sharpe": -1.9171237000384735,
+        "max_drawdown": -0.9855051826883463,
+        "ending_equity": 37.067590116546334
+      },
+      "p": 0.0013753281518795735,
+      "q": 0.009168854345863823,
+      "passes": false,
+      "gate": "no (DSR 0.628<0.95)"
+    },
+    {
+      "id": "dead_tape",
+      "cap": 5,
+      "exit": "r1",
+      "signals": 11096,
+      "quoted": 11095,
+      "mean_yearly_sharpe": 1.7171190912547192,
+      "wf_trades": 1902,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.40912306112494473,
+          "trades": 502,
+          "ending_equity": 2699.663482941315
+        },
+        {
+          "year": 2021,
+          "sharpe": 1.3131034935295791,
+          "trades": 422,
+          "ending_equity": 3969.82279331712
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.582213126392352,
+          "trades": 473,
+          "ending_equity": 7340.321111107645
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.564036683972,
+          "trades": 505,
+          "ending_equity": 6188.968497824428
+        }
+      ],
+      "walk_forward": {
+        "trades": 1902,
+        "win_rate": 0.5005257623554153,
+        "profit_factor": 1.1918126879295579,
+        "sharpe": 1.3078806977135216,
+        "max_drawdown": -0.4812770752785437,
+        "ending_equity": 12698.775885190511
+      },
+      "wf_dsr": 0.5501439747452317,
+      "train": {
+        "trades": 3148,
+        "win_rate": 0.49714104193138503,
+        "profit_factor": 1.1924683643431886,
+        "sharpe": 1.4184011083226649,
+        "max_drawdown": -0.2912805347557298,
+        "ending_equity": 15188.834701549413
+      },
+      "train_dsr": 0.8978791448245987,
+      "holdout": {
+        "trades": 1123,
+        "win_rate": 0.5075690115761353,
+        "profit_factor": 1.3949320580244027,
+        "sharpe": 2.29289871460264,
+        "max_drawdown": -0.22249870899677426,
+        "ending_equity": 17992.977622667782
+      },
+      "holdout_dsr": 0.9394554411381759,
+      "random_train": {
+        "trades": 2016,
+        "win_rate": 0.3898809523809524,
+        "profit_factor": 0.6455336469012265,
+        "sharpe": -0.9978655838589917,
+        "max_drawdown": -0.9876701383926746,
+        "ending_equity": 30.824654018313435
+      },
+      "p": 0.00012063598178724266,
+      "q": 0.0016084797571632354,
+      "passes": false,
+      "gate": "no (DSR 0.898<0.95)"
+    },
+    {
+      "id": "be15",
+      "cap": 5,
+      "exit": "be15",
+      "signals": 11457,
+      "quoted": 11456,
+      "mean_yearly_sharpe": 0.7880057985347302,
+      "wf_trades": 2136,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": -1.5768798819391816,
+          "trades": 558,
+          "ending_equity": 423.18446320316593
+        },
+        {
+          "year": 2021,
+          "sharpe": 0.4776169676330044,
+          "trades": 477,
+          "ending_equity": 2778.238458589323
+        },
+        {
+          "year": 2022,
+          "sharpe": 2.1731496181780114,
+          "trades": 528,
+          "ending_equity": 6515.083762212329
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.0781364902670862,
+          "trades": 573,
+          "ending_equity": 5688.938782709851
+        }
+      ],
+      "walk_forward": {
+        "trades": 934,
+        "win_rate": 0.24518201284796573,
+        "profit_factor": 1.000925648220966,
+        "sharpe": 0.6827148204972325,
+        "max_drawdown": -0.9709153784844058,
+        "ending_equity": 2516.803380528512
+      },
+      "wf_dsr": 0.21860469515706832,
+      "train": {
+        "trades": 3605,
+        "win_rate": 0.26324549237170597,
+        "profit_factor": 1.121674225893259,
+        "sharpe": 0.6633321387270723,
+        "max_drawdown": -0.7581394519973754,
+        "ending_equity": 9457.388967716926
+      },
+      "train_dsr": 0.24984434707206515,
+      "holdout": {
+        "trades": 1429,
+        "win_rate": 0.26801959412176346,
+        "profit_factor": 1.3577192655771178,
+        "sharpe": 1.8584740955979475,
+        "max_drawdown": -0.4035221548440824,
+        "ending_equity": 14943.373169469623
+      },
+      "holdout_dsr": 0.7929234197302418,
+      "random_train": {
+        "trades": 2162,
+        "win_rate": 0.2705827937095282,
+        "profit_factor": 0.6453517374572353,
+        "sharpe": -0.9176890064868178,
+        "max_drawdown": -0.9874904389760877,
+        "ending_equity": 31.273902559780833
+      },
+      "p": 0.024531912902242103,
+      "q": 0.08920695600815311,
+      "passes": false,
+      "gate": "no (drawdown -40.4%, DSR 0.250<0.95)"
+    },
+    {
+      "id": "cap2",
+      "cap": 2,
+      "exit": "r1",
+      "signals": 11457,
+      "quoted": 11456,
+      "mean_yearly_sharpe": 1.4287207547327623,
+      "wf_trades": 1305,
+      "yearly": [
+        {
+          "year": 2020,
+          "sharpe": 0.37263427407058347,
+          "trades": 342,
+          "ending_equity": 2666.8687858893327
+        },
+        {
+          "year": 2021,
+          "sharpe": 1.1920770331068675,
+          "trades": 304,
+          "ending_equity": 3718.194523815383
+        },
+        {
+          "year": 2022,
+          "sharpe": 1.716100171332632,
+          "trades": 320,
+          "ending_equity": 5397.530945398232
+        },
+        {
+          "year": 2023,
+          "sharpe": 2.4340715404209656,
+          "trades": 339,
+          "ending_equity": 5763.63615690975
+        }
+      ],
+      "walk_forward": {
+        "trades": 1305,
+        "win_rate": 0.49885057471264366,
+        "profit_factor": 1.191640698221176,
+        "sharpe": 1.1506439414420662,
+        "max_drawdown": -0.3915604673472407,
+        "ending_equity": 10046.230412012694
+      },
+      "wf_dsr": 0.43638644083530337,
+      "train": {
+        "trades": 2217,
+        "win_rate": 0.4961659900766802,
+        "profit_factor": 1.2028653539371141,
+        "sharpe": 1.298470398567631,
+        "max_drawdown": -0.2265868555032341,
+        "ending_equity": 12509.843646386435
+      },
+      "train_dsr": 0.8410510816980442,
+      "holdout": {
+        "trades": 898,
+        "win_rate": 0.512249443207127,
+        "profit_factor": 1.457002565248145,
+        "sharpe": 2.3883505854713607,
+        "max_drawdown": -0.21849167017224136,
+        "ending_equity": 17584.284784384163
+      },
+      "holdout_dsr": 0.9544319883293566,
+      "random_train": {
+        "trades": 2313,
+        "win_rate": 0.40077821011673154,
+        "profit_factor": 0.8169227051651261,
+        "sharpe": -0.7390226420945342,
+        "max_drawdown": -0.9801856893186853,
+        "ending_equity": 49.64561620203937
+      },
+      "p": 0.000584208953085863,
+      "q": 0.004248792386079003,
+      "passes": false,
+      "gate": "no (DSR 0.841<0.95)"
+    }
+  ],
+  "overlap": {
+    "train": {
+      "four_signal_days": 1345,
+      "aggressive_signal_days": 1524,
+      "common_signal_days": 1218,
+      "share_of_four_signal_days": 0.9055762081784386,
+      "share_of_aggressive_signal_days": 0.7992125984251969,
+      "signal_day_jaccard": 0.7377347062386432,
+      "four_signals": 8283,
+      "aggressive_signals": 3447,
+      "four_signals_in_aggressive_bucket": 700,
+      "share_of_four_signals_in_aggressive_bucket": 0.08451044307618012,
+      "four_filled_trades": 3148,
+      "aggressive_filled_trades": 2873,
+      "common_filled_days": 1218,
+      "share_of_four_filled_days": 0.9055762081784386,
+      "share_of_aggressive_filled_days": 0.7992125984251969,
+      "filled_day_jaccard": 0.7377347062386432,
+      "four_trades_on_aggressive_day": 2865,
+      "share_of_four_trades_on_aggressive_day": 0.9101016518424396,
+      "four_trades_in_aggressive_bucket": 302,
+      "share_of_four_trades_in_aggressive_bucket": 0.09593392630241424,
+      "pnl_correlation_all_days": 0.0942583675839213,
+      "pnl_correlation_either_traded": 0.09403641062367546,
+      "days_either_traded": 1651
+    },
+    "holdout": {
+      "four_signal_days": 546,
+      "aggressive_signal_days": 603,
+      "common_signal_days": 486,
+      "share_of_four_signal_days": 0.8901098901098901,
+      "share_of_aggressive_signal_days": 0.8059701492537313,
+      "signal_day_jaccard": 0.7330316742081447,
+      "four_signals": 3173,
+      "aggressive_signals": 1350,
+      "four_signals_in_aggressive_bucket": 291,
+      "share_of_four_signals_in_aggressive_bucket": 0.09171131421367791,
+      "four_filled_trades": 1241,
+      "aggressive_filled_trades": 1128,
+      "common_filled_days": 486,
+      "share_of_four_filled_days": 0.8901098901098901,
+      "share_of_aggressive_filled_days": 0.8059701492537313,
+      "filled_day_jaccard": 0.7330316742081447,
+      "four_trades_on_aggressive_day": 1123,
+      "share_of_four_trades_on_aggressive_day": 0.9049153908138597,
+      "four_trades_in_aggressive_bucket": 137,
+      "share_of_four_trades_in_aggressive_bucket": 0.11039484286865431,
+      "pnl_correlation_all_days": 0.11791066202074967,
+      "pnl_correlation_either_traded": 0.11724724228269982,
+      "days_either_traded": 663
+    }
+  },
+  "aggressive_gap": {
+    "train": {
+      "trade_gap": 0,
+      "money_gap": 0.0
+    },
+    "holdout": {
+      "trade_gap": 0,
+      "money_gap": 0.0
+    }
+  }
+}
