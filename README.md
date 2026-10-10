@@ -465,6 +465,10 @@ Example charts of what the detectors mark as a rising trendline and a wedge are 
 <!-- FOUR_HOUR_START -->
 **4hr: does not join the book.** Session-aligned 4-hour trend, 1-hour agreement, 15-minute pullback, and 5-minute entry on SPY and QQQ. Train 2017-2023, holdout 2024-01-01 through 2026-10-06, fresh $2,500, family of 72 cells. QQQ 4h EMA, session VWAP pullback, 1R, 1 DTE holdout ended $19,204 on 1241 trades, profit factor 1.40, and the gate is no (DSR 0.905<0.95). The 5% compound path on that cell ended $87,919. QQQ Aggressive 1 DTE, one contract, is the comparison book. No cell cleared the gate. The chart is `reports/four_hour_equity.png`. Nothing was sent to a broker.
 <!-- FOUR_HOUR_END -->
+<!-- FOUR_HOUR_REFINE_START -->
+**4hr refinement: does not join the book.** Eight single changes to the QQQ 4-hour EMA, session-VWAP, 1R, 1 DTE cell, chosen on a 2020-2023 walk-forward and scored once on the holdout. Selected rule: Chop filter. Holdout ending $18,527 on 1209 trades, gate no (DSR 0.897<0.95). Base holdout stays $19,204 on 1241 trades. The chart is `reports/four_hour_refine_equity.png`. Nothing was sent to a broker.
+<!-- FOUR_HOUR_REFINE_END -->
+
 
 Full tables, including the stock diagnostics, are in [RESULTS.md](RESULTS.md).
 Charts are under `reports/`.

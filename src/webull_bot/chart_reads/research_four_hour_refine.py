@@ -498,8 +498,9 @@ def _prose(result: dict) -> str:
             "",
             "## Walk-forward account, 2020-2023, one fresh $2,500",
             "",
-            "This is one account across the four years, which is not the same object as the mean of four fresh years. "
-            "Deflated Sharpe here uses this account's daily returns and the expanded trial count.",
+        "This is one account across the four years, which is not the same object as the mean of four fresh years. "
+        "Deflated Sharpe here uses this account's daily returns and the expanded trial count. "
+        "A fresh year can take a trade that the single running account skips after a drawdown.",
             "",
             "| Rule | Trades | Win | PF | Sharpe | Max DD | Ending | Deflated Sharpe |",
             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -513,7 +514,8 @@ def _prose(result: dict) -> str:
             "## Holdout, 2024-01-01 through 2026-10-06, one fresh $2,500",
             "",
             "Scored once after selection. Deflated Sharpe here uses the holdout daily returns and the same trial count. "
-            "The gate's deflated-Sharpe leg is the full 2017-2023 train, shown in the last table.",
+            "The gate's deflated-Sharpe leg is the full 2017-2023 train, shown in the last table. "
+            "A holdout deflated Sharpe above 0.95 does not clear the gate on its own.",
             "",
             "| Rule | Trades | Win | PF | Sharpe | Max DD | Ending | Deflated Sharpe |",
             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -591,16 +593,18 @@ def _lead(choice: dict, rows: list[dict]) -> str:
             f"({base['gate']})."
         )
     parts = ", ".join(LABELS[name] for name in choice["parts"])
-    kind = "The combination of the train winners" if choice["kind"] == "combination" else "The one train winner"
+    kind = "The combination of the train winners" if choice["kind"] == "combination" else "The only train winner"
     return (
-        f"{kind} ({parts}) is the selected rule. "
-        f"Its walk-forward mean Sharpe is {_num(selected['mean_yearly_sharpe'])} against the base "
+        f"Refining this cell does not make a better holdout book. {kind} ({parts}) "
+        f"cleared the walk-forward mean, {_num(selected['mean_yearly_sharpe'])} against the base "
         f"{_num(base['mean_yearly_sharpe'])}. Scored once on the holdout, it ends at "
         f"{_money(selected['holdout'].get('ending_equity'))} on {int(selected['holdout'].get('trades') or 0)} trades, "
         f"profit factor {_num(selected['holdout'].get('profit_factor'))}, Sharpe {_num(selected['holdout'].get('sharpe'))}, "
-        f"max drawdown {_pct(selected['holdout'].get('max_drawdown'))}, "
-        f"against the base holdout {_money(base['holdout'].get('ending_equity'))} on "
-        f"{int(base['holdout'].get('trades') or 0)} trades. Gate: {selected['gate']}."
+        f"max drawdown {_pct(selected['holdout'].get('max_drawdown'))}. "
+        f"The base holdout is {_money(base['holdout'].get('ending_equity'))} on "
+        f"{int(base['holdout'].get('trades') or 0)} trades, profit factor {_num(base['holdout'].get('profit_factor'))}, "
+        f"Sharpe {_num(base['holdout'].get('sharpe'))}, max drawdown {_pct(base['holdout'].get('max_drawdown'))}. "
+        f"Gate: {selected['gate']}."
     )
 
 
@@ -608,14 +612,16 @@ def _overlap_prose(overlap: dict) -> str:
     hold = overlap["holdout"]
     train = overlap["train"]
     return (
-        "Running both books is only a partial diversifier. "
+        "The two books show up on the same days and rarely on the same bar. "
         f"On the holdout, {_pct(hold['share_of_four_signal_days'])} of 4hr signal days are also QQQ Aggressive signal days, "
-        f"and {_pct(hold['share_of_four_trades_in_aggressive_bucket'])} of filled 4hr trades share a 15-minute bucket "
+        f"while {_pct(hold['share_of_four_trades_in_aggressive_bucket'])} of filled 4hr trades share a 15-minute bucket "
         f"with a filled Aggressive trade. "
         f"Daily filled-trade P&L correlation is {_num(hold['pnl_correlation_all_days'])} across every holdout session "
         f"and {_num(hold['pnl_correlation_either_traded'])} on sessions where at least one book traded. "
-        f"The train figures are {_pct(train['share_of_four_signal_days'])} of signal days in common and "
-        f"a daily P&L correlation of {_num(train['pnl_correlation_all_days'])}."
+        f"The train figures are {_pct(train['share_of_four_signal_days'])} of signal days in common, "
+        f"{_pct(train['share_of_four_trades_in_aggressive_bucket'])} of filled trades in the same 15-minute bucket, and "
+        f"a daily P&L correlation of {_num(train['pnl_correlation_all_days'])}. "
+        "Running both is not the same fill twice. The day calendars overlap, and the profits are only loosely tied."
     )
 
 
