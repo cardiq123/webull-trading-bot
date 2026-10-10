@@ -5,9 +5,32 @@ The rules are the frozen extension book in ``vwap_band``: session VWAP, a
 stop one cent beyond the signal bar, a 1R target, and a flat at the 15:45
 open. One at-the-money 0 DTE contract. ``vwap_band_15m`` trades SPY.
 ``vwap_band_15m_qqq`` trades QQQ with the same rules and its own journal
-key. One position per book. The cash mirror is the scored $1,000 book: the
-model debit has to fit settled cash, a sale settles the next session, and
-equity at or under $1 stops new entries.
+key. ``vwap_band_15m_qqq_aggr`` is QQQ Aggressive: the same QQQ signal,
+1R exits, entry expiry, and 15:45 flatten, with three at-the-money 0 DTE
+contracts and a fresh $2,500 cash mirror. ``vwap_band_15m_qqq_aggr_1dte``
+is QQQ Aggressive 1DTE: that same signal, stop, target, and 10-minute
+entry window, with one at-the-money contract on the next trading
+session. The scored book still sells at the 15:45 open the entry day.
+It does not hold overnight. The ticket is one contract
+or it is skipped and journaled. It is never cut down and never sized
+above one. A position opened at the previous three-contract size keeps
+that recorded quantity on the exit. ``vwap_band_15m_qqq_compound`` is
+QQQ Aggressive Compound: that same signal, stop, target, 10-minute
+entry, and same-day 15:45 flatten, on the next session's expiry. The
+lot is 5% of this book's own equity, using the sandbox ask when the
+quote is for that expiry and the model ask when it is not. Equity for
+that size is the sandbox-fill mirror.
+``floor(0.05 * equity / (ask * 100))``. Equity is settled cash plus
+credits that have not settled yet. A fresh mirror starts at $5,000.
+An unused $2,500 compound journal is reset to that stake.
+When the fraction rounds to 0, one contract is bought only if it costs
+at most 10% of equity. Otherwise the signal is skipped and journaled.
+The lot is capped at 30 and is not cut down to fit. One position per book. The one-contract books use the scored
+$1,000 mirror. Once order detail or the journaled fill has a price,
+the cash mirror and the forward-report P&L use that sandbox fill. The
+model P&L stays beside it. A sale settles the next session, and equity
+at or under $1 stops new entries. The new ticket is still priced from
+the ask, because that order has not filled yet.
 
 The cycle is every 5 minutes from 09:50 through 15:50 ET. Signals come
 from completed 15-minute bars, including the bar that just closed when the
@@ -38,9 +61,19 @@ stop unmanaged for the rest of the quarter hour.
 CPI, NFP, and FOMC days are not skipped. The scored backtest does not
 skip them.
 
-``--dry-run`` replays the session from a fresh $1,000 and does not connect
-or write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
-trading stays off.
+``--dry-run`` replays the session from a fresh cash mirror ($1,000 on the
+one-contract books, $2,500 on QQQ Aggressive and QQQ Aggressive 1DTE,
+$5,000 on QQQ Aggressive Compound) and does not connect or
+write the journal. A real cycle requires ``WEBULL_ENV=sandbox``. Live
+trading stays off. The runner names ``vwap_band_15m``,
+``vwap_band_15m_qqq_aggr``, ``vwap_band_15m_qqq_aggr_1dte``,
+``vwap_band_15m_qqq_compound``, ``neckline_trapdoor_qqq``, and
+``four_hour_qqq_1dte``. The one-contract
+QQQ book stays available so its journal can still be read. The forward
+books together use at most five signals a day. QQQ Aggressive 0 DTE,
+1 DTE, and Compound share one slot on the same 15-minute bar. SPY VWAP,
+QQQ Trapdoor, and 4hr each count as their own signal. Trapdoor still opens
+at most three trades a day. 4hr keeps the scored cap of five.
 """
 
 from __future__ import annotations
@@ -79,11 +112,68 @@ from webull_bot.options.pricing import listed_strike, option_price
 NY = ZoneInfo("America/New_York")
 NAME = "vwap_band_15m"
 QQQ_NAME = "vwap_band_15m_qqq"
+QQQ_AGGR_NAME = "vwap_band_15m_qqq_aggr"
+QQQ_AGGR_1DTE_NAME = "vwap_band_15m_qqq_aggr_1dte"
+QQQ_COMPOUND_NAME = "vwap_band_15m_qqq_compound"
 SYMBOL = "SPY"
 BOOKS = {
     NAME: "SPY",
     QQQ_NAME: "QQQ",
+    QQQ_AGGR_NAME: "QQQ",
+    QQQ_AGGR_1DTE_NAME: "QQQ",
+    QQQ_COMPOUND_NAME: "QQQ",
 }
+DISPLAY = {
+    NAME: "SPY VWAP",
+    QQQ_NAME: "QQQ VWAP",
+    QQQ_AGGR_NAME: "QQQ Aggressive",
+    QQQ_AGGR_1DTE_NAME: "QQQ Aggressive 1DTE",
+    QQQ_COMPOUND_NAME: "QQQ Aggressive Compound",
+}
+# One contract on the scored books and on QQQ Aggressive 1DTE.
+# QQQ Aggressive 0 DTE stays a fixed 3-lot.
+# QQQ Aggressive Compound uses 30 as a cap, not as the order size.
+COMPOUND_FRACTION = 0.05
+COMPOUND_CAP = 30
+QUANTITIES = {
+    NAME: 1,
+    QQQ_NAME: 1,
+    QQQ_AGGR_NAME: 3,
+    QQQ_AGGR_1DTE_NAME: 1,
+    QQQ_COMPOUND_NAME: COMPOUND_CAP,
+}
+STAKES = {
+    NAME: 1_000.0,
+    QQQ_NAME: 1_000.0,
+    QQQ_AGGR_NAME: 2_500.0,
+    QQQ_AGGR_1DTE_NAME: 2_500.0,
+    QQQ_COMPOUND_NAME: 5_000.0,
+}
+# 0 is same-day expiry. 1 is the next trading session, sold the entry day.
+DTE = {
+    NAME: 0,
+    QQQ_NAME: 0,
+    QQQ_AGGR_NAME: 0,
+    QQQ_AGGR_1DTE_NAME: 1,
+    QQQ_COMPOUND_NAME: 1,
+}
+# New signals across the sandbox forward books, including QQQ Trapdoor.
+# The one-contract QQQ journal still counts when the runner no longer calls it.
+# One slot per signal. The QQQ Aggressive books share a slot when they take
+# the same 15-minute bar. SPY VWAP, QQQ Trapdoor, and 4hr each count alone.
+# The cap stays 5. Trapdoor also keeps its own 3-trades-a-day cap.
+# 4hr keeps the scored cap of 5.
+COMBINED_ENTRY_CAP = 5
+COMPOUND_STAKE = 5_000.0
+ENTRY_BOOKS = (
+    NAME,
+    QQQ_NAME,
+    QQQ_AGGR_NAME,
+    QQQ_AGGR_1DTE_NAME,
+    QQQ_COMPOUND_NAME,
+    "neckline_trapdoor_qqq",
+    "four_hour_qqq_1dte",
+)
 _ACTIVE: contextvars.ContextVar[str] = contextvars.ContextVar("vwap_forward_book", default=NAME)
 WINDOW_START = time(9, 50)
 WINDOW_END = time(15, 50, 59)
@@ -103,8 +193,259 @@ def _symbol() -> str:
     return BOOKS[_book()]
 
 
+def _display() -> str:
+    return DISPLAY.get(_book(), _book())
+
+
+def _stake() -> float:
+    return float(STAKES.get(_book(), STAKE))
+
+
+def _quantity() -> int:
+    """Fixed lot for a new entry. QQQ Aggressive 0 DTE is 3. 1 DTE is 1.
+
+    QQQ Aggressive Compound returns its 30-contract cap. The order size is
+    ``compound_contracts``, and ``_lot`` uses this only as the ceiling.
+    """
+    qty = int(QUANTITIES.get(_book(), 1))
+    return qty if qty > 0 else 1
+
+
+def _is_compound() -> bool:
+    return _book() == QQQ_COMPOUND_NAME
+
+
+def compound_contracts(equity: float, ask: float) -> tuple[int, str]:
+    """The 5% lot. The tag is size, rescue, cap, dear, or skip.
+
+    ``contracts = floor(0.05 * equity / (ask * 100))``. A zero lot buys one
+    contract when that contract costs at most 10% of equity. The cap is 30.
+    """
+    unit = float(ask) * float(CONTRACT_MULTIPLIER)
+    if equity <= 0 or unit <= 0 or not math.isfinite(unit):
+        return 0, "skip"
+    raw = math.floor((COMPOUND_FRACTION * float(equity)) / unit + 1e-9)
+    if raw <= 0:
+        if unit <= 2.0 * COMPOUND_FRACTION * float(equity) + 1e-6:
+            return 1, "rescue"
+        return 0, "dear"
+    if raw > COMPOUND_CAP:
+        return COMPOUND_CAP, "cap"
+    return int(raw), "size"
+
+
+def _ticket_debit(ask: float, qty: int) -> float:
+    return float(ask) * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, float(ask), sell=False)
+
+
+def _compound_decision(equity: float, settled: float, ask: float) -> dict:
+    """Size the 5% ticket. A lot that does not fit settled cash is not cut down."""
+    qty, tag = compound_contracts(equity, ask)
+    if qty < 1:
+        detail = "1 contract costs more than 10% of equity"
+        if tag == "skip":
+            detail = "there is no equity to size"
+        return {
+            "qty": 0,
+            "tag": tag,
+            "ask": float(ask),
+            "debit": 0.0,
+            "ok": False,
+            "skip": "premium",
+            "detail": detail,
+        }
+    debit = _ticket_debit(ask, qty)
+    if debit <= 0 or debit > float(settled) + 1e-9:
+        noun = "contract" if qty == 1 else "contracts"
+        return {
+            "qty": qty,
+            "tag": "cash",
+            "ask": float(ask),
+            "debit": debit,
+            "ok": False,
+            "skip": "premium",
+            "detail": f"the {qty}-{noun} ticket does not fit settled cash",
+        }
+    return {
+        "qty": qty,
+        "tag": tag,
+        "ask": float(ask),
+        "debit": debit,
+        "ok": True,
+        "skip": "",
+        "detail": "",
+    }
+
+
+def _mirror_equity(state: dict) -> float:
+    """Settled cash plus sale proceeds that have not settled yet."""
+    settled = float(state.get("settled") or 0.0)
+    pending = 0.0
+    for item in state.get("unsettled") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            pending += float(item.get("amount") or 0.0)
+        except (TypeError, ValueError):
+            continue
+    return settled + pending
+
+
+def _live_ask(broker, option_type: str, spot: float, expiry: date, session: date) -> Optional[float]:
+    """The sandbox ask when the quote is for this book's expiry. A same-day quote is ignored on 1 DTE."""
+    if broker is None:
+        return None
+    quote = _entry_quote(broker, {"option_type": option_type, "entry": spot, "expiry": expiry.isoformat()})
+    if not quote:
+        return None
+    if _dte() > 0:
+        quoted = str(quote.get("expiry") or "")[:10]
+        if not quoted or quoted <= session.isoformat():
+            return None
+    return _positive(quote.get("ask"))
+
+
+def _dte() -> int:
+    """0 expires today. 1 expires the next trading session."""
+    return max(0, int(DTE.get(_book(), 0)))
+
+
+def _expiry_for(session: date) -> date:
+    """Listed expiry for this book. 1 DTE is the next session, including Friday to Monday."""
+    cursor = session
+    for _ in range(_dte()):
+        cursor = next_trading_day(cursor)
+    return cursor
+
+
+def _model_years(when) -> float:
+    """Time left until 16:00 on this book's expiry. A 1 DTE sale at 15:45 still has a session left."""
+    clock = pd.Timestamp(when)
+    if clock.tzinfo is None:
+        clock = clock.tz_localize(NY)
+    else:
+        clock = clock.tz_convert(NY)
+    if _dte() <= 0:
+        return _years(clock, 0)
+    close = pd.Timestamp(
+        datetime.combine(_expiry_for(clock.date()), time(16, 0), tzinfo=NY)
+    )
+    minutes = max(1.0, (close - clock).total_seconds() / 60.0)
+    return minutes / (365.0 * 24.0 * 60.0)
+
+
+def _priced_mid(right: str, spot: float, strike: float, when, iv: float) -> float:
+    if spot <= 0 or strike <= 0 or iv <= 0:
+        return 0.0
+    return float(option_price(right, spot, strike, _model_years(when), iv, RATE, DIVIDEND))
+
+
+def _lot(row: dict | None = None, *, closing: bool = False) -> int:
+    """Contracts on this ticket.
+
+    A new entry is the book's fixed lot and is never larger. An open
+    ticket keeps the quantity stored when it was opened, so a smaller
+    book size does not sell only part of that position.
+    """
+    cap = _quantity()
+    if isinstance(row, dict) and row.get("qty") not in (None, ""):
+        try:
+            qty = int(row["qty"])
+        except (TypeError, ValueError):
+            qty = 0
+        if qty > 0:
+            if closing:
+                return qty
+            return min(qty, cap)
+    return cap
+
+
+def _contract_phrase() -> str:
+    if _is_compound():
+        return "ATM 1 DTE QQQ, 5% of this book's equity, at most 30 contracts"
+    qty = _quantity()
+    word = {1: "One", 3: "Three"}.get(qty, str(qty))
+    noun = "contract" if qty == 1 else "contracts"
+    label = "0 DTE" if _dte() == 0 else "1 DTE"
+    return f"{word} ATM {label} {_symbol()} {noun}"
+
+
 def _activate(book: str) -> contextvars.Token:
     return _ACTIVE.set(book if book in BOOKS else NAME)
+
+
+def opened_on(state: dict | None, day: date) -> int:
+    """Filled entries whose actual entry time falls on ``day``. Skips do not count."""
+    if not isinstance(state, dict):
+        return 0
+    count = 0
+    for row in state.get("signals") or []:
+        if not isinstance(row, dict) or row.get("status") not in {"open", "closed"}:
+            continue
+        if str(row.get("entry_time") or "")[:10] == day.isoformat():
+            count += 1
+    return count
+
+
+def signal_slot(row: dict, book: str) -> str:
+    """The shared cap key. The same signal id is one slot on every book."""
+    sid = str(row.get("id") or "").strip()
+    if sid:
+        return sid
+    when = str(row.get("signal_time") or row.get("entry_time") or "")
+    return f"{book}|{when}"
+
+
+def slots_opened_on(state: dict | None, day: date, book: str) -> set[str]:
+    """Signals this book opened on ``day``. Skips do not take a slot."""
+    if not isinstance(state, dict):
+        return set()
+    found: set[str] = set()
+    for row in state.get("signals") or []:
+        if not isinstance(row, dict) or row.get("status") not in {"open", "closed"}:
+            continue
+        if str(row.get("entry_time") or "")[:10] != day.isoformat():
+            continue
+        found.add(signal_slot(row, book))
+    return found
+
+
+def combined_slots(journal, day: date, book: str, state: dict) -> set[str]:
+    """Signal slots already opened today across the forward books.
+
+    The in-memory state is the current book, so a fill that has not been
+    saved yet is still counted. The other books are whatever the journal
+    last saved. QQQ Aggressive 0 DTE, 1 DTE, and Compound share a slot when
+    their signal ids match. SPY and QQQ Trapdoor use different ids.
+    """
+    slots = set(slots_opened_on(state, day, book))
+    if journal is None:
+        return slots
+    for name in ENTRY_BOOKS:
+        if name == book:
+            continue
+        try:
+            saved = journal.forward_load(name)
+        except Exception:
+            saved = None
+        slots |= slots_opened_on(saved, day, name)
+    return slots
+
+
+def combined_entries(journal, day: date, book: str, state: dict) -> int:
+    """How many signal slots are already open today."""
+    return len(combined_slots(journal, day, book, state))
+
+
+def signal_cap_reached(journal, day: date, book: str, state: dict, signal_id: str) -> bool:
+    """True when ``signal_id`` would be a new slot past the shared cap.
+
+    A signal another book already opened today does not take another slot.
+    """
+    slots = combined_slots(journal, day, book, state)
+    if signal_id and signal_id in slots:
+        return False
+    return len(slots) >= COMBINED_ENTRY_CAP
 
 
 def max_entry_delay_minutes() -> float:
@@ -160,8 +501,8 @@ def in_forward_window(moment: datetime) -> bool:
 def empty_state() -> dict[str, Any]:
     return {
         "book": _book(),
-        "stake": STAKE,
-        "settled": STAKE,
+        "stake": _stake(),
+        "settled": _stake(),
         "unsettled": [],
         "stopped": False,
         "signals": [],
@@ -169,8 +510,43 @@ def empty_state() -> dict[str, Any]:
         "fills": [],
         "exits": [],
         "positions": [],
+        "shadow": [],
+        "quote_log": [],
+        "quote_error": None,
         "last_cycle": None,
+        "cash_session": None,
     }
+
+
+def _opened_trade(state: dict) -> bool:
+    if state.get("positions"):
+        return True
+    for row in state.get("signals") or []:
+        if isinstance(row, dict) and row.get("status") in {"open", "closed"}:
+            return True
+    for row in state.get("orders") or []:
+        if isinstance(row, dict) and row.get("status") in {"submitted", "intent"}:
+            return True
+    return False
+
+
+def _reset_unused_compound_mirror(state: dict, journal: Journal) -> None:
+    """The unused $2,500 compound mirror becomes the fresh $5,000 mirror.
+
+    A book that already opened a trade, or a mirror whose cash is not the
+    old starting stake, is left as it was.
+    """
+    if _book() != QQQ_COMPOUND_NAME or _opened_trade(state):
+        return
+    stake = float(state.get("stake") or 0.0)
+    settled = float(state.get("settled") or 0.0)
+    if stake != 2_500.0 or abs(settled - 2_500.0) > 1e-6 or state.get("unsettled"):
+        return
+    state["stake"] = COMPOUND_STAKE
+    state["settled"] = COMPOUND_STAKE
+    state["unsettled"] = []
+    state["stopped"] = False
+    journal.forward_save(_book(), state)
 
 
 def load_state(journal: Journal) -> dict[str, Any]:
@@ -180,6 +556,7 @@ def load_state(journal: Journal) -> dict[str, Any]:
         for key in state:
             if key in saved:
                 state[key] = saved[key]
+    _reset_unused_compound_mirror(state, journal)
     return state
 
 
@@ -239,8 +616,16 @@ def _run_cycle(
     points = iv_points or {}
     if not dry_run:
         state = load_state(journal)
+        from webull_bot.execution.forward_reconcile import chase_exit_orders
+
+        if chase_exit_orders(state, broker, now, lines):
+            journal.forward_save(_book(), state)
         if state.get("last_cycle") == cycle_id(now):
             lines.append(f"Already journaled {cycle_id(now)}. No new orders.")
+            _account(state, broker, local.date(), lines)
+            _log_market(state, bars5, now, broker, lines, journal, save=False)
+            _account(state, broker, local.date(), lines)
+            journal.forward_save(_book(), state)
             return lines
     else:
         state = empty_state()
@@ -253,7 +638,8 @@ def _run_cycle(
                 "The 15:45 flatten is mandatory, so the open option is closed and the stop check is skipped."
             )
             _flatten_open(state, now, broker, lines, journal)
-            _finish(state, journal, now, dry_run=False)
+            _log_market(state, bars5, now, broker, lines, journal, save=False)
+            _finish(state, journal, now, dry_run=False, broker=broker)
             return lines
         lines.append(
             f"Refusing to trade {_book()}. Data is stale: "
@@ -270,7 +656,7 @@ def _run_cycle(
             iv_points=points,
             iv_closes=iv_closes,
             broker=broker,
-            settled=STAKE,
+            settled=_stake(),
             book=_book(),
         )
         lines.extend(_clock_lines(bars15, bars5, now))
@@ -284,17 +670,19 @@ def _run_cycle(
         lines.append("Dry run: orders are not sent and the journal is not written.")
         return lines
 
-    _settle(state, local.date())
+    _account(state, broker, local.date(), lines)
     lines.extend(_clock_lines(bars15, bars5, now))
     _manage_open(state, bars5, now, broker, lines, journal)
     _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, journal)
+    _log_market(state, bars5, now, broker, lines, journal, save=False)
+    _account(state, broker, local.date(), lines)
     if not any(line.startswith("Signal ") or line.startswith("Exit ") or line.startswith("Skip ") for line in lines):
         pending = _pending_fill(bars15, now)
         if pending:
             lines.append(pending)
         elif not state.get("positions"):
             lines.append("No new 2 SD continuation. No open position.")
-    _finish(state, journal, now, dry_run=False)
+    _finish(state, journal, now, dry_run=False, broker=broker)
     return lines
 
 
@@ -306,12 +694,13 @@ def plan_day(
     iv_points: dict | None = None,
     iv_closes: dict | None = None,
     broker=None,
-    settled: float = STAKE,
+    settled: float | None = None,
     stopped: bool = False,
     book: str = NAME,
 ) -> list[dict]:
     token = _activate(book)
     try:
+        cash = _stake() if settled is None else float(settled)
         return _plan_day(
             bars15=bars15,
             bars5=bars5,
@@ -319,7 +708,7 @@ def plan_day(
             iv_points=iv_points,
             iv_closes=iv_closes,
             broker=broker,
-            settled=settled,
+            settled=cash,
             stopped=stopped,
         )
     finally:
@@ -349,6 +738,7 @@ def _plan_day(
     points = iv_points or {}
     cash = float(settled)
     equity = cash
+    pending = 0.0
     bust = bool(stopped) or equity <= 1.0
     busy: Optional[pd.Timestamp] = None
     position: Optional[dict] = None
@@ -360,6 +750,7 @@ def _plan_day(
             outcome = _exit_after(position, path, moment)
             if outcome is not None:
                 _mark_exit(position, *outcome)
+                pending += float(position["model_credit"])
                 equity = cash + float(position["model_credit"])
                 busy = pd.Timestamp(position["exit_time"])
                 position = None
@@ -382,7 +773,9 @@ def _plan_day(
                 events.append(row)
                 seen.add(sid)
                 continue
-            built = _decide_entry(signal, bars15, bars5, moment, points, cash, iv_closes, broker)
+            built = _decide_entry(
+                signal, bars15, bars5, moment, points, cash, iv_closes, broker, equity=cash + pending
+            )
             if built.get("status") == "wait":
                 continue
             seen.add(sid)
@@ -393,6 +786,7 @@ def _plan_day(
             outcome = _exit_after(built, path, moment)
             if outcome is not None:
                 _mark_exit(built, *outcome)
+                pending += float(built["model_credit"])
                 equity = cash + float(built["model_credit"])
                 busy = pd.Timestamp(built["exit_time"])
             else:
@@ -440,13 +834,17 @@ def _report_text(journal: Journal) -> str:
     state = load_state(journal)
     if not state.get("signals") and not state.get("orders") and not state.get("exits"):
         return f"No forward-test journal for {_book()} yet.\n"
+    from webull_bot.execution.forward_cash import mirror_sentence, pnl_phrase, prepare_cash, session_day
+
+    if prepare_cash(state, None, _stake(), session_day(state)):
+        journal.forward_save(_book(), state)
     lines = [
-        f"{_book()} sandbox forward test. Live trading stays off.",
-        f"One ATM 0 DTE {_symbol()} contract. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
+        f"{_book()} ({_display()}) sandbox forward test. Live trading stays off.",
+        f"{_contract_phrase()}. 2 SD continuation, 1R, stop one cent beyond the signal bar, flat at 15:45.",
         "The journal records the modeled next open and the actual entry. Exits start after the actual entry.",
         "A 5-minute bar can exit before the 15-minute bar that holds both the stop and the target.",
         "CPI, NFP, and FOMC days are not skipped.",
-        f"Cash mirror settled ${float(state.get('settled') or 0):.2f} of a ${STAKE:,.0f} start.",
+        mirror_sentence(state, _stake()),
         (
             f"A new entry has to be within {max_entry_delay_minutes():g} minutes of the signal bar close. "
             "A position already open still exits at the stop, the target, or 15:45."
@@ -463,9 +861,12 @@ def _report_text(journal: Journal) -> str:
     if not orders:
         lines.append("(none)")
     for row in orders:
+        from webull_bot.execution.forward_reconcile import limit_fill_text
+
         lines.append(
             f"- {row.get('side')} {row.get('qty')} {row.get('symbol')} {row.get('right')} "
-            f"limit {row.get('limit')} status {row.get('status')} "
+            f"{limit_fill_text(row.get('limit'), row.get('fill'))} "
+            f"status {row.get('broker_status') or row.get('status')} "
             f"model {row.get('model_price')} sandbox {row.get('sandbox_price')} "
             f"{row.get('price_source')}"
         )
@@ -474,21 +875,31 @@ def _report_text(journal: Journal) -> str:
     if not fills:
         lines.append("(none)")
     for row in fills:
+        from webull_bot.execution.forward_reconcile import limit_fill_text
+
         lines.append(
             f"- {row.get('time')} {row.get('side')} {row.get('qty')} {row.get('right')} "
-            f"@ {row.get('price')} underlying {row.get('underlying')} {row.get('price_source')}"
+            f"{limit_fill_text(row.get('price'), row.get('fill'))} "
+            f"underlying {row.get('underlying')} {row.get('price_source')}"
         )
     lines.append("Exits")
     realized = 0.0
+    fill_realized = 0.0
     exits = state.get("exits") or []
     if not exits:
         lines.append("(none)")
     for row in exits:
-        pnl = float(row.get("pnl") or 0.0)
-        realized += pnl
+        model = row.get("model_pnl")
+        if model is None:
+            model = row.get("pnl")
+        if model is not None:
+            realized += float(model)
+        fill = row.get("fill_pnl")
+        if fill is not None:
+            fill_realized += float(fill)
         lines.append(
             f"- {row.get('time')} {row.get('right')} reason {row.get('reason')} "
-            f"underlying {row.get('underlying')} P&L ${pnl:.2f}"
+            f"underlying {row.get('underlying')} {pnl_phrase(row)}"
         )
     lines.append("Open position")
     positions = state.get("positions") or []
@@ -504,16 +915,42 @@ def _report_text(journal: Journal) -> str:
         lines.append(
             "Off-plan late entry. The stop, the target, and the 15:45 flat still manage that position."
         )
-    lines.append(f"Realized P&L on the model mirror ${realized:.2f}.")
-    lines.append("")
+    lines.append(
+        f"Realized fill P&L ${fill_realized:.2f}. Model P&L ${realized:.2f}."
+    )
+    from webull_bot.execution.forward_quotes import report_lines
+
+    lines.extend(report_lines(state))
     return "\n".join(lines) + "\n"
+
+
+def _log_market(state, bars5, now, broker, lines, journal, save: bool) -> None:
+    """Quote log after the order decision. A failure here does not change the trade."""
+    try:
+        from webull_bot.execution.forward_quotes import note_quotes
+
+        spot = _spot(bars5, pd.Timestamp(to_ny(now)))
+        changed = note_quotes(
+            state,
+            book=_book(),
+            symbol=_symbol(),
+            now=now,
+            underlying=spot,
+            broker=broker,
+            lines=lines,
+            bars=bars5,
+        )
+        if changed and save:
+            journal.forward_save(_book(), state)
+    except Exception:
+        lines.append("Quote log failed. Entry and exit were not changed.")
 
 
 def _header(local: datetime, dry_run: bool) -> list[str]:
     lines = [
-        f"Forward test {_book()}. Sandbox paper only. Live trading stays off.",
+        f"Forward test {_display()} ({_book()}). Sandbox paper only. Live trading stays off.",
         (
-            f"One ATM 0 DTE {_symbol()} contract. Session VWAP, a 15-minute close outside the 2 SD band, "
+            f"{_contract_phrase()}. Session VWAP, a 15-minute close outside the 2 SD band, "
             "1R target and stop measured from the modeled next open, order on the first cycle after that bar "
             "when the price is still between them, flat at the 15:45 open."
         ),
@@ -521,13 +958,33 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
             "Exits are bot-managed. Webull options have no OCO and no trailing stop. "
             "A marketable limit closes the contract when the underlying hits the stop or the target. "
             "The 15:45 flatten is mandatory."
+            + (
+                " The 1 DTE contract is sold at that same 15:45 open. It is not held overnight."
+                if _dte() > 0
+                else ""
+            )
         ),
         (
             "A completed 5-minute bar can exit before the 15-minute bar that contains both the stop and the target. "
             "The backtest fills the stop on that 15-minute bar."
         ),
         "CPI, NFP, and FOMC days are not skipped. The scored backtest does not skip them.",
-        f"Window {local.isoformat()}. Cash mirror ${STAKE:,.0f}. One position.",
+        (
+            f"Window {local.isoformat()}. Cash mirror ${_stake():,.0f}. One position. "
+            + (
+                "5% of equity on the ask, at most 30 contracts. "
+                "One contract is bought when the fraction rounds to 0 and that contract costs at most 10% of equity. "
+                "Otherwise the signal is skipped and journaled. The size is not cut down. "
+                "A live cycle uses the sandbox ask when the quote is for the next session. "
+                "Equity is this book's sandbox-fill mirror. A dry run uses the model ask."
+                if _is_compound()
+                else (
+                    "1 contract."
+                    if _quantity() == 1
+                    else f"{_quantity()} contracts. A smaller lot is not bought, and the size does not go above {_quantity()}."
+                )
+            )
+        ),
         (
             f"Entry only through {max_entry_delay_minutes():g} minutes after the signal bar closes. "
             "A later cycle journals the signal as expired, late."
@@ -535,7 +992,7 @@ def _header(local: datetime, dry_run: bool) -> list[str]:
     ]
     if dry_run:
         lines.append(
-            "Dry run replays each 5-minute cycle from a fresh $1,000 and does not connect or write the journal."
+            f"Dry run replays each 5-minute cycle from a fresh ${_stake():,.0f} and does not connect or write the journal."
         )
     return lines
 
@@ -546,9 +1003,20 @@ def _clock_lines(bars15, bars5, now) -> list[str]:
     return [f"Last completed 15-minute bar {last15}. Last completed 5-minute bar {last5}."]
 
 
-def _finish(state: dict, journal: Journal, now: datetime, dry_run: bool) -> None:
+def _account(state: dict, broker, day: date, lines: list[str]) -> None:
+    """Rebuild the mirror from sandbox fills before an entry or a save."""
+    from webull_bot.execution.forward_cash import mirror_sentence, prepare_cash
+
+    if prepare_cash(state, broker, _stake(), day):
+        lines.append(mirror_sentence(state, _stake()))
+
+
+def _finish(state: dict, journal: Journal, now: datetime, dry_run: bool, broker=None) -> None:
     if dry_run:
         return
+    from webull_bot.execution.forward_cash import prepare_cash
+
+    prepare_cash(state, broker, _stake(), to_ny(now).date())
     state["last_cycle"] = cycle_id(now)
     journal.forward_save(_book(), state)
 
@@ -574,6 +1042,8 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
     for position in list(state.get("positions") or []):
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
+            outcome = _quote_exit(position, broker, now)
+        if outcome is None:
             kept.append(position)
             note = " Off-plan late entry." if _off_plan_late(position) else ""
             lines.append(
@@ -591,11 +1061,11 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
 def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, journal) -> None:
     now_ts = pd.Timestamp(to_ny(now))
     view = _signal_view(bars15, now_ts)
-    known = {str(row.get("id")) for row in state.get("signals") or []}
     open_ids = {str(row.get("id")) for row in state.get("positions") or []}
     for signal in _extensions(view, now_ts):
         sid = _signal_id(signal)
-        if sid in known or sid in open_ids:
+        prior = next((row for row in state.get("signals") or [] if str(row.get("id")) == sid), None)
+        if sid in open_ids or (prior is not None and prior.get("status") not in {"pending", "wait"}):
             lines.append(f"Signal {_clock(signal.signal_time)} already journaled. Not sent again.")
             continue
         if state.get("positions"):
@@ -610,13 +1080,35 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
             lines.append("Skip " + _event_line(row))
             journal.forward_save(_book(), state)
             continue
+        if signal_cap_reached(journal, now_ts.date(), _book(), state, sid):
+            row = _skip(signal, "cap", "the forward books already used 5 signals today")
+            state["signals"].append(row)
+            lines.append("Skip " + _event_line(row))
+            journal.forward_save(_book(), state)
+            continue
+        frozen = None
+        if prior is not None and prior.get("modeled_entry") not in (None, ""):
+            frozen = _positive(prior.get("modeled_entry"))
+        settled_now = float(state.get("settled") or 0.0)
         built = _decide_entry(
-            signal, bars15, bars5, now_ts, points, float(state.get("settled") or 0.0), iv_closes, broker
+            signal,
+            bars15,
+            bars5,
+            now_ts,
+            points,
+            settled_now,
+            iv_closes,
+            broker,
+            frozen,
+            equity=_mirror_equity(state),
         )
         if built.get("status") == "wait":
+            _remember_pending(state, signal, built)
             lines.append(str(built.get("detail") or "Waiting on the next open. No order."))
+            journal.forward_save(_book(), state)
             continue
         if built.get("status") == "skip":
+            _drop_pending(state, built.get("id"))
             state["signals"].append(built)
             lines.append("Skip " + _event_line(built))
             journal.forward_save(_book(), state)
@@ -641,6 +1133,11 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         lines.append("Entry already journaled. Not sent again.")
         return
     quote = _entry_quote(broker, built)
+    if quote and _dte() > 0:
+        session = str(built.get("fill_time") or built.get("signal_time") or "")[:10]
+        quoted = str(quote.get("expiry") or "")[:10]
+        if not quoted or quoted <= session:
+            quote = None
     model_ask = float(built["model_ask"])
     sandbox_ask = None
     source = "model"
@@ -658,12 +1155,34 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             expiry = str(quote["expiry"])[:10]
         option_symbol = str(quote.get("option_symbol") or "")
     limit = _buy_limit(limit_basis)
+    if _is_compound() and sandbox_ask is not None:
+        decision = _compound_decision(_mirror_equity(state), float(state.get("settled") or 0.0), sandbox_ask)
+        if not decision["ok"]:
+            skipped = dict(built)
+            skipped["status"] = "skip"
+            skipped["skip"] = decision["skip"]
+            skipped["reason"] = decision["skip"]
+            skipped["detail"] = decision["detail"]
+            skipped["qty"] = decision["qty"]
+            skipped["model_ask"] = model_ask
+            skipped["sandbox_ask"] = sandbox_ask
+            skipped["size_tag"] = decision["tag"]
+            _drop_pending(state, skipped.get("id"))
+            state["signals"].append(skipped)
+            lines.append("Skip " + _event_line(skipped))
+            journal.forward_save(_book(), state)
+            return
+        built["qty"] = decision["qty"]
+        built["model_debit"] = decision["debit"]
+        built["size_tag"] = decision["tag"]
+        built["sandbox_ask"] = sandbox_ask
+    qty = _lot(built)
     if existing is None:
         order = {
             "key": key,
             "id": new_client_order_id(),
             "side": "BUY",
-            "qty": "1",
+            "qty": str(qty),
             "symbol": _symbol(),
             "right": built["option_type"],
             "limit": f"{limit:.2f}",
@@ -686,7 +1205,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         client_order_id=order["id"],
         symbol=_symbol(),
         side="BUY",
-        quantity=1,
+        quantity=qty,
         strike_price=strike,
         option_expire_date=expiry,
         option_type=built["option_type"],
@@ -715,6 +1234,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         "stop": built["stop"],
         "target": built["target"],
         "model_ask": model_ask,
+        "qty": qty,
         "model_debit": built["model_debit"],
         "sandbox_ask": sandbox_ask,
         "price_source": source,
@@ -725,13 +1245,14 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     built["price_source"] = source
     built["sandbox_ask"] = sandbox_ask
     built["order_strike"] = strike
+    _drop_pending(state, built.get("id"))
     state["signals"].append(built)
     state["positions"].append(position)
     state["fills"].append(
         {
             "time": built["entry_time"],
             "side": "BUY",
-            "qty": "1",
+            "qty": str(qty),
             "right": built["right"],
             "price": f"{limit:.2f}",
             "underlying": built["entry"],
@@ -745,7 +1266,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     lines.append(
         "Signal "
         + _event_line(built)
-        + f" Order BUY 1 {built['right']} limit {limit:.2f} ({source}). "
+        + f" Order BUY {qty} {built['right']}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
     journal.forward_save(_book(), state)
@@ -756,7 +1277,12 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
     if existing and existing.get("status") in {"intent", "submitted"}:
         lines.append(f"Exit {position.get('right')} already journaled. Not sent again.")
-        return existing.get("status") == "submitted"
+        if existing.get("status") == "submitted":
+            _drop_open(state, position)
+            journal.forward_save(_book(), state)
+            return True
+        return False
+    qty = _lot(position, closing=True)
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
@@ -766,7 +1292,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             "key": key,
             "id": new_client_order_id(),
             "side": "SELL",
-            "qty": "1",
+            "qty": str(qty),
             "symbol": _symbol(),
             "right": position.get("option_type"),
             "limit": f"{limit:.2f}",
@@ -776,6 +1302,10 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             "price_source": source,
             "kind": "exit",
             "reason": reason,
+            "option_symbol": position.get("option_symbol"),
+            "strike": position.get("strike"),
+            "expiry": position.get("expiry"),
+            "option_type": position.get("option_type"),
         }
         state["orders"].append(order)
     else:
@@ -790,7 +1320,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         client_order_id=order["id"],
         symbol=_symbol(),
         side="SELL",
-        quantity=1,
+        quantity=qty,
         strike_price=float(position["strike"]),
         option_expire_date=str(position["expiry"])[:10],
         option_type=str(position["option_type"]),
@@ -802,7 +1332,17 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         journal.forward_save(_book(), state)
         return False
     order["status"] = "submitted"
-    credit = _credit(model_bid)
+    from webull_bot.execution.forward_reconcile import stamp_submission
+
+    stamp_submission(
+        order,
+        when,
+        option_symbol=position.get("option_symbol"),
+        strike=position.get("strike"),
+        expiry=position.get("expiry"),
+        option_type=position.get("option_type"),
+    )
+    credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(position.get("model_debit") or 0.0)
     pnl = credit - debit
     when_iso = pd.Timestamp(when).isoformat()
@@ -823,7 +1363,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         {
             "time": when_iso,
             "side": "SELL",
-            "qty": "1",
+            "qty": str(qty),
             "right": position.get("right"),
             "price": f"{limit:.2f}",
             "underlying": float(underlying),
@@ -846,11 +1386,17 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     lines.append(
         f"Exit {position.get('right')} reason {reason} underlying {float(underlying):.2f} "
         f"at {_clock(when)}. Model bid {model_bid:.4f}. "
-        f"Order SELL 1 limit {limit:.2f} ({source}). "
+        f"Order SELL {qty} {position.get('right')}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
+    _drop_open(state, position)
     journal.forward_save(_book(), state)
     return True
+
+
+def _drop_open(state, position) -> None:
+    pid = position.get("id")
+    state["positions"] = [row for row in (state.get("positions") or []) if row.get("id") != pid]
 
 
 def _place(broker, payload, order, lines, kind: str) -> bool:
@@ -898,7 +1444,7 @@ def _exit_model_bid(position, underlying: float, when) -> float:
     iv = float(position.get("iv") or 0.0)
     strike = float(position.get("model_strike") or position.get("strike") or 0.0)
     right = "call" if position.get("direction") == "long" else "put"
-    mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
+    mid = _priced_mid(right, float(underlying), strike, pd.Timestamp(when), iv)
     return max(0.0, mid - _half_spread(mid))
 
 
@@ -994,7 +1540,8 @@ def _quote_volatility(broker, spot, option_type, when) -> Optional[float]:
     if not math.isfinite(spot_value) or spot_value <= 0:
         return None
     try:
-        quote = broker.option_zero_dte_quote(_symbol(), option_type, spot_value, _as_date(when))
+        target = _expiry_for(_as_date(when)) if _dte() > 0 else _as_date(when)
+        quote = broker.option_zero_dte_quote(_symbol(), option_type, spot_value, target)
     except Exception:
         return None
     if not quote:
@@ -1022,7 +1569,7 @@ def _positive(value) -> Optional[float]:
 def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Optional[float]:
     if mid <= 0 or spot <= 0 or strike <= 0:
         return None
-    years = _years(pd.Timestamp(when), 0)
+    years = _model_years(when)
 
     def price(sigma: float) -> float:
         return float(option_price(right, spot, strike, years, sigma, RATE, DIVIDEND))
@@ -1042,7 +1589,18 @@ def _implied_vol(right: str, spot: float, strike: float, when, mid: float) -> Op
     return 0.5 * (lo + hi)
 
 
-def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_closes=None, broker=None) -> dict:
+def _decide_entry(
+    signal,
+    bars15,
+    bars5,
+    now_ts,
+    points,
+    settled: float,
+    iv_closes=None,
+    broker=None,
+    frozen_open: Optional[float] = None,
+    equity: Optional[float] = None,
+) -> dict:
     """Price the order at this cycle. A missing open waits. It is not a skip.
 
     The stop and the 1R target stay on the modeled next open. The order uses
@@ -1062,6 +1620,12 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
     modeled = _print_open(bars15, signal.fill_time, now_ts)
     if modeled is None:
         modeled = _print_open(bars5, signal.fill_time, now_ts)
+    if modeled is None and frozen_open is not None and frozen_open > 0:
+        modeled = float(frozen_open)
+    if modeled is None:
+        live = _underlying_price(broker)
+        if live is not None and bar_end(signal.signal_time, "15m") <= now_ts:
+            modeled = live
     if modeled is None:
         return {
             "status": "wait",
@@ -1074,10 +1638,13 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
         return _skip(signal, "no_bar", "the fill is not a price")
     if abs(modeled - stop) <= 0:
         return _skip(signal, "dust", "the stop is on the fill")
-    spot = _spot(bars5, now_ts)
+    spot = _underlying_price(broker)
+    if spot is None:
+        spot = _spot(bars5, now_ts)
     if spot is None:
         return {
             "status": "wait",
+            "modeled_entry": modeled,
             "detail": (
                 f"The {_clock(signal.signal_time)} extension is waiting on a price. No order."
             ),
@@ -1108,19 +1675,53 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "no VIX1D prior close, VIX prior close, cached close, or sandbox option quote",
         )
     strike = listed_strike(spot, spot)
-    entry_mid = _option_mid(right, spot, strike, now_ts, iv, 0)
+    expiry = _expiry_for(day)
+    entry_mid = _priced_mid(right, spot, strike, now_ts, iv)
     model_ask = entry_mid + _half_spread(entry_mid)
-    debit = model_ask * CONTRACT_MULTIPLIER + option_leg_fees(1, model_ask, sell=False)
-    if debit <= 0 or debit > settled + 1e-9:
-        row = _skip(signal, "premium", "the model debit does not fit settled cash")
-        row["model_ask"] = model_ask
-        row["model_debit"] = debit
-        row["strike"] = strike
-        row["modeled_entry"] = modeled
-        row["entry"] = spot
-        row["iv"] = iv
-        row["iv_source"] = iv_source
-        return row
+    marked = float(settled if equity is None else equity)
+    live_ask = None
+    sizing_ask = model_ask
+    source = "model"
+    size_tag = None
+    if _is_compound():
+        live_ask = _live_ask(broker, option_type, spot, expiry, day)
+        if live_ask is not None:
+            sizing_ask = live_ask
+            source = "webull"
+        decision = _compound_decision(marked, settled, sizing_ask)
+        qty = int(decision["qty"])
+        debit = float(decision["debit"])
+        size_tag = decision["tag"]
+        if not decision["ok"]:
+            row = _skip(signal, decision["skip"], decision["detail"])
+            row["qty"] = qty
+            row["model_ask"] = model_ask
+            row["model_debit"] = debit
+            row["sandbox_ask"] = live_ask
+            row["size_tag"] = size_tag
+            row["strike"] = strike
+            row["modeled_entry"] = modeled
+            row["entry"] = spot
+            row["iv"] = iv
+            row["iv_source"] = iv_source
+            return row
+    else:
+        qty = _quantity()
+        debit = model_ask * CONTRACT_MULTIPLIER * qty + option_leg_fees(qty, model_ask, sell=False)
+        if debit <= 0 or debit > settled + 1e-9:
+            detail = "the model debit does not fit settled cash"
+            if qty != 1:
+                detail = f"the model debit for {qty} contracts does not fit settled cash"
+            row = _skip(signal, "premium", detail)
+            row["qty"] = qty
+            row["model_ask"] = model_ask
+            row["model_debit"] = debit
+            row["strike"] = strike
+            row["modeled_entry"] = modeled
+            row["entry"] = spot
+            row["iv"] = iv
+            row["iv_source"] = iv_source
+            return row
     row = dict(_base(signal))
     row.update(
         {
@@ -1136,16 +1737,18 @@ def _decide_entry(signal, bars15, bars5, now_ts, points, settled: float, iv_clos
             "right": right,
             "option_type": option_type,
             "strike": strike,
-            "expiry": day.isoformat(),
+            "expiry": expiry.isoformat(),
             "iv": iv,
             "iv_source": iv_source,
+            "qty": qty,
             "model_ask": model_ask,
             "model_bid": None,
             "model_debit": debit,
             "model_credit": None,
             "pnl": None,
-            "price_source": "model",
-            "sandbox_ask": None,
+            "price_source": source,
+            "sandbox_ask": live_ask,
+            "size_tag": size_tag,
         }
     )
     return row
@@ -1155,9 +1758,10 @@ def _mark_exit(built: dict, reason: str, underlying: float, when) -> None:
     iv = float(built["iv"])
     strike = float(built["strike"])
     right = str(built["right"])
-    exit_mid = _option_mid(right, float(underlying), strike, pd.Timestamp(when), iv, 0)
+    exit_mid = _priced_mid(right, float(underlying), strike, pd.Timestamp(when), iv)
     model_bid = max(0.0, exit_mid - _half_spread(exit_mid))
-    credit = _credit(model_bid)
+    qty = _lot(built, closing=True)
+    credit = model_bid * CONTRACT_MULTIPLIER * qty - option_leg_fees(qty, model_bid, sell=True)
     debit = float(built["model_debit"])
     built["status"] = "closed"
     built["reason"] = reason
@@ -1427,6 +2031,9 @@ def _event_line(event: dict) -> str:
         f"actual {_clock(entry_time)} {actual_txt} "
         f"stop {float(stop):.2f} target {float(target):.2f} model ask {ask_txt}"
     )
+    qty = event.get("qty")
+    if isinstance(qty, int) and qty > 0:
+        body += f" {qty} contract" + ("" if qty == 1 else "s")
     if event.get("status") == "closed":
         body += (
             f" closed {_clock(event.get('exit_time'))} reason {event.get('reason')} "
@@ -1434,6 +2041,10 @@ def _event_line(event: dict) -> str:
         )
         if event.get("model_bid") is not None:
             body += f" model bid {float(event['model_bid']):.4f}"
+        if event.get("fill_pnl") is not None or event.get("model_pnl") is not None:
+            from webull_bot.execution.forward_cash import pnl_phrase
+
+            body += " " + pnl_phrase(event)
     else:
         body += " still open"
     if event.get("iv_source"):
@@ -1486,6 +2097,65 @@ def _print_open(frame, stamp, now_ts: pd.Timestamp) -> Optional[float]:
     if not math.isfinite(price) or price <= 0:
         return None
     return price
+
+
+def _drop_pending(state: dict, sid) -> None:
+    state["signals"] = [
+        row
+        for row in (state.get("signals") or [])
+        if not (str(row.get("id")) == str(sid) and row.get("status") in {"pending", "wait"})
+    ]
+
+
+def _remember_pending(state: dict, signal, built: dict) -> None:
+    sid = _signal_id(signal)
+    row = {
+        "id": sid,
+        "status": "pending",
+        "signal_time": pd.Timestamp(signal.signal_time).isoformat(),
+        "fill_time": pd.Timestamp(signal.fill_time).isoformat(),
+        "direction": signal.direction,
+        "stop": float(signal.stop),
+        "detail": built.get("detail"),
+    }
+    if built.get("modeled_entry") not in (None, ""):
+        row["modeled_entry"] = float(built["modeled_entry"])
+    _drop_pending(state, sid)
+    state.setdefault("signals", []).append(row)
+
+
+def _underlying_price(broker) -> Optional[float]:
+    """Live quote when the broker has one. A failure falls back to the bars."""
+    getter = getattr(broker, "underlying_quote", None)
+    if getter is None:
+        return None
+    try:
+        return _positive(getter(_symbol()))
+    except Exception:
+        return None
+
+
+def _quote_exit(position, broker, now):
+    """Stop or target on the live underlying. No quote means no exit from this path."""
+    price = _underlying_price(broker)
+    if price is None:
+        return None
+    now_ts = pd.Timestamp(to_ny(now))
+    if now_ts.time() >= FLAT:
+        return "flat", float(price), now_ts
+    stop = float(position.get("stop"))
+    target = float(position.get("target"))
+    if str(position.get("direction")) == "long":
+        if price <= stop:
+            return "stop", float(price), now_ts
+        if price >= target:
+            return "target", float(price), now_ts
+        return None
+    if price >= stop:
+        return "stop", float(price), now_ts
+    if price <= target:
+        return "target", float(price), now_ts
+    return None
 
 
 def _spot(frame, now_ts: pd.Timestamp) -> Optional[float]:

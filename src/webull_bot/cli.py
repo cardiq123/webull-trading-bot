@@ -79,13 +79,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     forward = sub.add_parser(
         "forward-test",
-        help="One sandbox cycle. Pass chop_breakout_60m, or one or both VWAP books. Live trading stays off. --dry-run does not connect.",
+        help=(
+            "One sandbox cycle. Pass chop_breakout_60m, or any of vwap_band_15m, "
+            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, vwap_band_15m_qqq_aggr_1dte, "
+            "vwap_band_15m_qqq_compound, neckline_trapdoor_qqq, and four_hour_qqq_1dte. Live trading stays off. "
+            "--dry-run does not connect."
+        ),
     )
     _add_config(forward)
     forward.add_argument(
         "strategy",
         nargs="+",
-        choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"],
+        choices=[
+            "chop_breakout_60m",
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
+            "neckline_trapdoor_qqq",
+            "four_hour_qqq_1dte",
+        ],
     )
     forward.add_argument(
         "--dry-run",
@@ -104,8 +118,65 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config(forward_report)
     forward_report.add_argument(
-        "strategy", choices=["chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"]
+        "strategy",
+        choices=[
+            "chop_breakout_60m",
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
+            "neckline_trapdoor_qqq",
+            "four_hour_qqq_1dte",
+        ],
     )
+
+    forward_reconcile = sub.add_parser(
+        "forward-reconcile",
+        help=(
+            "Read sandbox order detail for one forward book and store the fill status. "
+            "Does not place or cancel an order. Live trading stays off."
+        ),
+    )
+    _add_config(forward_reconcile)
+    forward_reconcile.add_argument(
+        "strategy",
+        choices=[
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
+            "neckline_trapdoor_qqq",
+            "four_hour_qqq_1dte",
+        ],
+    )
+
+    watch = sub.add_parser(
+        "forward-watch",
+        help=(
+            "Long-running sandbox watch. Polls every 5 seconds and runs the full "
+            "cycle 3 seconds after each 5-minute bar close. Live trading stays off. "
+            "--dry-run does not connect."
+        ),
+    )
+    _add_config(watch)
+    watch.add_argument(
+        "strategy",
+        nargs="+",
+        choices=[
+            "vwap_band_15m",
+            "vwap_band_15m_qqq",
+            "vwap_band_15m_qqq_aggr",
+            "vwap_band_15m_qqq_aggr_1dte",
+            "vwap_band_15m_qqq_compound",
+            "neckline_trapdoor_qqq",
+            "four_hour_qqq_1dte",
+        ],
+    )
+    watch.add_argument("--dry-run", action="store_true", help="Print the tick and do not connect or write the journal.")
+    watch.add_argument("--now", default=None, help="ISO time in America/New_York. Used with --once.")
+    watch.add_argument("--once", action="store_true", help="Run one tick and exit. For a check, not the box.")
 
     return parser
 
@@ -138,13 +209,26 @@ def main(argv: list[str] | None = None) -> int:
         return _check(config, args)
     if args.command == "forward-test":
         return _forward_test(config, args)
+    if args.command == "forward-watch":
+        return _forward_watch(config, args)
     if args.command == "forward-report":
         return _forward_report(config, args)
+    if args.command == "forward-reconcile":
+        return _forward_reconcile(config, args)
     parser.error(args.command)
     return 2
 
 
-FORWARD_ONLY = {"chop_breakout_60m", "vwap_band_15m", "vwap_band_15m_qqq"}
+FORWARD_ONLY = {
+    "chop_breakout_60m",
+    "vwap_band_15m",
+    "vwap_band_15m_qqq",
+    "vwap_band_15m_qqq_aggr",
+    "vwap_band_15m_qqq_aggr_1dte",
+    "vwap_band_15m_qqq_compound",
+    "neckline_trapdoor_qqq",
+    "four_hour_qqq_1dte",
+}
 
 
 def refuse_if_forward_only(names: list[str]) -> None:
@@ -572,21 +656,29 @@ def _forward_names(args) -> list[str]:
 def _forward_test(config, args) -> int:
     """One sandbox cycle. Dry-run does not connect. A real cycle is sandbox-only."""
     names = _forward_names(args)
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS
 
     vwap = [name for name in names if name in BOOKS]
+    trap = [name for name in names if name == TRAP_NAME]
+    hour = [name for name in names if name == HOUR_NAME]
     chop = [name for name in names if name == "chop_breakout_60m"]
-    if vwap and chop:
+    if chop and (vwap or trap or hour):
         raise SystemExit(
             "Run chop_breakout_60m on its own command. "
-            "The two VWAP books share one command: "
-            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq"
+            "The VWAP books, QQQ Trapdoor, and 4hr share one command: "
+            "python -m webull_bot forward-test vwap_band_15m vwap_band_15m_qqq_aggr "
+            "vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq "
+            "four_hour_qqq_1dte"
         )
-    if vwap:
-        return _forward_vwap(config, args, vwap)
+    if vwap or trap or hour:
+        return _forward_vwap(config, args, vwap, trap, hour)
     if len(chop) != 1:
         raise SystemExit(
-            "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, vwap_band_15m_qqq"
+            "Unknown forward-test strategy. Known: chop_breakout_60m, vwap_band_15m, "
+            "vwap_band_15m_qqq, vwap_band_15m_qqq_aggr, vwap_band_15m_qqq_aggr_1dte, "
+            "vwap_band_15m_qqq_compound, neckline_trapdoor_qqq, four_hour_qqq_1dte"
         )
     args.strategy = chop[0]
     from zoneinfo import ZoneInfo
@@ -640,16 +732,35 @@ def _forward_test(config, args) -> int:
     return 0
 
 
-def _forward_vwap(config, args, books: list[str] | None = None) -> int:
-    """One 5-minute cycle of each frozen 2 SD continuation. Sandbox only."""
+def _forward_vwap(
+    config,
+    args,
+    books: list[str] | None = None,
+    trap: list[str] | None = None,
+    hour: list[str] | None = None,
+) -> int:
+    """One cycle of each named VWAP book, then QQQ Trapdoor, then 4hr. Sandbox only."""
     from webull_bot.chart_reads.orb_mwf import prior_iv
     from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS, in_forward_window, run_cycle
     from webull_bot.journal.store import Journal
 
-    names = list(books) if books else [name for name in _forward_names(args) if name in BOOKS]
-    if not names:
-        raise SystemExit("No VWAP forward book was named.")
+    if books is None:
+        names = [name for name in _forward_names(args) if name in BOOKS]
+    else:
+        names = list(books)
+    if trap is None:
+        trap_names = [name for name in _forward_names(args) if name == TRAP_NAME]
+    else:
+        trap_names = list(trap)
+    if hour is None:
+        hour_names = [name for name in _forward_names(args) if name == HOUR_NAME]
+    else:
+        hour_names = list(hour)
+    if not names and not trap_names and not hour_names:
+        raise SystemExit("No VWAP, trapdoor, or 4hr forward book was named.")
     now = _forward_now(args)
     if not in_forward_window(now):
         from zoneinfo import ZoneInfo
@@ -660,6 +771,22 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
             "Outside the 09:50-15:50 ET window. No orders."
         )
         return 0
+    from webull_bot.execution.forward_watch import cycle_lock
+
+    with cycle_lock(20) as acquired:
+        if not acquired:
+            print("forward-test skipped. forward-watch holds the cycle lock. No second cycle.")
+            return 0
+        return _forward_vwap_body(config, args, names, trap_names, hour_names, now)
+
+
+def _forward_vwap_body(config, args, names: list[str], trap_names: list[str], hour_names: list[str], now) -> int:
+    from webull_bot.chart_reads.orb_mwf import prior_iv
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_vwap import BOOKS, run_cycle
+    from webull_bot.execution.forward_watch import guard_market_data, overlay_webull_bars, remember_frames
+    from webull_bot.journal.store import Journal
+
     broker = None
     if not args.dry_run:
         raw = os.environ.get("WEBULL_ENV", "").strip().lower()
@@ -675,13 +802,19 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
         broker.sandbox_only = True
         broker.connect()
         assert_sandbox_hosts(broker.hosts)
+        guard_market_data(broker)
     end = now.date()
     start = end - timedelta(days=50)
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     end_s = (end + timedelta(days=1)).isoformat()
     symbols = [BOOKS[name] for name in names]
-    bars15 = provider.history(symbols, start.isoformat(), end_s, "15m")
-    bars5 = provider.history(symbols, start.isoformat(), end_s, "5m")
+    five_symbols = list(dict.fromkeys([*symbols, *(["QQQ"] if trap_names or hour_names else [])]))
+    bars15 = provider.history(symbols, start.isoformat(), end_s, "15m") if symbols else {}
+    bars5 = provider.history(five_symbols, start.isoformat(), end_s, "5m")
+    if broker is not None:
+        bars15, bars5 = overlay_webull_bars(
+            broker, bars15, bars5, symbols, five_symbols, start.isoformat(), end_s
+        )
     daily = provider.history(["^VIX", "^VIX1D"], "2016-01-01", end_s, "1d")
     closes = {}
     for symbol, frame in daily.items():
@@ -689,7 +822,29 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
             continue
         closes[symbol] = frame["close"]
     points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
+    remember_frames(bars15, bars5, points, closes)
     journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    if broker is not None:
+        from webull_bot.execution.forward_quotes import prime_forward_quotes
+        from webull_bot.execution.forward_trapdoor import NAME as trap_name
+
+        specs = []
+        for name in names:
+            symbol = BOOKS[name]
+            five = bars5.get(symbol) if isinstance(bars5, dict) else None
+            specs.append((name, symbol, five if five is not None else pd.DataFrame()))
+        if trap_names:
+            five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+            specs.append((trap_name, "QQQ", five if five is not None else pd.DataFrame()))
+        if hour_names:
+            from webull_bot.execution.forward_four_hour import NAME as hour_name
+
+            five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+            specs.append((hour_name, "QQQ", five if five is not None else pd.DataFrame()))
+        try:
+            prime_forward_quotes(journal, broker, specs, now, include_ladder=True)
+        except Exception:
+            pass
     blocks = []
     for name in names:
         symbol = BOOKS[name]
@@ -707,13 +862,100 @@ def _forward_vwap(config, args, books: list[str] | None = None) -> int:
             book=name,
         )
         blocks.append("\n".join(lines))
+    if trap_names:
+        from webull_bot.execution.forward_trapdoor import run_cycle as trap_cycle
+
+        five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+        lines = trap_cycle(
+            journal=journal,
+            bars5=five if five is not None else pd.DataFrame(),
+            now=now,
+            iv_points=points,
+            iv_closes=closes,
+            broker=broker,
+            dry_run=bool(args.dry_run),
+        )
+        blocks.append("\n".join(lines))
+    if hour_names:
+        from webull_bot.execution.forward_four_hour import run_cycle as hour_cycle
+
+        five = bars5.get("QQQ") if isinstance(bars5, dict) else None
+        lines = hour_cycle(
+            journal=journal,
+            bars5=five if five is not None else pd.DataFrame(),
+            now=now,
+            iv_points=points,
+            iv_closes=closes,
+            broker=broker,
+            dry_run=bool(args.dry_run),
+        )
+        blocks.append("\n".join(lines))
     print("\n\n".join(blocks))
     return 0
 
 
+def _forward_watch(config, args) -> int:
+    from webull_bot.execution.forward_watch import run_watch
+
+    names = _forward_names(args)
+    if not names:
+        raise SystemExit(
+            "Name at least one book: vwap_band_15m vwap_band_15m_qqq_aggr "
+            "vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq "
+            "four_hour_qqq_1dte"
+        )
+    return run_watch(config, args, names)
+
+
+def _forward_reconcile(config, args) -> int:
+    """Read order detail and positions for one book. Never places or cancels."""
+    from webull_bot.execution.forward_reconcile import reconcile_book, require_sandbox
+
+    require_sandbox()
+    from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+    from webull_bot.journal.store import Journal
+
+    try:
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+    except SystemExit:
+        raise
+    except Exception:
+        raise SystemExit("Reconcile could not connect. The reason was not printed. No order was sent.")
+    from zoneinfo import ZoneInfo
+
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    now = datetime.now(ZoneInfo("America/New_York"))
+    try:
+        lines = reconcile_book(journal, broker, args.strategy, now)
+    except Exception:
+        raise SystemExit("Reconcile failed. The reason was not printed. No order was sent.")
+    print("\n".join(lines))
+    return 0
+
+
 def _forward_report(config, args) -> int:
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
     from webull_bot.execution.forward_vwap import BOOKS
 
+    if args.strategy == TRAP_NAME:
+        from webull_bot.execution.forward_trapdoor import report_text as trap_report
+        from webull_bot.journal.store import Journal
+
+        journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        print(trap_report(journal), end="")
+        return 0
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+
+    if args.strategy == HOUR_NAME:
+        from webull_bot.execution.forward_four_hour import report_text as hour_report
+        from webull_bot.journal.store import Journal
+
+        journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        print(hour_report(journal), end="")
+        return 0
     if args.strategy in BOOKS:
         from webull_bot.execution.forward_vwap import report_text as vwap_report
         from webull_bot.journal.store import Journal
