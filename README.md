@@ -489,3 +489,7 @@ advice, not a solicitation, and not a claim that any rule will be profitable
 in the future. Markets change, costs change, and a backtest that survived
 one sample can fail the next. Trade only money you can afford to lose, and
 only after you have read `RESULTS.md` and re-run the research yourself.
+
+<!-- TRAPDOOR_AGGRESSIVE_START -->
+**QQQ Trapdoor size grid: research only, live trading stays off.** The entry stays the frozen QQQ short. 234 pre-registered put and size cells, plus the same sizes on the QQQ 2 SD VWAP continuation. Fresh $2,500, train 2017–2023 and holdout 2024-01-01 through 2026-10-06, scored separately. The 1-contract at-the-money book reaches $10,000 on 0.0% of holdout 12-month starts and ends the full holdout at $12,265. The highest holdout chance is QQQ Trapdoor, about a 0.20 delta, 1R, 10% of equity, skew bump off: 100.0% reach $10,000 and 0.0% fall under $500 in the holdout, while 37.4% of the 2017–2023 starts fall under $500. That cell misses the gate. Fraction-of-equity endings in the millions are a model artifact on cheap 0 DTE premium. The first gate survivors that still finish a typical year in ordinary dollars are QQQ VWAP 2 SD, at the money, 1R, 3 contracts and QQQ Trapdoor, about a 0.20 delta, 1R, 10 contracts, skew bump off. Full table in [reports/trapdoor_aggressive.md](reports/trapdoor_aggressive.md).
+<!-- TRAPDOOR_AGGRESSIVE_END -->
