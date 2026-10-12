@@ -95,6 +95,41 @@ class YFinanceProvider(DataProvider):
                     frames[symbol] = relaxed
         return frames
 
+    def append_recent(
+        self,
+        symbols: Iterable[str],
+        interval: str,
+        now: datetime,
+        days: int = 3,
+    ) -> dict[str, pd.DataFrame]:
+        """Download a short tail and merge it onto the cached history.
+
+        The long file stays. A short download is not written over it.
+        """
+        names = [str(symbol) for symbol in symbols]
+        if not names:
+            return {}
+        local = to_ny(now)
+        start = (local.date() - timedelta(days=int(days))).isoformat()
+        end = (local.date() + timedelta(days=1)).isoformat()
+        scratch = YFinanceProvider(self.cache_dir / "_tail")
+        try:
+            fresh = scratch.history(names, start, end, interval)
+        except Exception:
+            fresh = {}
+        yf_interval = _INTERVALS.get(interval, interval)
+        frames: dict[str, pd.DataFrame] = {}
+        for symbol in names:
+            existing = self._relaxed_cache(symbol, yf_interval)
+            merged = merge_frames(existing, fresh.get(symbol))
+            if merged is None or merged.empty:
+                if existing is not None and not existing.empty:
+                    frames[symbol] = existing
+                continue
+            merged.to_csv(self._cache_path(symbol, yf_interval))
+            frames[symbol] = merged
+        return frames
+
     def _cache_path(self, symbol: str, interval: str) -> Path:
         safe = symbol.replace("^", "_").replace("/", "_")
         return self.cache_dir / f"{safe}_{interval}.csv"
@@ -251,6 +286,17 @@ class YFinanceProvider(DataProvider):
             if attempt < 2:
                 time.sleep(0.4 * (attempt + 1))
         return None
+
+
+def merge_frames(base, fresh):
+    """Keep older bars and let the newer print replace the same timestamp."""
+    if fresh is None or getattr(fresh, "empty", True):
+        return base
+    if base is None or getattr(base, "empty", True):
+        return fresh
+    combined = pd.concat([base, fresh])
+    combined = combined[~combined.index.duplicated(keep="last")]
+    return combined.sort_index()
 
 
 def _clock() -> datetime:

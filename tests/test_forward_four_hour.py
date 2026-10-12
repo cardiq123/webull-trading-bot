@@ -15,6 +15,7 @@ from webull_bot.execution.forward_four_hour import (
     _Signal,
     _decide_entry,
     _exit_after,
+    _exit_path,
     expiry_for,
     report_text,
     run_cycle,
@@ -254,6 +255,19 @@ def test_a_stop_and_a_target_on_one_bar_exits_at_the_stop():
     }
     reason, _price, _when = _exit_after(position, bars, bars, pd.Timestamp(f"{DAY} 10:15:30", tz=NY), None)
     assert reason == "stop"
+
+
+def test_the_exit_path_keeps_today_and_drops_the_cached_history():
+    prior = pd.date_range("2020-06-12 09:30", periods=78, freq="5min", tz=NY)
+    today = pd.date_range(f"{DAY} 09:30", periods=7, freq="5min", tz=NY)
+    index = prior.append(today)
+    bars = pd.DataFrame(
+        {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0},
+        index=index,
+    )
+    path = _exit_path(bars, pd.Timestamp(f"{DAY} 10:02:00", tz=NY))
+    assert list(path.index) == list(today[:6])
+    assert path.index.max() == pd.Timestamp(f"{DAY} 09:55:00", tz=NY)
 
 
 def test_the_report_names_the_book(tmp_path):

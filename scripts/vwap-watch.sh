@@ -10,8 +10,9 @@
 #   WEBULL_ENV=sandbox nohup ./scripts/vwap-watch.sh >> logs/forward-watch.log 2>&1 &
 #
 # systemd is the same command, Restart=always, WorkingDirectory=the repo.
-# The process polls every 5 seconds and runs the full signal cycle at
-# :00:03, :05:03, :10:03, and so on, America/New_York.
+# The process checks exits every 5 seconds. Three seconds after each
+# 5-minute close it appends the new bars once and checks every book's
+# entries on that shared cache. America/New_York.
 set -eu
 cd "$(dirname "$0")/.."
 export WEBULL_ENV="${WEBULL_ENV:-sandbox}"

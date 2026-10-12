@@ -1172,11 +1172,21 @@ def _exit_after(position, path, bars5, now_ts: pd.Timestamp, broker):
 
 
 def _exit_path(bars5, now_ts: pd.Timestamp) -> pd.DataFrame:
+    """Completed 5-minute bars from this session only.
+
+    The replay calls this once a minute. Scanning the whole cached history
+    on every call held the dry-run cycle past a minute.
+    """
     bars = _bars(bars5)
     if bars.empty:
         return bars
     now_ts = _as_ny(now_ts)
-    done = [ts for ts in bars.index if bar_end(ts, "5m") <= now_ts and _as_date(ts) == now_ts.date()]
+    index = bars.index
+    local = index.tz_convert(NY) if getattr(index, "tz", None) is not None else index
+    today = bars.loc[local.date == now_ts.date()]
+    if today.empty:
+        return bars.iloc[0:0]
+    done = [ts for ts in today.index if bar_end(ts, "5m") <= now_ts]
     if not done:
         return bars.iloc[0:0]
     return bars.loc[pd.DatetimeIndex(done)]

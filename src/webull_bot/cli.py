@@ -155,8 +155,9 @@ def build_parser() -> argparse.ArgumentParser:
     watch = sub.add_parser(
         "forward-watch",
         help=(
-            "Long-running sandbox watch. Polls every 5 seconds and runs the full "
-            "cycle 3 seconds after each 5-minute bar close. Live trading stays off. "
+            "Long-running sandbox watch. Exit checks every 5 seconds. "
+            "Three seconds after each 5-minute close, append the new bars once "
+            "and check every book's entries on that cache. Live trading stays off. "
             "--dry-run does not connect."
         ),
     )

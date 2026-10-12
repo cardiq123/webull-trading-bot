@@ -1,12 +1,10 @@
 """Five-second sandbox watch for the VWAP books and QQQ Trapdoor.
 
-The minute cycle reloads Yahoo and takes about six seconds, so it is not
-run every five seconds. This process polls a batched Webull snapshot for
-SPY and QQQ, and one batched option snapshot for contracts that are open.
-It exits through the same bot-managed limit sell the minute cycle uses,
-and it enters a journaled pending signal when the live price is inside
-the stop and the target. The full signal cycle still runs, once, three
-seconds after each five-minute bar close.
+Exit checks run every five seconds and do not wait on a bar download.
+Three seconds after each five-minute close, one short tail of new bars
+is merged into the cache and every book reads that same cache. A download
+that runs long is abandoned so the entry check still starts. The old full
+history reload is not on this loop.
 
 Documented OpenAPI market-data limits, checked 2026-10-09
 (https://developer.webull.com/apis/docs/rate-limits), per endpoint and
@@ -33,6 +31,7 @@ import fcntl
 import logging
 import random
 import re
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -49,8 +48,15 @@ WINDOW_SECONDS = 60.0
 BACKOFF_SECONDS = (15.0, 30.0, 60.0)
 BAR_LAG = timedelta(seconds=3)
 TICK_SECONDS = 5.0
+# A bar-close entry check should start inside this window. The alert is the
+# longer stall: a cycle that is still running after a minute.
+ENTRY_TARGET_S = 30.0
+SLOW_CYCLE_S = 60.0
+BAR_REFRESH_TIMEOUT_S = 20.0
+TAIL_DAYS = 3
 
 LATEST: dict = {}
+_REFRESH_THREAD: Optional[threading.Thread] = None
 
 
 class BudgetExceeded(RuntimeError):
@@ -164,6 +170,37 @@ def remember_frames(bars15, bars5, points, closes) -> None:
     LATEST["bars5"] = bars5 or {}
     LATEST["points"] = points or {}
     LATEST["closes"] = closes or {}
+
+
+def timing_lines(exits_s: float, bars_s: float, entries_s: float) -> list[str]:
+    """One timing line, and an alert when the cycle is over a minute."""
+    total = float(exits_s) + float(bars_s) + float(entries_s)
+    lines = [
+        (
+            f"Cycle timing: exits {float(exits_s):.2f}s, bars {float(bars_s):.2f}s, "
+            f"entries {float(entries_s):.2f}s, total {total:.2f}s."
+        )
+    ]
+    if total > SLOW_CYCLE_S:
+        lines.append(f"Cycle alert: the watch cycle took {total:.1f}s, over {SLOW_CYCLE_S:.0f}s.")
+    return lines
+
+
+def entry_lag_line(started_s: float, close: datetime) -> list[str]:
+    """How long after the bar close the entry pass began."""
+    stamp = close.astimezone(NY).strftime("%H:%M")
+    lines = [
+        (
+            f"Entry check started {float(started_s):.1f}s after the {stamp} ET bar close. "
+            "Books share one bar cache."
+        )
+    ]
+    if float(started_s) > ENTRY_TARGET_S:
+        lines.append(
+            f"Cycle alert: entries started {float(started_s):.1f}s after the bar close, "
+            f"past {ENTRY_TARGET_S:.0f}s."
+        )
+    return lines
 
 
 class _SdkOneLine(logging.Filter):
@@ -297,8 +334,21 @@ def option_snapshot(broker, symbols: list[str]) -> dict[str, dict]:
     return _option_rows(payload)
 
 
-def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: list[str]) -> list[str]:
-    """Exits and pending entries for the cached bars. Quote failures stay local."""
+def fast_tick(
+    journal,
+    broker,
+    now: datetime,
+    prices: dict[str, float],
+    names: list[str],
+    *,
+    do_exits: bool = True,
+    do_entries: bool = True,
+) -> list[str]:
+    """Exits and pending entries for the cached bars. Quote failures stay local.
+
+    Exits do not wait on a quote refresh. Entries still run when the option
+    endpoints are cooling; only the new quote fetch waits.
+    """
     from webull_bot.calendar import to_ny
     from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
     from webull_bot.execution.forward_quotes import prime_forward_quotes
@@ -329,32 +379,34 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
         cooling = True
         lines.append(
             "Rate limit backoff. Stop and target checks still run. "
-            "New quotes and new entries wait."
+            "New quotes wait. Entry checks still run on the cached bars."
         )
-    if log_minute:
+    if log_minute and do_exits:
         lines.append("Watching " + ", ".join(names) + ".")
     # Stops and targets first. Quote fetches for new entries come after.
-    _visit_books(
-        names,
-        journal,
-        broker,
-        now,
-        view,
-        lines,
-        local,
-        bars15,
-        bars5,
-        points,
-        closes,
-        prices,
-        log_minute,
-        entries=False,
-    )
-    if not cooling:
-        try:
-            prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
-        except Exception:
-            lines.append("Option snapshot was not taken. Open positions were not changed.")
+    if do_exits:
+        _visit_books(
+            names,
+            journal,
+            broker,
+            now,
+            view,
+            lines,
+            local,
+            bars15,
+            bars5,
+            points,
+            closes,
+            prices,
+            log_minute,
+            entries=False,
+        )
+    if do_entries:
+        if not cooling:
+            try:
+                prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
+            except Exception:
+                lines.append("Option snapshot was not taken. Open positions were not changed.")
         _visit_books(
             names,
             journal,
@@ -371,9 +423,9 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
             log_minute,
             entries=True,
         )
-    if log_minute:
+    if log_minute and do_entries:
         LATEST["minute"] = minute_key
-    if not lines:
+    if do_exits and do_entries and not lines:
         lines.append("Fast tick. No stop, target, or pending entry.")
     return lines
 
@@ -668,15 +720,7 @@ def run_watch(config, args, names: list[str]) -> int:
                 return 0
             time.sleep(min(30.0, next_wake(now)))
             continue
-        if full_cycle_due(now, LATEST.get("full")):
-            from webull_bot.cli import _forward_vwap
-
-            code = _forward_vwap(config, _named(args, names, dry_run, now))
-            LATEST["full"] = boundary_of(now)
-            if once:
-                return code
-            continue
-        if dry_run:
+        if dry_run and not full_cycle_due(now, LATEST.get("full")):
             print(
                 f"forward-watch fast tick at {now.astimezone(NY).isoformat()}. "
                 "Dry run: no snapshots, no orders, journal not written."
@@ -685,14 +729,50 @@ def run_watch(config, args, names: list[str]) -> int:
                 return 0
             time.sleep(next_wake(_clock()))
             continue
-        lines = _locked_fast(config, names, now)
+        lines = watch_cycle(config, args, names, now, dry_run)
         print("\n".join(lines))
         if once:
             return 0
         time.sleep(next_wake(_clock()))
 
 
-def _locked_fast(config, names: list[str], now: datetime) -> list[str]:
+def watch_cycle(config, args, names: list[str], now: datetime, dry_run: bool) -> list[str]:
+    """Exits, then a shared bar refresh when a close is due, then entries.
+
+    The entry pass does not wait on a full history reload. Live trading
+    stays off. A dry run does not connect.
+    """
+    if dry_run:
+        return _dry_cycle(config, names, now)
+    return _live_cycle(config, names, now)
+
+
+def _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now) -> list[str]:
+    lines = list(exit_lines) + list(bar_lines) + list(entry_lines)
+    lines.extend(timing_lines(exits_s, bars_s, entries_s))
+    if refresh_due:
+        lines.extend(entry_lag_line(exits_s + bars_s, boundary_of(now)))
+    return lines
+
+
+def _dry_cycle(config, names: list[str], now: datetime) -> list[str]:
+    refresh_due = full_cycle_due(now, LATEST.get("full")) or not LATEST.get("bars5")
+    started = time.monotonic()
+    exits_s = time.monotonic() - started
+    bar_started = time.monotonic()
+    bar_lines: list[str] = []
+    if refresh_due:
+        bar_lines = refresh_closed_bars(config, now, names, None)
+        LATEST["full"] = boundary_of(now)
+    bars_s = time.monotonic() - bar_started
+    entry_started = time.monotonic()
+    entry_lines = dry_entry_checks(config, names, now)
+    entries_s = time.monotonic() - entry_started
+    return _finish_cycle([], bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
+
+
+def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
+    """One sandbox cycle. The lock covers orders. Exits run before the bar fetch."""
     from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
     from webull_bot.journal.store import Journal
     import os
@@ -703,10 +783,11 @@ def _locked_fast(config, names: list[str], now: datetime) -> list[str]:
             "Refusing to forward-watch without WEBULL_ENV=sandbox. "
             "Orders go only to *.sandbox.webull.com. Live trading stays off."
         ]
+    refresh_due = full_cycle_due(now, LATEST.get("full")) or not LATEST.get("bars5")
     with cycle_lock(0) as acquired:
         if not acquired:
             return ["Fast tick skipped. The full cycle holds the lock. No second cycle."]
-        broker = getattr(_locked_fast, "broker", None)
+        broker = getattr(_live_cycle, "broker", None)
         if broker is None:
             try:
                 broker = WebullBroker(environment="sandbox")
@@ -716,9 +797,7 @@ def _locked_fast(config, names: list[str], now: datetime) -> list[str]:
                 guard_market_data(broker)
             except Exception:
                 return ["Fast tick could not connect. Open positions wait for the next tick."]
-            _locked_fast.broker = broker
-        if not LATEST.get("bars5"):
-            _prime(config, now, names, broker)
+            _live_cycle.broker = broker
         symbols = watch_symbols(names)
         budget = guard_market_data(broker)
         if budget.cooling("stock_snapshot"):
@@ -728,10 +807,168 @@ def _locked_fast(config, names: list[str], now: datetime) -> list[str]:
             if prices:
                 LATEST["prices"] = prices
         journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        started = time.monotonic()
         try:
-            return fast_tick(journal, broker, now, prices, names)
+            exit_lines = fast_tick(journal, broker, now, prices, names, do_exits=True, do_entries=False)
         except Exception:
-            return ["Fast tick failed. Open positions were left for the next tick and the bar cycle."]
+            exit_lines = ["Fast tick failed. Open positions were left for the next tick and the bar cycle."]
+        exits_s = time.monotonic() - started
+        bar_started = time.monotonic()
+        bar_lines: list[str] = []
+        if refresh_due:
+            bar_lines = refresh_closed_bars(config, now, names, broker)
+            LATEST["full"] = boundary_of(now)
+        bars_s = time.monotonic() - bar_started
+        entry_started = time.monotonic()
+        try:
+            entry_lines = fast_tick(journal, broker, now, prices, names, do_exits=False, do_entries=True)
+        except Exception:
+            entry_lines = ["Entry check failed. No order was sent for that failure."]
+        entries_s = time.monotonic() - entry_started
+        return _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
+
+
+def dry_entry_checks(config, names: list[str], now: datetime) -> list[str]:
+    """Replay every book on the shared cache. No connection and no journal write."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_four_hour import run_cycle as hour_cycle
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_trapdoor import run_cycle as trap_cycle
+    from webull_bot.execution.forward_vwap import BOOKS, run_cycle
+    from webull_bot.journal.store import Journal
+
+    journal_path = config.get("journal", "path", default="data/journal.sqlite")
+    Journal(journal_path)
+    points = LATEST.get("points") or {}
+    closes = LATEST.get("closes") or {}
+    bars15 = LATEST.get("bars15") or {}
+    bars5 = LATEST.get("bars5") or {}
+
+    def one(name: str) -> list[str]:
+        journal = Journal(journal_path)
+        if name in BOOKS:
+            symbol = BOOKS[name]
+            return run_cycle(
+                journal=journal,
+                bars15=_frame(bars15, symbol),
+                bars5=_frame(bars5, symbol),
+                now=now,
+                iv_points=points,
+                iv_closes=closes,
+                broker=None,
+                dry_run=True,
+                book=name,
+            )
+        if name == TRAP_NAME:
+            return trap_cycle(
+                journal=journal,
+                bars5=_frame(bars5, "QQQ"),
+                now=now,
+                iv_points=points,
+                iv_closes=closes,
+                broker=None,
+                dry_run=True,
+            )
+        if name == HOUR_NAME:
+            return hour_cycle(
+                journal=journal,
+                bars5=_frame(bars5, "QQQ"),
+                now=now,
+                iv_points=points,
+                iv_closes=closes,
+                broker=None,
+                dry_run=True,
+            )
+        return [f"{name} is not a forward book. No order."]
+
+    blocks = [f"Entry checks for {len(names)} books share one bar cache and run together."]
+    workers = max(1, min(6, len(names)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for book_lines in pool.map(one, list(names)):
+            blocks.append("\n".join(book_lines))
+    return blocks
+
+
+def refresh_closed_bars(config, now: datetime, names: list[str], broker=None) -> list[str]:
+    """Merge the new 5-minute bars into the cache. One fetch for every book.
+
+    The first load reads history once. Later closes append a short tail.
+    A fetch that exceeds ``BAR_REFRESH_TIMEOUT_S`` does not hold the loop.
+    """
+    global _REFRESH_THREAD
+    if _REFRESH_THREAD is not None and _REFRESH_THREAD.is_alive():
+        return ["Bar refresh already running. Entries use the cached bars."]
+    box: dict = {}
+
+    def work() -> None:
+        try:
+            if not LATEST.get("bars5"):
+                _prime(config, now, names, _overlay_broker(broker))
+                box["kind"] = "loaded"
+                return
+            _append_tail(config, now, names, _overlay_broker(broker))
+            box["kind"] = "appended"
+        except Exception:
+            box["kind"] = "failed"
+
+    thread = threading.Thread(target=work, daemon=True, name="forward-bars")
+    _REFRESH_THREAD = thread
+    thread.start()
+    thread.join(BAR_REFRESH_TIMEOUT_S)
+    if thread.is_alive():
+        return [
+            (
+                f"Bar refresh timed out after {BAR_REFRESH_TIMEOUT_S:.0f}s. "
+                "Entries use the cached bars. The full history was not reloaded."
+            )
+        ]
+    kind = box.get("kind")
+    if kind == "appended":
+        return ["Bar cache updated from the new 5-minute bars. Books share this cache."]
+    if kind == "loaded":
+        return ["Bar cache loaded. Later cycles append the new bars."]
+    return ["Bar refresh failed. Entries use the cached bars."]
+
+
+def _overlay_broker(broker):
+    """Skip the Webull bar call while that endpoint is cooling."""
+    budget = getattr(broker, "_watch_budget", None) if broker is not None else None
+    if budget is not None and budget.cooling("stock_bars"):
+        return None
+    return broker
+
+
+def _append_tail(config, now: datetime, names: list[str], broker) -> None:
+    from datetime import timedelta as _delta
+
+    from webull_bot.data.yfinance_provider import YFinanceProvider
+    from webull_bot.execution.forward_vwap import BOOKS
+
+    provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
+    symbols = list(dict.fromkeys(BOOKS[name] for name in names if name in BOOKS))
+    five_symbols = watch_symbols(names)
+    fresh5 = provider.append_recent(five_symbols, "5m", now, days=TAIL_DAYS)
+    fresh15 = provider.append_recent(symbols, "15m", now, days=TAIL_DAYS) if symbols else {}
+    if broker is not None:
+        start = (now.date() - _delta(days=TAIL_DAYS)).isoformat()
+        end = (now.date() + _delta(days=1)).isoformat()
+        try:
+            fresh15, fresh5 = overlay_webull_bars(
+                broker, fresh15, fresh5, symbols, five_symbols, start, end
+            )
+        except Exception:
+            pass
+    bars15 = dict(LATEST.get("bars15") or {})
+    bars5 = dict(LATEST.get("bars5") or {})
+    for symbol, frame in (fresh5 or {}).items():
+        if frame is not None and len(frame) > 0:
+            bars5[symbol] = frame
+    for symbol, frame in (fresh15 or {}).items():
+        if frame is not None and len(frame) > 0:
+            bars15[symbol] = frame
+    remember_frames(bars15, bars5, LATEST.get("points"), LATEST.get("closes"))
 
 
 def _prime(config, now: datetime, names: list[str], broker) -> None:
@@ -746,7 +983,7 @@ def _prime(config, now: datetime, names: list[str], broker) -> None:
     start = end - _delta(days=50)
     provider = YFinanceProvider(config.get("data", "cache_dir", default="data/cache"))
     end_s = (end + _delta(days=1)).isoformat()
-    symbols = [BOOKS[name] for name in names if name in BOOKS]
+    symbols = list(dict.fromkeys(BOOKS[name] for name in names if name in BOOKS))
     five_symbols = watch_symbols(names)
     bars15 = provider.history(symbols, start.isoformat(), end_s, "15m") if symbols else {}
     bars5 = provider.history(five_symbols, start.isoformat(), end_s, "5m")
@@ -762,12 +999,6 @@ def _prime(config, now: datetime, names: list[str], broker) -> None:
         closes[symbol] = frame["close"]
     points = prior_iv(closes.get("^VIX1D", pd.Series(dtype=float)), closes.get("^VIX", pd.Series(dtype=float)))
     remember_frames(bars15, bars5, points, closes)
-
-
-def _named(args, names: list[str], dry_run: bool, now: datetime):
-    from types import SimpleNamespace
-
-    return SimpleNamespace(strategy=list(names), dry_run=dry_run, now=now.astimezone(NY).isoformat())
 
 
 def _watch_now(args) -> datetime:

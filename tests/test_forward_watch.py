@@ -260,6 +260,155 @@ def test_four_hour_qqq_1dte_is_loaded_and_evaluated(tmp_path, monkeypatch):
     assert any("Watching four_hour_qqq_1dte." in line for line in lines)
 
 
+def test_cycle_timing_alerts_when_the_cycle_exceeds_a_minute():
+    from webull_bot.execution.forward_watch import entry_lag_line, timing_lines
+
+    quiet = timing_lines(0.01, 0.20, 0.05)
+    assert quiet == ["Cycle timing: exits 0.01s, bars 0.20s, entries 0.05s, total 0.26s."]
+    slow = timing_lines(1.0, 70.0, 1.0)
+    assert any("Cycle alert" in line and "over 60s" in line for line in slow)
+    lag = entry_lag_line(12.4, _at("13:35"))
+    assert any("12.4s after the 13:35 ET bar close" in line for line in lag)
+    assert any("share one bar cache" in line for line in lag)
+    late = entry_lag_line(47.0, _at("13:35"))
+    assert any("past 30s" in line for line in late)
+
+
+def test_a_bar_close_checks_entries_after_exits_without_the_full_reload(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    seen = []
+
+    def refresh(config, now, names, broker=None):
+        seen.append("bars")
+        return ["Bar cache updated from the new 5-minute bars. Books share this cache."]
+
+    def entries(config, names, now):
+        seen.append(tuple(names))
+        return ["Entry checks for 2 books share one bar cache and run together.", "QQQ Trapdoor"]
+
+    monkeypatch.setattr(watch, "refresh_closed_bars", refresh)
+    monkeypatch.setattr(watch, "dry_entry_checks", entries)
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    lines = watch.watch_cycle(_cfg(tmp_path), None, ["vwap_band_15m", "neckline_trapdoor_qqq"], _at("13:35").replace(second=5), True)
+    assert seen[0] == "bars"
+    assert seen[1] == ("vwap_band_15m", "neckline_trapdoor_qqq")
+    text = "\n".join(lines)
+    assert "Cycle timing:" in text
+    assert "13:35 ET bar close" in text
+    assert "QQQ Trapdoor" in text
+
+
+def test_a_slow_download_still_runs_the_entry_check(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    def slow(*args, **kwargs):
+        import time
+
+        time.sleep(1.0)
+
+    seen = []
+    monkeypatch.setattr(watch, "BAR_REFRESH_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(watch, "_prime", slow)
+    monkeypatch.setattr(watch, "dry_entry_checks", lambda *args, **kwargs: seen.append("entries") or ["entries"])
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    lines = watch.watch_cycle(_cfg(tmp_path), None, ["neckline_trapdoor_qqq"], _at("13:35").replace(second=5), True)
+    assert seen == ["entries"]
+    assert any("timed out" in line for line in lines)
+    assert any("Cycle timing:" in line for line in lines)
+    thread = watch._REFRESH_THREAD
+    if thread is not None:
+        thread.join(2)
+
+
+def test_books_share_one_tail_fetch(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    calls = []
+
+    class Provider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def append_recent(self, symbols, interval, now, days=3):
+            calls.append((list(symbols), interval))
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", Provider)
+    frame = _tiny()
+    watch.LATEST.clear()
+    watch.LATEST["bars5"] = {"SPY": frame, "QQQ": frame}
+    watch.LATEST["bars15"] = {"SPY": frame, "QQQ": frame}
+    watch._REFRESH_THREAD = None
+    names = [
+        "vwap_band_15m",
+        "vwap_band_15m_qqq_aggr",
+        "vwap_band_15m_qqq_aggr_1dte",
+        "vwap_band_15m_qqq_compound",
+        "neckline_trapdoor_qqq",
+        "four_hour_qqq_1dte",
+    ]
+    lines = watch.refresh_closed_bars(_cfg(tmp_path), _at("13:35").replace(second=5), names, None)
+    five = [item for item in calls if item[1] == "5m"]
+    fifteen = [item for item in calls if item[1] == "15m"]
+    assert len(five) == 1
+    assert five[0][0] == ["SPY", "QQQ"]
+    assert len(fifteen) == 1
+    assert fifteen[0][0] == ["SPY", "QQQ"]
+    assert any("share this cache" in line for line in lines)
+
+
+def test_the_watch_does_not_call_the_full_history_cycle(tmp_path, monkeypatch, capsys):
+    from webull_bot.execution import forward_watch as watch
+
+    def boom(*args, **kwargs):
+        raise AssertionError("full history cycle")
+
+    monkeypatch.setattr("webull_bot.cli._forward_vwap", boom)
+    monkeypatch.setattr(watch, "refresh_closed_bars", lambda *args, **kwargs: ["bars"])
+    monkeypatch.setattr(
+        watch,
+        "dry_entry_checks",
+        lambda *args, **kwargs: ["Entry checks for 6 books share one bar cache and run together."],
+    )
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    code = watch.run_watch(
+        _cfg(tmp_path),
+        build_parser().parse_args(
+            ["forward-watch", "neckline_trapdoor_qqq", "--dry-run", "--once", "--now", f"{DAY}T13:35:05"]
+        ),
+        ["neckline_trapdoor_qqq"],
+    )
+    assert code == 0
+    assert "Cycle timing:" in capsys.readouterr().out
+
+
+def _cfg(root):
+    class Config:
+        def get(self, *keys, default=None):
+            if keys == ("journal", "path"):
+                return str(root / "journal.sqlite")
+            if keys == ("data", "cache_dir"):
+                return str(root / "cache")
+            return default
+
+    return Config()
+
+
+def _tiny():
+    import pandas as pd
+
+    stamp = pd.Timestamp("2026-10-12 13:30", tz="America/New_York")
+    return pd.DataFrame(
+        [(100.0, 101.0, 99.0, 100.5, 1000.0)],
+        columns=["open", "high", "low", "close", "volume"],
+        index=pd.DatetimeIndex([stamp]),
+    )
+
+
 def test_option_chain_shares_one_fetch_and_backs_off(monkeypatch):
     from datetime import date
 
