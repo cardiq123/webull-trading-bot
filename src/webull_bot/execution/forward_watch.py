@@ -1,10 +1,14 @@
 """Five-second sandbox watch for the VWAP books and QQQ Trapdoor.
 
-Exit checks run every five seconds and do not wait on a bar download.
-Three seconds after each five-minute close, one short tail of new bars
-is merged into the cache and every book reads that same cache. A download
-that runs long is abandoned so the entry check still starts. The old full
-history reload is not on this loop.
+Exit checks run every five seconds and do not wait on a bar download
+or a Webull read. Stop and target use the last cached underlying price,
+or the last cached bar close when that price is missing. Order and quote
+calls sit on a 5-second connect and read timeout, one retry, and a
+watchdog so a sandbox read cannot hold the tick. Three seconds after
+each five-minute close, one short tail of new bars is merged into the
+cache and every book reads that same cache. A download that runs long
+is abandoned so the entry check still starts. The old full history
+reload is not on this loop.
 
 Documented OpenAPI market-data limits, checked 2026-10-09
 (https://developer.webull.com/apis/docs/rate-limits), per endpoint and
@@ -52,11 +56,20 @@ TICK_SECONDS = 5.0
 # longer stall: a cycle that is still running after a minute.
 ENTRY_TARGET_S = 30.0
 SLOW_CYCLE_S = 60.0
+# A tick that still holds an open position past this is the sandbox-read stall.
+OPEN_TICK_ALERT_S = 30.0
 BAR_REFRESH_TIMEOUT_S = 20.0
 TAIL_DAYS = 3
+# Socket budgets for every Webull call on this loop. One retry, and only
+# after the attempt has already finished. A hung read is not retried.
+CONNECT_TIMEOUT_S = 5.0
+READ_TIMEOUT_S = 5.0
+HTTP_RETRIES = 1
 
 LATEST: dict = {}
 _REFRESH_THREAD: Optional[threading.Thread] = None
+_INFLIGHT: dict[str, threading.Thread] = {}
+_INFLIGHT_BOX: dict[str, dict] = {}
 
 
 class BudgetExceeded(RuntimeError):
@@ -306,6 +319,233 @@ class _LivePrice:
         return getattr(self._inner, name)
 
 
+def _retryable_call(exc: BaseException) -> bool:
+    """A finished timeout or connection error can be tried once more. A hang cannot."""
+    if isinstance(exc, BudgetExceeded):
+        return False
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return True
+    text = f"{type(exc).__name__} {exc}".lower()
+    return "timeout" in text or "timed out" in text
+
+
+def reset_bounded_calls() -> None:
+    """Drop finished watch calls. A call that is still out is left to finish."""
+    done = [key for key, thread in _INFLIGHT.items() if not thread.is_alive()]
+    for key in done:
+        _INFLIGHT.pop(key, None)
+        _INFLIGHT_BOX.pop(key, None)
+
+
+def bounded_call(fn, *args, key: str = "", timeout: Optional[float] = None, retries: Optional[int] = None, **kwargs):
+    """Run one Webull call off this thread. Wait at most ``timeout`` seconds.
+
+    A call that is still running is not started again. A call that already
+    finished is returned on the next look, so a sell is not sent twice.
+    A finished connection error is retried at most ``retries`` times.
+    """
+    token = key or f"{getattr(fn, '__name__', 'call')}:{id(fn)}"
+    wait = READ_TIMEOUT_S if timeout is None else float(timeout)
+    attempts = 1 + (HTTP_RETRIES if retries is None else max(0, int(retries)))
+    prior = _INFLIGHT.get(token)
+    if prior is not None:
+        if prior.is_alive():
+            raise TimeoutError("Webull call still running. No second call.")
+        _INFLIGHT.pop(token, None)
+        done = _INFLIGHT_BOX.pop(token, {})
+        if "error" in done:
+            raise done["error"]
+        return done.get("value")
+    last_error: Optional[BaseException] = None
+    for attempt in range(attempts):
+        box: dict = {}
+
+        def run(box: dict = box) -> None:
+            try:
+                box["value"] = fn(*args, **kwargs)
+            except Exception as exc:
+                box["error"] = exc
+
+        thread = threading.Thread(target=run, daemon=True, name="webull-watch")
+        _INFLIGHT[token] = thread
+        _INFLIGHT_BOX[token] = box
+        thread.start()
+        thread.join(wait)
+        if thread.is_alive():
+            raise TimeoutError(f"Webull call timed out after {wait:.0f}s")
+        _INFLIGHT.pop(token, None)
+        _INFLIGHT_BOX.pop(token, None)
+        if "error" not in box:
+            return box.get("value")
+        last_error = box["error"]
+        if attempt + 1 >= attempts or not _retryable_call(last_error):
+            raise last_error
+    if last_error is not None:
+        raise last_error
+    return None
+
+
+def apply_sdk_timeouts(api) -> None:
+    """5-second connect and read, and no SDK retry loop, on the watch client."""
+    if api is None:
+        return
+    api._connect_timeout = CONNECT_TIMEOUT_S
+    api._read_timeout = READ_TIMEOUT_S
+    api._auto_retry = False
+    api._max_retry_num = HTTP_RETRIES
+    try:
+        from webull.core.retry import retry_policy
+
+        api._retry_policy = retry_policy.NO_RETRY_POLICY
+    except Exception:
+        return
+
+
+def _bound_method(fn):
+    def wrapped(*args, **kwargs):
+        name = getattr(fn, "__name__", "call")
+        marker = ""
+        if args and isinstance(args[0], dict):
+            marker = str(args[0].get("client_order_id") or "")
+        elif args:
+            marker = str(args[0])
+        return bounded_call(fn, *args, key=f"{name}:{marker}", **kwargs)
+
+    wrapped._watch_bounded = True
+    return wrapped
+
+
+def arm_watch_broker(broker) -> None:
+    """Cap order and quote methods used by this process. Live trading stays off."""
+    if broker is None or getattr(broker, "_watch_armed", False):
+        return
+    apply_sdk_timeouts(getattr(broker, "_api", None))
+    for name in (
+        "place_option_order",
+        "cancel_order",
+        "replace_order",
+        "option_contract_quote",
+        "option_zero_dte_quote",
+    ):
+        fn = getattr(broker, name, None)
+        if callable(fn) and not getattr(fn, "_watch_bounded", False):
+            setattr(broker, name, _bound_method(fn))
+    broker._watch_armed = True
+
+
+def _last_close(frame) -> Optional[float]:
+    if frame is None or getattr(frame, "empty", True):
+        return None
+    if "close" not in getattr(frame, "columns", []):
+        return None
+    try:
+        price = float(frame["close"].iloc[-1])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if price != price or price <= 0:
+        return None
+    return price
+
+
+def local_exit_prices(names: list[str]) -> dict[str, float]:
+    """Underlying prints that do not touch the network.
+
+    The last snapshot wins. A symbol with no snapshot uses the last cached
+    bar close, so a stop can still be seen while Webull is not answering.
+    """
+    prices = {str(key): float(value) for key, value in (LATEST.get("prices") or {}).items() if value}
+    bars5 = LATEST.get("bars5") or {}
+    for symbol in watch_symbols(names):
+        if prices.get(symbol):
+            continue
+        close = _last_close(bars5.get(symbol))
+        if close is not None:
+            prices[symbol] = close
+    return prices
+
+
+class _ExitView:
+    """Stop and target see a local price. Option quotes come from the cache.
+
+    A sell or cancel still goes to the broker, through the 5-second watchdog.
+    Order-detail reads are not made on this pass, so a stuck sandbox read
+    cannot sit in front of the stop.
+    """
+
+    def __init__(self, inner, prices: dict[str, float]) -> None:
+        self._inner = inner
+        self._prices = dict(prices)
+        self._trade = None
+
+    def underlying_quote(self, symbol: str):
+        value = self._prices.get(symbol)
+        if value is None:
+            raise RuntimeError("no local price")
+        return value
+
+    def option_contract_quote(self, option_symbol: str):
+        from webull_bot.execution.forward_quotes import cached_option
+
+        cached = cached_option(str(option_symbol or "")) or {}
+        out = {}
+        for side in ("bid", "ask"):
+            try:
+                price = float(cached.get(side))
+            except (TypeError, ValueError):
+                continue
+            if price == price and price > 0:
+                out[side] = price
+        return out or None
+
+    def option_zero_dte_quote(self, *args, **kwargs):
+        return None
+
+    def place_option_order(self, payload):
+        sender = getattr(self._inner, "place_option_order", None)
+        if not callable(sender):
+            raise AttributeError("place_option_order")
+        if getattr(sender, "_watch_bounded", False):
+            return sender(payload)
+        marker = str(payload.get("client_order_id") or "") if isinstance(payload, dict) else ""
+        return bounded_call(sender, payload, key=f"place_option_order:{marker}")
+
+    def cancel_order(self, client_order_id: str):
+        cancel = getattr(self._inner, "cancel_order", None)
+        if not callable(cancel):
+            raise AttributeError("cancel_order")
+        if getattr(cancel, "_watch_bounded", False):
+            return cancel(client_order_id)
+        return bounded_call(cancel, client_order_id, key=f"cancel_order:{client_order_id}")
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def holds_open_position(journal, names: list[str]) -> bool:
+    if journal is None:
+        return False
+    for name in names:
+        try:
+            state = journal.forward_load(name) or {}
+        except Exception:
+            continue
+        if state.get("positions"):
+            return True
+    return False
+
+
+def open_tick_alert(elapsed: float, open_position: bool) -> list[str]:
+    """One line when a tick with an open position runs past 30 seconds."""
+    if not open_position or float(elapsed) <= OPEN_TICK_ALERT_S:
+        return []
+    return [
+        (
+            f"Cycle alert: the watch tick took {float(elapsed):.1f}s with an open position, "
+            f"over {OPEN_TICK_ALERT_S:.0f}s."
+        )
+    ]
+
+
 def snapshot_prices(broker, symbols: list[str], budget: EndpointBudget) -> dict[str, float]:
     """One batched stock snapshot. A failure returns no prices and changes nothing."""
     client = getattr(broker, "_data", None)
@@ -313,7 +553,12 @@ def snapshot_prices(broker, symbols: list[str], budget: EndpointBudget) -> dict[
     if market is None or not symbols:
         return {}
     try:
-        payload = market.get_snapshot(list(symbols), "US_ETF")
+        payload = bounded_call(
+            market.get_snapshot,
+            list(symbols),
+            "US_ETF",
+            key="stock_snapshot:" + str(id(market)) + ":" + ",".join(symbols),
+        )
     except BudgetExceeded:
         return {}
     except Exception:
@@ -328,7 +573,12 @@ def option_snapshot(broker, symbols: list[str]) -> dict[str, dict]:
     if market is None or not symbols:
         return {}
     try:
-        payload = market.get_option_snapshot(list(symbols), "US_OPTION")
+        payload = bounded_call(
+            market.get_option_snapshot,
+            list(symbols),
+            "US_OPTION",
+            key="option_snapshot:" + str(id(market)) + ":" + ",".join(symbols),
+        )
     except Exception:
         return {}
     return _option_rows(payload)
@@ -798,21 +1048,25 @@ def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
             except Exception:
                 return ["Fast tick could not connect. Open positions wait for the next tick."]
             _live_cycle.broker = broker
-        symbols = watch_symbols(names)
-        budget = guard_market_data(broker)
-        if budget.cooling("stock_snapshot"):
-            prices = dict(LATEST.get("prices") or {})
-        else:
-            prices = snapshot_prices(broker, symbols, budget)
-            if prices:
-                LATEST["prices"] = prices
+        arm_watch_broker(broker)
         journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+        held = holds_open_position(journal, names)
+        prices = local_exit_prices(names)
         started = time.monotonic()
         try:
-            exit_lines = fast_tick(journal, broker, now, prices, names, do_exits=True, do_entries=False)
+            exit_lines = fast_tick(
+                journal, _ExitView(broker, prices), now, prices, names, do_exits=True, do_entries=False
+            )
         except Exception:
             exit_lines = ["Fast tick failed. Open positions were left for the next tick and the bar cycle."]
         exits_s = time.monotonic() - started
+        symbols = watch_symbols(names)
+        budget = guard_market_data(broker)
+        if not budget.cooling("stock_snapshot"):
+            fresh = snapshot_prices(broker, symbols, budget)
+            if fresh:
+                prices.update(fresh)
+                LATEST["prices"] = dict(prices)
         bar_started = time.monotonic()
         bar_lines: list[str] = []
         if refresh_due:
@@ -825,7 +1079,9 @@ def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
         except Exception:
             entry_lines = ["Entry check failed. No order was sent for that failure."]
         entries_s = time.monotonic() - entry_started
-        return _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
+        lines = _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
+        lines.extend(open_tick_alert(time.monotonic() - started, held))
+        return lines
 
 
 def dry_entry_checks(config, names: list[str], now: datetime) -> list[str]:

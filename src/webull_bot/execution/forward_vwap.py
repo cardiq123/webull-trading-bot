@@ -1295,7 +1295,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         return False
     key = f"{position['id']}|exit"
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
-    if existing and existing.get("status") in {"intent", "submitted"}:
+    if existing and existing.get("status") in {"intent", "submitted"} and not _exit_dispatch_pending(existing):
         lines.append(f"Exit {position.get('right')} already journaled. Not sent again.")
         if existing.get("status") == "submitted":
             _drop_open(state, position)
@@ -1419,6 +1419,11 @@ def _drop_open(state, position) -> None:
     state["positions"] = [row for row in (state.get("positions") or []) if row.get("id") != pid]
 
 
+def _exit_dispatch_pending(order) -> bool:
+    """A timed-out send is collected on the next tick. It is not a second order."""
+    return str(order.get("status") or "") == "intent" and order.get("dispatch") == "timeout"
+
+
 def _place(broker, payload, order, lines, kind: str) -> bool:
     sender = getattr(broker, "place_option_order", None)
     if sender is None:
@@ -1427,11 +1432,18 @@ def _place(broker, payload, order, lines, kind: str) -> bool:
         return False
     try:
         sender(payload)
+    except TimeoutError:
+        order["status"] = "intent"
+        order["dispatch"] = "timeout"
+        lines.append(f"Option {kind} call timed out. No second order was sent while that call is still out.")
+        return False
     except Exception:
         order["status"] = "rejected"
         order["error"] = "rejected"
+        order.pop("dispatch", None)
         lines.append(f"Option {kind} was rejected. The reason was not printed.")
         return False
+    order["dispatch"] = "done"
     return True
 
 

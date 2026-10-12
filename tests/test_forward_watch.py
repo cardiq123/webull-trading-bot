@@ -452,3 +452,178 @@ def test_option_chain_shares_one_fetch_and_backs_off(monkeypatch):
     with pytest.raises(BudgetExceeded):
         broker._data.instrument.list_option_contracts()
     assert broker._data.instrument.calls == 1
+
+
+def test_sdk_timeouts_are_five_seconds_with_one_retry():
+    from webull_bot.execution.forward_watch import (
+        CONNECT_TIMEOUT_S,
+        HTTP_RETRIES,
+        READ_TIMEOUT_S,
+        apply_sdk_timeouts,
+    )
+
+    assert CONNECT_TIMEOUT_S == 5.0
+    assert READ_TIMEOUT_S == 5.0
+    assert HTTP_RETRIES == 1
+
+    class Api:
+        pass
+
+    api = Api()
+    apply_sdk_timeouts(api)
+    assert api._connect_timeout == 5.0
+    assert api._read_timeout == 5.0
+    assert api._auto_retry is False
+    assert api._max_retry_num == 1
+
+
+def test_a_finished_timeout_is_retried_once_and_a_hang_is_not():
+    import time
+
+    from webull_bot.execution.forward_watch import bounded_call, reset_bounded_calls
+
+    reset_bounded_calls()
+    finished = []
+
+    def boom():
+        finished.append(1)
+        raise TimeoutError("read timed out")
+
+    with pytest.raises(TimeoutError):
+        bounded_call(boom, key="finished-timeout", timeout=1, retries=1)
+    assert finished == [1, 1]
+
+    hung = []
+
+    def slow():
+        hung.append(1)
+        time.sleep(3)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        bounded_call(slow, key="hung-read", timeout=0.15, retries=1)
+    assert time.monotonic() - started < 0.8
+    assert hung == [1]
+    with pytest.raises(TimeoutError):
+        bounded_call(slow, key="hung-read", timeout=0.15, retries=1)
+    assert hung == [1]
+
+
+def test_the_stop_uses_a_local_price_while_webull_reads_hang(tmp_path):
+    import time
+
+    import pandas as pd
+
+    from webull_bot.execution.forward_watch import (
+        LATEST,
+        _ExitView,
+        fast_tick,
+        local_exit_prices,
+        open_tick_alert,
+        reset_bounded_calls,
+    )
+
+    reset_bounded_calls()
+    LATEST.clear()
+    index = pd.date_range(f"{DAY} 12:00", periods=1, freq="5min", tz=NY)
+    LATEST["bars5"] = {
+        "SPY": pd.DataFrame(
+            {"open": [120.0], "high": [121.0], "low": [119.0], "close": [120.0], "volume": [1.0]},
+            index=index,
+        )
+    }
+    assert local_exit_prices([NAME])["SPY"] == 120.0
+
+    journal = Journal(tmp_path / "stop.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+
+    def hang(symbol):
+        time.sleep(30)
+        return 1.0
+
+    broker.underlying_quote = hang
+    broker.option_contract_quote = hang
+    started = time.monotonic()
+    lines = fast_tick(
+        journal,
+        _ExitView(broker, {"SPY": 120.0}),
+        _at("12:05"),
+        {"SPY": 120.0},
+        [NAME],
+        do_exits=True,
+        do_entries=False,
+    )
+    assert time.monotonic() - started < 2
+    assert any("reason target" in line for line in lines)
+    assert broker.orders
+    assert open_tick_alert(31.2, True)[0].startswith("Cycle alert:")
+    assert "open position" in open_tick_alert(31.2, True)[0]
+    assert open_tick_alert(29.0, True) == []
+    assert open_tick_alert(90.0, False) == []
+
+
+def test_a_hung_snapshot_is_abandoned_and_a_hung_sell_is_not_repeated(tmp_path, monkeypatch):
+    import time
+
+    from webull_bot.execution import forward_watch as watch
+
+    monkeypatch.setattr(watch, "READ_TIMEOUT_S", 0.2)
+    watch.reset_bounded_calls()
+
+    class Market:
+        def __init__(self):
+            self.calls = 0
+
+        def get_snapshot(self, symbols, category):
+            self.calls += 1
+            time.sleep(5)
+            return {"data": [{"symbol": "SPY", "price": 10.0}]}
+
+    class Data:
+        def __init__(self):
+            self.market_data = Market()
+
+    quote_broker = type("QuoteBroker", (), {})()
+    quote_broker._data = Data()
+    started = time.monotonic()
+    assert watch.snapshot_prices(quote_broker, ["SPY"], watch.EndpointBudget()) == {}
+    assert time.monotonic() - started < 1
+    assert quote_broker._data.market_data.calls == 1
+    assert watch.snapshot_prices(quote_broker, ["SPY"], watch.EndpointBudget()) == {}
+    assert quote_broker._data.market_data.calls == 1
+
+    journal = Journal(tmp_path / "sell.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+
+    class Slow(Broker):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def place_option_order(self, payload):
+            self.calls += 1
+            time.sleep(5)
+            self.orders.append(payload)
+            return {"client_order_id": payload["client_order_id"]}
+
+    broker = Slow()
+    view = watch._ExitView(broker, {"SPY": 120.0})
+    started = time.monotonic()
+    lines = watch.fast_tick(
+        journal, view, _at("12:05"), {"SPY": 120.0}, [NAME], do_exits=True, do_entries=False
+    )
+    assert time.monotonic() - started < 1
+    assert any("timed out" in line for line in lines)
+    assert broker.calls == 1
+    lines = watch.fast_tick(
+        journal, view, _at("12:05").replace(second=5), {"SPY": 120.0}, [NAME], do_exits=True, do_entries=False
+    )
+    assert any("timed out" in line for line in lines)
+    assert broker.calls == 1

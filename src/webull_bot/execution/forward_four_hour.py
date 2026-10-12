@@ -59,6 +59,7 @@ from webull_bot.execution.forward_vwap import (
     _clock,
     _credit,
     _exit_bid,
+    _exit_dispatch_pending,
     _first_exit_index,
     _inside,
     _last_key,
@@ -763,7 +764,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
         return False
     key = f"{position['id']}|exit"
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
-    if existing and existing.get("status") in {"intent", "submitted"}:
+    if existing and existing.get("status") in {"intent", "submitted"} and not _exit_dispatch_pending(existing):
         lines.append(f"Exit {position.get('right')} already journaled. Not sent again.")
         if existing.get("status") == "submitted":
             _drop_open(state, position)
