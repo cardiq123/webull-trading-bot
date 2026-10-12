@@ -646,7 +646,9 @@ def _stamp_flat(shadow, *, now, spot) -> None:
 # Option snapshot accepts at most 20 symbols. The stock depth endpoint does not.
 OPTION_BATCH = 20
 _OPTION_CACHE: dict[str, dict] = {}
+_CHAIN_CACHE: dict[tuple, tuple[float, list]] = {}
 _PRIMED = False
+CHAIN_SHARE_SECONDS = 60.0
 
 
 def clear_option_cache() -> None:
@@ -884,6 +886,11 @@ def _list_contracts(client, symbol, option_type, spot, day: date) -> list:
     method = getattr(instrument, "list_option_contracts", None)
     if method is None or spot is None or spot <= 0:
         return []
+    key = (id(client), str(symbol), str(option_type).upper(), day.isoformat())
+    now = time_mod.monotonic()
+    cached = _CHAIN_CACHE.get(key)
+    if cached is not None and now - cached[0] < CHAIN_SHARE_SECONDS:
+        return _copy_rows(cached[1])
     low = round(spot * 0.97, 2)
     high = round(spot * 1.03, 2)
     try:
@@ -898,8 +905,18 @@ def _list_contracts(client, symbol, option_type, spot, day: date) -> list:
             end_date=(day + timedelta(days=14)).isoformat(),
         )
     except Exception as exc:
+        if type(exc).__name__ == "BudgetExceeded" and cached is not None:
+            return _copy_rows(cached[1])
+        if type(exc).__name__ == "BudgetExceeded":
+            return [{"error": "option chain is waiting on the rate limit"}]
         return [{"error": _short(exc)}]
-    return _rows(payload)
+    rows = _rows(payload)
+    _CHAIN_CACHE[key] = (now, rows)
+    return _copy_rows(rows)
+
+
+def _copy_rows(rows) -> list:
+    return [dict(row) if isinstance(row, dict) else row for row in rows]
 
 
 def _contract_on(contracts, expiry: date, option_type: str, spot: float) -> Optional[dict]:

@@ -16,8 +16,11 @@ and option snapshot ``GET /market-data/options/snapshots/list`` are
 on the stock endpoint is not a supported category.
 This process stays at or under 15 requests / 60s on each snapshot
 endpoint, half the sandbox cap. One call passes every symbol for that
-category. A 429 backs off and does not retry in a loop. A quote failure
-does not change an open position and does not block the bar-based exit.
+category. A 429 backs off with jitter and does not retry in a loop.
+Stop and target checks run before a new quote fetch and before a new
+entry. Option-chain lookups share one result across books for a minute
+and sit on the same budget. A quote failure does not change an open
+position and does not block the bar-based exit.
 
 The file lock ``data/forward/cycle.lock`` is shared with ``forward-test``.
 The two never send orders at the same time.
@@ -28,6 +31,7 @@ from __future__ import annotations
 import csv
 import fcntl
 import logging
+import random
 import re
 import time
 from contextlib import contextmanager
@@ -81,7 +85,8 @@ class EndpointBudget:
     def penalize(self, endpoint: str, now: Optional[float] = None) -> float:
         clock = time.monotonic() if now is None else float(now)
         strike = int(self.strikes.get(endpoint) or 0)
-        delay = BACKOFF_SECONDS[min(strike, len(BACKOFF_SECONDS) - 1)]
+        base = BACKOFF_SECONDS[min(strike, len(BACKOFF_SECONDS) - 1)]
+        delay = base + random.uniform(0.0, base * 0.25)
         self.strikes[endpoint] = strike + 1
         self.blocked_until[endpoint] = clock + delay
         self.stamps[endpoint] = []
@@ -218,6 +223,7 @@ def guard_market_data(broker, budget: Optional[EndpointBudget] = None) -> Endpoi
     _wrap(client, "market_data", "get_snapshot", "stock_snapshot", book)
     _wrap(client, "market_data", "get_batch_history_bar", "stock_bars", book)
     _wrap(client, "option_market_data", "get_option_snapshot", "option_snapshot", book)
+    _wrap(client, "instrument", "list_option_contracts", "option_chain", book)
     client._watch_guard = True
     return book
 
@@ -294,7 +300,101 @@ def option_snapshot(broker, symbols: list[str]) -> dict[str, dict]:
 def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: list[str]) -> list[str]:
     """Exits and pending entries for the cached bars. Quote failures stay local."""
     from webull_bot.calendar import to_ny
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
     from webull_bot.execution.forward_quotes import prime_forward_quotes
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_vwap import BOOKS
+
+    lines: list[str] = []
+    view = _LivePrice(broker, prices)
+    local = to_ny(now)
+    bars15 = LATEST.get("bars15") or {}
+    bars5 = LATEST.get("bars5") or {}
+    points = LATEST.get("points") or {}
+    closes = LATEST.get("closes") or {}
+    minute_key = local.strftime("%Y-%m-%d %H:%M")
+    log_minute = LATEST.get("minute") != minute_key
+    specs = [(name, BOOKS[name], _frame(bars5, BOOKS[name])) for name in names if name in BOOKS]
+    if TRAP_NAME in names:
+        specs.append((TRAP_NAME, "QQQ", _frame(bars5, "QQQ")))
+    if HOUR_NAME in names:
+        specs.append((HOUR_NAME, "QQQ", _frame(bars5, "QQQ")))
+    budget = getattr(broker, "_watch_budget", None)
+    cooling = False
+    if budget is not None and (
+        budget.cooling("stock_snapshot")
+        or budget.cooling("option_snapshot")
+        or budget.cooling("option_chain")
+    ):
+        cooling = True
+        lines.append(
+            "Rate limit backoff. Stop and target checks still run. "
+            "New quotes and new entries wait."
+        )
+    if log_minute:
+        lines.append("Watching " + ", ".join(names) + ".")
+    # Stops and targets first. Quote fetches for new entries come after.
+    _visit_books(
+        names,
+        journal,
+        broker,
+        now,
+        view,
+        lines,
+        local,
+        bars15,
+        bars5,
+        points,
+        closes,
+        prices,
+        log_minute,
+        entries=False,
+    )
+    if not cooling:
+        try:
+            prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
+        except Exception:
+            lines.append("Option snapshot was not taken. Open positions were not changed.")
+        _visit_books(
+            names,
+            journal,
+            broker,
+            now,
+            view,
+            lines,
+            local,
+            bars15,
+            bars5,
+            points,
+            closes,
+            prices,
+            log_minute,
+            entries=True,
+        )
+    if log_minute:
+        LATEST["minute"] = minute_key
+    if not lines:
+        lines.append("Fast tick. No stop, target, or pending entry.")
+    return lines
+
+
+def _visit_books(
+    names,
+    journal,
+    broker,
+    now,
+    view,
+    lines,
+    local,
+    bars15,
+    bars5,
+    points,
+    closes,
+    prices,
+    log_minute: bool,
+    entries: bool,
+) -> None:
+    """Exits on the first pass. New entries only after the shared quote fetch."""
     from webull_bot.execution.forward_cash import prepare_cash
     from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
     from webull_bot.execution.forward_four_hour import STAKE as HOUR_STAKE
@@ -311,24 +411,6 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
     from webull_bot.execution.forward_vwap import BOOKS, _ACTIVE, _activate, load_state
     from webull_bot.execution.forward_vwap import _log_market, _manage_open, _stake, _take_signals
 
-    lines: list[str] = []
-    view = _LivePrice(broker, prices)
-    local = to_ny(now)
-    bars15 = LATEST.get("bars15") or {}
-    bars5 = LATEST.get("bars5") or {}
-    points = LATEST.get("points") or {}
-    closes = LATEST.get("closes") or {}
-    minute_key = local.strftime("%Y-%m-%d %H:%M")
-    log_minute = LATEST.get("minute") != minute_key
-    specs = [(name, BOOKS[name], _frame(bars5, BOOKS[name])) for name in names if name in BOOKS]
-    if TRAP_NAME in names:
-        specs.append((TRAP_NAME, "QQQ", _frame(bars5, "QQQ")))
-    if HOUR_NAME in names:
-        specs.append((HOUR_NAME, "QQQ", _frame(bars5, "QQQ")))
-    try:
-        prime_forward_quotes(journal, broker, specs, now, include_ladder=log_minute)
-    except Exception:
-        lines.append("Option snapshot was not taken. Open positions were not changed.")
     for name in names:
         if name not in BOOKS:
             continue
@@ -338,26 +420,28 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
             state = load_state(journal)
             if prepare_cash(state, broker, _stake(), local.date()):
                 journal.forward_save(name, state)
-            from webull_bot.execution.forward_reconcile import chase_exit_orders
+            if not entries:
+                from webull_bot.execution.forward_reconcile import chase_exit_orders
 
-            if chase_exit_orders(state, broker, now, lines):
-                journal.forward_save(name, state)
-            try:
-                _manage_open(state, _frame(bars5, symbol), now, view, lines, journal)
-            except Exception:
-                lines.append(f"{name} exit check failed. The position was not changed.")
-            try:
-                _take_signals(
-                    state, _frame(bars15, symbol), _frame(bars5, symbol), now, points, closes, view, lines, journal
-                )
-            except Exception:
-                lines.append(f"{name} entry check failed. No order was sent for that failure.")
-            _write_ticks(name, symbol, state, prices.get(symbol), broker, now)
-            if log_minute:
+                if chase_exit_orders(state, broker, now, lines):
+                    journal.forward_save(name, state)
                 try:
-                    _log_market(state, _frame(bars5, symbol), now, broker, lines, journal, save=True)
+                    _manage_open(state, _frame(bars5, symbol), now, view, lines, journal)
                 except Exception:
-                    lines.append(f"{name} minute quote log failed. Entry and exit were not changed.")
+                    lines.append(f"{name} exit check failed. The position was not changed.")
+                _write_ticks(name, symbol, state, prices.get(symbol), broker, now)
+            else:
+                try:
+                    _take_signals(
+                        state, _frame(bars15, symbol), _frame(bars5, symbol), now, points, closes, view, lines, journal
+                    )
+                except Exception:
+                    lines.append(f"{name} entry check failed. No order was sent for that failure.")
+                if log_minute:
+                    try:
+                        _log_market(state, _frame(bars5, symbol), now, broker, lines, journal, save=True)
+                    except Exception:
+                        lines.append(f"{name} minute quote log failed. Entry and exit were not changed.")
             if prepare_cash(state, broker, _stake(), local.date()):
                 journal.forward_save(name, state)
         finally:
@@ -366,55 +450,54 @@ def fast_tick(journal, broker, now: datetime, prices: dict[str, float], names: l
         state = trap_load(journal)
         if prepare_cash(state, broker, TRAP_STAKE, local.date()):
             journal.forward_save(TRAP_NAME, state)
-        from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_trap_exits
+        if not entries:
+            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_trap_exits
 
-        if chase_trap_exits(state, broker, now, lines):
-            journal.forward_save(TRAP_NAME, state)
-        try:
-            trap_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
-        except Exception:
-            lines.append("QQQ Trapdoor exit check failed. The position was not changed.")
-        try:
-            trap_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
-        except Exception:
-            lines.append("QQQ Trapdoor entry check failed. No order was sent for that failure.")
-        _write_ticks(TRAP_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
-        if log_minute:
+            if chase_trap_exits(state, broker, now, lines):
+                journal.forward_save(TRAP_NAME, state)
             try:
-                trap_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
+                trap_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
             except Exception:
-                lines.append("QQQ Trapdoor minute quote log failed. Entry and exit were not changed.")
+                lines.append("QQQ Trapdoor exit check failed. The position was not changed.")
+            _write_ticks(TRAP_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
+        else:
+            try:
+                trap_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
+            except Exception:
+                lines.append("QQQ Trapdoor entry check failed. No order was sent for that failure.")
+            if log_minute:
+                try:
+                    trap_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
+                except Exception:
+                    lines.append("QQQ Trapdoor minute quote log failed. Entry and exit were not changed.")
         if prepare_cash(state, broker, TRAP_STAKE, local.date()):
             journal.forward_save(TRAP_NAME, state)
     if HOUR_NAME in names:
         state = hour_load(journal)
         if prepare_cash(state, broker, HOUR_STAKE, local.date()):
             journal.forward_save(HOUR_NAME, state)
-        from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_hour_exits
+        if not entries:
+            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_hour_exits
 
-        if chase_hour_exits(state, broker, now, lines):
-            journal.forward_save(HOUR_NAME, state)
-        try:
-            hour_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
-        except Exception:
-            lines.append("4hr exit check failed. The position was not changed.")
-        try:
-            hour_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
-        except Exception:
-            lines.append("4hr entry check failed. No order was sent for that failure.")
-        _write_ticks(HOUR_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
-        if log_minute:
+            if chase_hour_exits(state, broker, now, lines):
+                journal.forward_save(HOUR_NAME, state)
             try:
-                hour_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
+                hour_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
             except Exception:
-                lines.append("4hr minute quote log failed. Entry and exit were not changed.")
+                lines.append("4hr exit check failed. The position was not changed.")
+            _write_ticks(HOUR_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
+        else:
+            try:
+                hour_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
+            except Exception:
+                lines.append("4hr entry check failed. No order was sent for that failure.")
+            if log_minute:
+                try:
+                    hour_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
+                except Exception:
+                    lines.append("4hr minute quote log failed. Entry and exit were not changed.")
         if prepare_cash(state, broker, HOUR_STAKE, local.date()):
             journal.forward_save(HOUR_NAME, state)
-    if log_minute:
-        LATEST["minute"] = minute_key
-    if not lines:
-        lines.append("Fast tick. No stop, target, or pending entry.")
-    return lines
 
 
 def _frame(book, symbol: str) -> pd.DataFrame:
@@ -638,7 +721,12 @@ def _locked_fast(config, names: list[str], now: datetime) -> list[str]:
             _prime(config, now, names, broker)
         symbols = watch_symbols(names)
         budget = guard_market_data(broker)
-        prices = snapshot_prices(broker, symbols, budget)
+        if budget.cooling("stock_snapshot"):
+            prices = dict(LATEST.get("prices") or {})
+        else:
+            prices = snapshot_prices(broker, symbols, budget)
+            if prices:
+                LATEST["prices"] = prices
         journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
         try:
             return fast_tick(journal, broker, now, prices, names)

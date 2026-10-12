@@ -1,9 +1,12 @@
-"""Read sandbox order detail for a forward book. This module does not trade.
+"""Read sandbox order detail for a forward book.
 
 ``reconcile_book`` queries order detail and account positions, then writes
-the status it read. It does not place an order and it does not cancel one.
-The exit chase is separate: a later cycle may replace a sell that is still
-working. A limit price is never stored as a fill.
+the status it read. It does not place an order. It cancels a buy that is
+still unfilled after the fill window, after the price leaves the stop and
+the 1R target, or after a rejected sell. The exit chase is separate: a
+later cycle may replace a sell that is still working. A sell is not sent,
+replaced, or left working when the entry fill is not confirmed. A limit
+price is never stored as a fill.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ def require_sandbox() -> None:
         raise SystemExit(
             "Refusing to reconcile without WEBULL_ENV=sandbox. "
             "This command only reads *.sandbox.webull.com. "
-            "It does not place or cancel an order. Live trading stays off."
+            "It does not place an order. Live trading stays off."
         )
 
 
@@ -199,7 +202,7 @@ def contract_for(state: dict, order: dict) -> str:
 
 
 def holdings_lines(state: dict, holdings: list[dict], orders: list[dict]) -> list[str]:
-    lines = ["Sandbox account positions, read only. No order was placed or cancelled."]
+    lines = ["Sandbox account positions, read only."]
     if not holdings:
         lines.append("- The account list is empty.")
     for row in holdings:
@@ -228,12 +231,17 @@ def reconcile_book(journal, broker, book: str, now: datetime) -> list[str]:
     state, stake = _load(journal, book)
     lines = [
         f"Forward reconcile {book}. Sandbox read only. Live trading stays off.",
-        "This command does not place an order and does not cancel an order.",
+        "This command does not place an order. It cancels a buy that never filled "
+        "once the fill window ended, the price left the stop and the 1R target, or a sell was rejected.",
     ]
     pending = [order for order in (state.get("orders") or []) if isinstance(order, dict) and order_needs_detail(order)]
     if not pending:
         lines.append("No journaled order is waiting on a fill.")
     lines.extend(apply_pending_details(state, broker))
+    from webull_bot.execution.forward_fills import sync_working_entries
+
+    if sync_working_entries(state, broker, now, _underlying_spot(broker, book), lines):
+        lines.append("Unfilled entries were matched to the order status. No new order was placed.")
     from webull_bot.execution.forward_cash import prepare_cash
 
     prepare_cash(state, None, stake, to_ny(now).date())
@@ -276,6 +284,24 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
             changed = True
             lines.append(_detail_line(order, detail))
         if _known(order.get("fill")) is not None or str(order.get("broker_status") or "") == "filled":
+            continue
+        from webull_bot.execution.forward_fills import _signal_filled, _signal_id as _fill_signal
+
+        if not _signal_filled(state, _fill_signal(str(order.get("key") or ""))):
+            lines.append(
+                f"Exit {order.get('right')} was not replaced. The entry fill is not confirmed. No order."
+            )
+            if str(order.get("broker_status") or "") in {"working", "partial"}:
+                cancel = getattr(broker, "cancel_order", None)
+                if callable(cancel):
+                    try:
+                        cancel(str(order.get("id") or ""))
+                    except Exception:
+                        lines.append("Exit cancel was rejected. The reason was not printed.")
+            order["status"] = "rejected"
+            order["broker_status"] = "rejected"
+            order["error"] = "no entry fill"
+            changed = True
             continue
         expiry = _expiry_of(state, order)
         if _contract_expired(expiry, now):
@@ -711,6 +737,22 @@ def _qty(order: dict) -> float:
     if number is None or number <= 0:
         return 1.0
     return number
+
+
+def _underlying_spot(broker, book: str):
+    """One underlying quote for the stop and 1R check. A failure leaves the price unknown."""
+    from webull_bot.execution.forward_four_hour import NAME as HOUR_NAME
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_vwap import BOOKS, _positive
+
+    symbol = "QQQ" if book in {TRAP_NAME, HOUR_NAME} else BOOKS.get(book)
+    getter = getattr(broker, "underlying_quote", None)
+    if not symbol or not callable(getter):
+        return None
+    try:
+        return _positive(getter(symbol))
+    except Exception:
+        return None
 
 
 def _load(journal, book: str):

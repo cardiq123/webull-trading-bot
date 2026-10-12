@@ -1038,8 +1038,22 @@ def _settle(state: dict, day: date) -> None:
 
 
 def _manage_open(state, bars5, now, broker, lines, journal) -> None:
+    from webull_bot.execution.forward_fills import position_is_filled, sync_working_entries
+
+    spot = _underlying_price(broker)
+    if spot is None:
+        spot = _spot(bars5, pd.Timestamp(to_ny(now)))
+    if sync_working_entries(state, broker, now, spot, lines):
+        journal.forward_save(_book(), state)
     kept = []
     for position in list(state.get("positions") or []):
+        if not position_is_filled(state, position):
+            kept.append(position)
+            lines.append(
+                f"Entry working {position.get('right')} from {position.get('entry_time')}. "
+                "Fill is not confirmed. No exit."
+            )
+            continue
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
             outcome = _quote_exit(position, broker, now)
@@ -1241,28 +1255,30 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         "iv": built["iv"],
         "iv_source": built.get("iv_source"),
     }
-    built["status"] = "open"
     built["price_source"] = source
     built["sandbox_ask"] = sandbox_ask
     built["order_strike"] = strike
+    from webull_bot.execution.forward_fills import note_entry_submission
+
+    note_entry_submission(state, built, position, order, now, broker)
     _drop_pending(state, built.get("id"))
     state["signals"].append(built)
     state["positions"].append(position)
-    state["fills"].append(
-        {
-            "time": built["entry_time"],
-            "side": "BUY",
-            "qty": str(qty),
-            "right": built["right"],
-            "price": f"{limit:.2f}",
-            "underlying": built["entry"],
-            "modeled_entry": built["modeled_entry"],
-            "modeled_fill_time": built["fill_time"],
-            "price_source": source,
-            "id": built["id"],
-        }
-    )
-    state["settled"] = float(state.get("settled") or 0.0) - float(built["model_debit"])
+    if position.get("entry_filled"):
+        state["fills"].append(
+            {
+                "time": built["entry_time"],
+                "side": "BUY",
+                "qty": str(qty),
+                "right": built["right"],
+                "price": f"{limit:.2f}",
+                "underlying": built["entry"],
+                "modeled_entry": built["modeled_entry"],
+                "modeled_fill_time": built["fill_time"],
+                "price_source": source,
+                "id": built["id"],
+            }
+        )
     lines.append(
         "Signal "
         + _event_line(built)
@@ -1273,6 +1289,10 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
 
 
 def _send_close(state, position, reason, underlying, when, broker, lines, journal) -> bool:
+    from webull_bot.execution.forward_fills import exit_allowed
+
+    if not exit_allowed(state, position, lines):
+        return False
     key = f"{position['id']}|exit"
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
     if existing and existing.get("status") in {"intent", "submitted"}:
@@ -2220,7 +2240,10 @@ def _credit(bid: float) -> float:
 
 
 def _buy_limit(price: float) -> float:
-    return math.ceil((float(price) - 1e-9) * 100.0) / 100.0
+    cents = math.ceil((float(price) - 1e-9) * 100.0) / 100.0
+    if cents <= float(price) + 1e-9:
+        cents = round(cents + 0.01, 2)
+    return cents
 
 
 def _sell_limit(price: float) -> float:

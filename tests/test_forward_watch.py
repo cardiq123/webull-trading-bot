@@ -91,7 +91,7 @@ def test_budget_stays_under_the_sandbox_snapshot_cap_and_backs_off():
     with pytest.raises(BudgetExceeded):
         tight.gate("stock_snapshot")
     delay = tight.penalize("option_snapshot")
-    assert delay == 15.0
+    assert 15.0 <= delay <= 15.0 * 1.25
     assert tight.cooling("option_snapshot")
     assert rate_limited(RuntimeError("HTTP 429 Too Many Requests"))
     assert not rate_limited(RuntimeError("timeout"))
@@ -206,3 +206,100 @@ def test_dry_run_fast_tick_does_not_connect(capsys):
     code = run_watch(load_config(args.config), args, [NAME])
     assert code == 0
     assert "Dry run: no snapshots, no orders" in capsys.readouterr().out
+
+
+def test_a_rate_limit_still_checks_the_stop_before_new_quotes(tmp_path, monkeypatch):
+    from webull_bot.execution.forward_vwap import empty_state
+    from webull_bot.execution.forward_watch import fast_tick
+
+    journal = Journal(tmp_path / "cool.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+    budget = EndpointBudget()
+    budget.penalize("stock_snapshot")
+    budget.penalize("option_snapshot")
+    budget.penalize("option_chain")
+    broker._watch_budget = budget
+
+    def boom(*args, **kwargs):
+        raise AssertionError("new quotes waited")
+
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", boom)
+    LATEST.clear()
+    lines = fast_tick(journal, broker, _at("12:05"), {"SPY": 120.0}, [NAME])
+    text = "\n".join(lines)
+    assert "Rate limit backoff" in text
+    assert "reason target" in text
+    assert broker.orders[-1]["side"] == "SELL"
+
+
+def test_four_hour_qqq_1dte_is_loaded_and_evaluated(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from webull_bot.execution.forward_watch import fast_tick
+
+    script = Path(__file__).resolve().parents[1].joinpath("scripts", "vwap-watch.sh").read_text()
+    assert "four_hour_qqq_1dte" in script
+    seen = []
+    monkeypatch.setattr(
+        "webull_bot.execution.forward_four_hour._manage_open",
+        lambda *args, **kwargs: seen.append("manage"),
+    )
+    monkeypatch.setattr(
+        "webull_bot.execution.forward_four_hour._take_signals",
+        lambda *args, **kwargs: seen.append("take"),
+    )
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", lambda *args, **kwargs: None)
+    journal = Journal(tmp_path / "hour.sqlite")
+    LATEST.clear()
+    lines = fast_tick(journal, Broker(), _at("12:05"), {"QQQ": 500.0}, ["four_hour_qqq_1dte"])
+    assert seen == ["manage", "take"]
+    assert any("Watching four_hour_qqq_1dte." in line for line in lines)
+
+
+def test_option_chain_shares_one_fetch_and_backs_off(monkeypatch):
+    from datetime import date
+
+    from webull_bot.execution.forward_quotes import _list_contracts
+    from webull_bot.execution.forward_watch import BudgetExceeded, guard_market_data
+
+    calls = []
+
+    class Client:
+        def __init__(self):
+            self.instrument = self
+
+        def list_option_contracts(self, **kwargs):
+            calls.append(kwargs["underlying_symbols"])
+            return {"contracts": [{"option_symbol": "QQQ", "option_type": "PUT", "expiration_date": "2026-10-13"}]}
+
+    client = Client()
+    day = date(2026, 10, 12)
+    _list_contracts(client, "QQQ", "PUT", 500.0, day)
+    _list_contracts(client, "QQQ", "PUT", 501.0, day)
+    assert calls == ["QQQ"]
+
+    class Instrument:
+        def __init__(self):
+            self.calls = 0
+
+        def list_option_contracts(self, **kwargs):
+            self.calls += 1
+            raise RuntimeError("HTTP 429 Too Many Requests")
+
+    class Data:
+        def __init__(self):
+            self.instrument = Instrument()
+
+    broker = type("Broker", (), {})()
+    broker._data = Data()
+    budget = guard_market_data(broker)
+    with pytest.raises(RuntimeError):
+        broker._data.instrument.list_option_contracts()
+    assert budget.cooling("option_chain")
+    with pytest.raises(BudgetExceeded):
+        broker._data.instrument.list_option_contracts()
+    assert broker._data.instrument.calls == 1

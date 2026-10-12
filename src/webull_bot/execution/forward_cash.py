@@ -38,7 +38,7 @@ def prepare_cash(state: dict, broker, stake: float, session: date) -> bool:
         return False
     before = _fingerprint(state)
     refresh_missing_fills(state, broker, session)
-    if _has_cash_basis(state):
+    if _has_cash_basis(state) or _released_unfilled(state):
         rebuild_fill_mirror(state, float(state.get("stake") or stake))
     settle_cash(state, session)
     state["cash_session"] = session.isoformat()
@@ -189,6 +189,14 @@ def mirror_sentence(state: dict, stake: float) -> str:
         "The cash mirror uses the sandbox fill from order detail, or the journaled fill. "
         "The model P&L is the second figure."
     )
+
+
+def _released_unfilled(state: dict) -> bool:
+    """An entry that was cancelled before it filled must not keep a debit."""
+    for signal in state.get("signals") or []:
+        if isinstance(signal, dict) and signal.get("skip") == "unfilled":
+            return True
+    return False
 
 
 def _has_cash_basis(state: dict) -> bool:

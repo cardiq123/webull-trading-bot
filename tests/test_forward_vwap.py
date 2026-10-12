@@ -310,7 +310,7 @@ def test_real_cycle_buys_once_and_the_second_signal_is_skipped(tmp_path, monkeyp
     assert order["quantity"] == "1"
     assert order["legs"][0]["option_type"] == "CALL"
     assert order["position_intent"] == "BUY_TO_OPEN"
-    assert order["limit_price"] == "2.50"
+    assert order["limit_price"] == "2.51"
     assert order["order_type"] == "LIMIT"
     assert "Sandbox ask" in text or "Sandbox ask".lower() in text.lower()
     assert "Model ask" in text
