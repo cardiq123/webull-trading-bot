@@ -339,7 +339,7 @@ def test_the_bot_sells_at_the_stop_and_flattens(tmp_path):
     sell = broker.orders[1]
     assert sell["side"] == "SELL"
     assert sell["position_intent"] == "SELL_TO_CLOSE"
-    assert sell["limit_price"] == "1.10"
+    assert sell["limit_price"] == "1.09"
     assert journal.forward_load(NAME)["positions"] == []
 
     flat_journal = Journal(tmp_path / "flat.sqlite")
@@ -349,6 +349,7 @@ def test_the_bot_sells_at_the_stop_and_flattens(tmp_path):
     flat_lines = _cycle(flat_journal, bars15, flat_bars, "15:50", broker=flat_broker)
     assert any("reason flat" in line for line in flat_lines)
     assert flat_broker.orders[-1]["side"] == "SELL"
+    assert flat_broker.orders[-1]["limit_price"] == "0.01"
     assert "15:45" in "\n".join(flat_lines)
     report = report_text(flat_journal)
     assert NAME in report

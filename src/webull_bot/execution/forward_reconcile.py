@@ -4,26 +4,31 @@
 the status it read. It does not place an order. It cancels a buy that is
 still unfilled after the fill window, after the price leaves the stop and
 the 1R target, or after a rejected sell. The exit chase is separate: a
-later cycle may replace a sell that is still working. A sell is not sent,
+later cycle steps a working sell down through the bid. A sell is not sent,
 replaced, or left working when the entry fill is not confirmed. A limit
-price is never stored as a fill.
+price is never stored as a fill. An expired unsold 0DTE is closed in the
+journal at intrinsic value, which is zero when the underlying finishes
+out of the money.
 """
 
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from webull_bot.calendar import to_ny
 
 NY = ZoneInfo("America/New_York")
-# A working sell is repriced after this long. The 15:45 flatten uses the shorter wait.
-EXIT_REPRICE_AFTER_S = 45.0
-FLATTEN_REPRICE_AFTER_S = 15.0
+# A working sell steps down on this interval, including through the flatten.
+EXIT_REPRICE_AFTER_S = 5.0
+FLATTEN_REPRICE_AFTER_S = 5.0
 FLAT_AT = time(15, 45)
+# The limit is already one cent by this clock, before the 15:45 flatten.
+FLOOR_AT = time(15, 44)
 EXPIRED_AT = time(16, 5)
+MIN_SELL = 0.01
 
 _FILL_KEYS = ("avg_filled_price", "filled_price", "avg_price", "fill_price", "average_price")
 _STATUS_KEYS = ("status", "order_status", "orderStatus")
@@ -62,6 +67,8 @@ def order_needs_detail(order: dict) -> bool:
     """True when this journaled order still has no final fill or terminal status."""
     if not isinstance(order, dict):
         return False
+    if str(order.get("settlement") or "") == "expiry":
+        return False
     if _known(order.get("fill")) is not None:
         return False
     status = str(order.get("status") or "")
@@ -80,19 +87,49 @@ def parse_order_detail(payload: Any) -> dict:
     return _classify(found)
 
 
+def _broker_chain(broker):
+    """The broker and every view wrapped around it."""
+    seen = set()
+    current = broker
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = getattr(current, "_inner", None)
+
+
+def _broker_trade(broker):
+    """The trade client, including the broker behind an exit view."""
+    for current in _broker_chain(broker):
+        trade = getattr(current, "_trade", None)
+        if trade is not None:
+            return trade
+    return None
+
+
+def _watch_armed(broker) -> bool:
+    return any(getattr(current, "_watch_armed", False) for current in _broker_chain(broker))
+
+
 def read_order_detail(broker, client_order_id: str) -> dict:
     """One order-detail read. An error becomes ``kind=error`` and the text is dropped."""
     if not client_order_id or broker is None:
         return {"kind": "unknown"}
-    trade = getattr(broker, "_trade", None)
+    trade = _broker_trade(broker)
     account = getattr(broker, "account_id", None)
+    if not account:
+        account = getattr(getattr(broker, "_inner", None), "account_id", None)
     method = getattr(getattr(trade, "order_v3", None), "get_order_detail", None)
     if method is None or not account:
         return {"kind": "unknown"}
     try:
-        from webull_bot.execution.forward_quotes import _call
+        if _watch_armed(broker):
+            from webull_bot.execution.forward_watch import bounded_call
 
-        payload = _call(method, account, client_order_id)
+            payload = bounded_call(method, account, client_order_id, key=f"order_detail:{client_order_id}")
+        else:
+            from webull_bot.execution.forward_quotes import _call
+
+            payload = _call(method, account, client_order_id)
     except Exception:
         return {"kind": "error"}
     parsed = parse_order_detail(payload)
@@ -155,8 +192,8 @@ def read_holdings(broker) -> list[dict]:
     """Option and equity rows the sandbox account currently holds. Read only."""
     if broker is None:
         return []
-    trade = getattr(broker, "_trade", None)
-    account = getattr(broker, "account_id", None)
+    trade = _broker_trade(broker)
+    account = getattr(broker, "account_id", None) or getattr(getattr(broker, "_inner", None), "account_id", None)
     method = getattr(getattr(trade, "account_v2", None), "get_account_position", None)
     payload = None
     if method is not None and account:
@@ -246,6 +283,17 @@ def reconcile_book(journal, broker, book: str, now: datetime) -> list[str]:
 
     prepare_cash(state, None, stake, to_ny(now).date())
     holdings = read_holdings(broker)
+    closed = settle_expired_unsold(state, broker, now, holdings, lines)
+    if closed:
+        prepare_cash(state, None, stake, to_ny(now).date())
+        for signal in state.get("signals") or []:
+            if not isinstance(signal, dict) or signal.get("id") not in closed:
+                continue
+            pnl = signal.get("fill_pnl")
+            if pnl is None:
+                lines.append(f"{signal.get('id')}: expiry close has no booked P&L. The premium is unknown.")
+                continue
+            lines.append(f"Booked fill P&L ${float(pnl):.2f} for {signal.get('id')}.")
     lines.extend(holdings_lines(state, holdings, pending or [order for order in (state.get("orders") or []) if isinstance(order, dict)]))
     _save(journal, book, state)
     lines.append("Reconcile stored the status it read. No order was sent.")
@@ -253,17 +301,24 @@ def reconcile_book(journal, broker, book: str, now: datetime) -> list[str]:
 
 
 def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> bool:
-    """Re-read a working sell and reprice it when it is still open.
+    """Re-read a working sell and step the limit down when it is still open.
 
     A contract whose expiry has passed is not replaced and is not resent.
-    The first cycle that submits the sell is not repriced: the wait is
-    ``EXIT_REPRICE_AFTER_S``, or ``FLATTEN_REPRICE_AFTER_S`` from 15:45.
+    The first few seconds after the sell is sent are not repriced. After
+    that the limit steps at least one cent, and through the bid when that
+    is lower. From 15:44 the limit is one cent.
     """
     if broker is None or not isinstance(state, dict):
         return False
     changed = False
     for order in list(state.get("orders") or []):
         if not isinstance(order, dict) or order.get("kind") != "exit":
+            continue
+        if str(order.get("settlement") or "") == "expiry":
+            continue
+        if _pending_exit(order):
+            if _finish_exit_send(state, order, broker, now, lines):
+                changed = True
             continue
         if str(order.get("status") or "") not in {"submitted", "partial"}:
             continue
@@ -362,27 +417,36 @@ def _reprice_exit(state, order, broker, now, lines, expiry: Optional[date]) -> b
             "The marketable limit is unchanged."
         )
         return False
+    if order.get("modify_rejected"):
+        return _resend_exit(state, order, broker, now, lines, limit=new_limit)
     qty = _qty(order)
     replacer = getattr(broker, "replace_order", None)
-    if callable(replacer):
-        try:
-            replacer(str(order.get("id") or ""), qty, limit_price=new_limit)
-        except Exception:
-            lines.append("Exit reprice was rejected. The reason was not printed.")
-            return False
-        order["limit"] = f"{new_limit:.2f}"
-        order["submitted_at"] = to_ny(now).isoformat()
-        order["broker_status"] = "working"
-        lines.append(
-            f"Repriced SELL {order.get('qty')} {order.get('right')}. "
-            f"{limit_fill_text(order.get('limit'), None)}"
-        )
-        return True
-    return _resend_exit(state, order, broker, now, lines, limit=new_limit)
+    if not callable(replacer):
+        return _resend_exit(state, order, broker, now, lines, limit=new_limit)
+    try:
+        replacer(str(order.get("id") or ""), qty, limit_price=new_limit)
+    except TimeoutError:
+        lines.append("Exit reprice call timed out. No second order was sent while that call is still out.")
+        return False
+    except Exception as exc:
+        order["modify_rejected"] = True
+        lines.append(f"Exit reprice was rejected. {_rejection_body(exc)}")
+        return _resend_exit(state, order, broker, now, lines, limit=new_limit)
+    order["limit"] = f"{new_limit:.2f}"
+    order["submitted_at"] = to_ny(now).isoformat()
+    order["broker_status"] = "working"
+    order.pop("dispatch", None)
+    lines.append(
+        f"Repriced SELL {order.get('qty')} {order.get('right')}. "
+        f"{limit_fill_text(order.get('limit'), None)}"
+    )
+    return True
 
 
 def _resend_exit(state, order, broker, now, lines, limit: Optional[float] = None) -> bool:
     """Cancel a dead or stuck sell and send one new marketable limit."""
+    if _pending_exit(order):
+        return _finish_exit_send(state, order, broker, now, lines)
     if _contract_expired(_expiry_of(state, order), now):
         lines.append("The contract expiry has passed. No new order was sent.")
         return False
@@ -394,31 +458,57 @@ def _resend_exit(state, order, broker, now, lines, limit: Optional[float] = None
     if str(order.get("broker_status") or "") in {"working", "partial"} and callable(cancel):
         try:
             cancel(str(order.get("id") or ""))
-        except Exception:
-            lines.append("Exit cancel was rejected. A second sell was not sent. The reason was not printed.")
+        except TimeoutError:
+            lines.append("Exit cancel call timed out. A second sell was not sent.")
             return False
+        except Exception as exc:
+            lines.append(f"Exit cancel was rejected. A second sell was not sent. {_rejection_body(exc)}")
+            return False
+    return _place_exit(state, order, broker, now, lines, new_limit, remember_prior=True)
+
+
+def _finish_exit_send(state, order, broker, now, lines) -> bool:
+    """Collect a sell that already left this tick. The client order id stays the same."""
+    limit = _known(order.get("limit"))
+    if limit is None:
+        lines.append("Exit resend is still out. No second order was sent.")
+        return False
+    return _place_exit(state, order, broker, now, lines, limit, client_order_id=str(order.get("id") or ""))
+
+
+def _place_exit(state, order, broker, now, lines, new_limit: float, client_order_id: str = "", remember_prior: bool = False) -> bool:
     sender = getattr(broker, "place_option_order", None)
     if not callable(sender):
         lines.append("The exit was not resent. The broker has no option order path.")
         return False
-    payload = _sell_payload(state, order, new_limit)
+    payload = _sell_payload(state, order, new_limit, client_order_id=client_order_id or None)
     if payload is None:
         lines.append("The exit was not resent. The journal has no contract for a new order.")
         return False
+    if remember_prior:
+        prior = list(order.get("prior_ids") or [])
+        if order.get("id"):
+            prior.append(order.get("id"))
+        order["prior_ids"] = prior
+        order["id"] = payload["client_order_id"]
+    order["limit"] = f"{new_limit:.2f}"
+    order["status"] = "intent"
+    order["dispatch"] = "timeout"
+    order["fill"] = None
     try:
         sender(payload)
-    except Exception:
-        lines.append("Exit resend was rejected. The reason was not printed.")
+    except TimeoutError:
+        lines.append("Exit resend call timed out. No second order was sent while that call is still out.")
         return False
-    prior = list(order.get("prior_ids") or [])
-    if order.get("id"):
-        prior.append(order.get("id"))
-    order["prior_ids"] = prior
-    order["id"] = payload["client_order_id"]
-    order["limit"] = f"{new_limit:.2f}"
+    except Exception as exc:
+        order["status"] = "submitted"
+        order["broker_status"] = "rejected"
+        order.pop("dispatch", None)
+        lines.append(f"Exit resend was rejected. {_rejection_body(exc)}")
+        return False
     order["status"] = "submitted"
     order["broker_status"] = "working"
-    order["fill"] = None
+    order["dispatch"] = "done"
     order["submitted_at"] = to_ny(now).isoformat()
     lines.append(
         f"Resent SELL {order.get('qty')} {order.get('right')}. "
@@ -427,25 +517,92 @@ def _resend_exit(state, order, broker, now, lines, limit: Optional[float] = None
     return True
 
 
+def _pending_exit(order: dict) -> bool:
+    return str(order.get("status") or "") == "intent" and order.get("dispatch") == "timeout"
+
+
 def _marketable_limit(state, order, broker, now, expiry: Optional[date]) -> Optional[float]:
     from webull_bot.execution.forward_vwap import _sell_limit
 
+    previous = _known(order.get("limit"))
+    if _force_min_limit(expiry, now, previous):
+        return MIN_SELL
     bid = _bid(broker, contract_for(state, order))
     if bid is None:
         bid = _known(order.get("sandbox_price"))
-    flatten = _flatten_window(expiry, now)
-    if bid is None and flatten:
-        bid = 0.01
-    if bid is None:
-        return None
-    limit = _sell_limit(float(bid))
-    previous = _known(order.get("limit"))
-    if flatten and previous is not None and limit >= previous - 1e-9:
-        limit = max(0.01, round(previous - 0.01, 2))
-    return limit
+    through = None if bid is None else _sell_limit(float(bid))
+    if previous is None:
+        return through
+    stepped = max(MIN_SELL, round(previous - 0.01, 2))
+    if through is None:
+        return stepped
+    return min(through, stepped)
+
+
+def at_exit_floor(when, expiry) -> bool:
+    """True once the sell must already be at the one-cent floor."""
+    try:
+        local = to_ny(when)
+    except Exception:
+        return False
+    exp = _as_date(expiry)
+    if exp is not None and local.date() != exp:
+        return False
+    if _contract_expired(exp, local):
+        return False
+    return local.time() >= FLOOR_AT
+
+
+def _force_min_limit(expiry: Optional[date], now: datetime, previous: Optional[float]) -> bool:
+    """Jump to one cent when the one-cent walk would not finish before 15:45."""
+    if previous is not None and previous <= MIN_SELL + 1e-9:
+        return False
+    local = to_ny(now)
+    if expiry is not None and local.date() != expiry:
+        return False
+    if _contract_expired(expiry, now):
+        return False
+    if local.time() >= FLOOR_AT:
+        return True
+    if previous is None:
+        return False
+    cents = int(round((previous - MIN_SELL) * 100))
+    if cents <= 0:
+        return False
+    needed = cents * EXIT_REPRICE_AFTER_S
+    deadline = datetime.combine(local.date(), FLAT_AT, tzinfo=local.tzinfo)
+    remaining = (deadline - local).total_seconds()
+    return remaining <= needed + 1e-9
+
+
+def _rejection_body(exc: BaseException) -> str:
+    """The broker rejection, with credentials stripped."""
+    from webull_bot.logging_setup import redact_text
+
+    parts = [type(exc).__name__]
+    text = str(exc).strip()
+    if text:
+        parts.append(text)
+    response = getattr(exc, "response", None)
+    body = getattr(response, "text", None) if response is not None else None
+    if body:
+        parts.append(str(body))
+    rendered = redact_text(" ".join(parts))
+    if len(rendered) > 400:
+        rendered = rendered[:400]
+    return rendered or "The rejection body was empty."
 
 
 def _bid(broker, contract: str) -> Optional[float]:
+    """Live bid, walking from a cache-only exit view to the broker behind it."""
+    for current in _broker_chain(broker):
+        price = _quote_bid(current, contract)
+        if price is not None:
+            return price
+    return None
+
+
+def _quote_bid(broker, contract: str) -> Optional[float]:
     if not contract or broker is None or not hasattr(broker, "option_contract_quote"):
         return None
     try:
@@ -457,7 +614,7 @@ def _bid(broker, contract: str) -> Optional[float]:
     return _known(quote.get("bid"))
 
 
-def _sell_payload(state, order, limit: float) -> Optional[dict]:
+def _sell_payload(state, order, limit: float, client_order_id: Optional[str] = None) -> Optional[dict]:
     from webull_bot.broker.webull import build_single_option_order, new_client_order_id
 
     signal_id = _signal_id(str(order.get("key") or ""))
@@ -471,7 +628,7 @@ def _sell_payload(state, order, limit: float) -> Optional[dict]:
     if not symbol or strike is None or not expiry or not option_type:
         return None
     return build_single_option_order(
-        client_order_id=new_client_order_id(),
+        client_order_id=client_order_id or new_client_order_id(),
         symbol=symbol,
         side="SELL",
         quantity=_qty(order),
@@ -669,6 +826,249 @@ def _expiry_from_occ(contract: str) -> Optional[date]:
         return datetime.strptime(match.group(1), "%y%m%d").date()
     except ValueError:
         return None
+
+
+def settle_expired_unsold(state: dict, broker, now: datetime, holdings: list[dict], lines: list[str]) -> set:
+    """Close a 0DTE that expired without a sale. Does not place an order.
+
+    Out of the money settles at zero, which is a full premium loss. In the
+    money settles at intrinsic value. Returns the signal ids that were closed.
+    """
+    closed: set = set()
+    if not isinstance(state, dict):
+        return closed
+    for signal in state.get("signals") or []:
+        if not isinstance(signal, dict) or signal.get("status") not in {"open", "closed"}:
+            continue
+        if str(signal.get("settlement") or "") == "expiry":
+            continue
+        expiry = _as_date(signal.get("expiry"))
+        if not _zero_dte(signal, expiry) or not _contract_expired(expiry, now):
+            continue
+        signal_id = str(signal.get("id") or "")
+        order = _exit_order(state, signal_id)
+        if order is not None and str(order.get("settlement") or "") == "expiry":
+            continue
+        if _sold(order):
+            continue
+        from webull_bot.execution.forward_fills import _signal_filled
+
+        if order is None and not _signal_filled(state, signal_id):
+            continue
+        if order is not None and order.get("error") == "no entry fill":
+            continue
+        contract = str(signal.get("option_symbol") or "")
+        if not contract and order is not None:
+            contract = contract_for(state, order)
+        if contract and _held(contract, holdings):
+            lines.append(
+                f"{contract}: the contract has expired and the account still holds it. "
+                "The book was not closed."
+            )
+            continue
+        spot = _settlement_spot(broker, _underlying_symbol(signal, order), expiry, now)
+        if spot is None:
+            lines.append(
+                f"{signal_id}: the contract expired unsold. The expiry price is unknown. "
+                "The book was not closed."
+            )
+            continue
+        intrinsic = _intrinsic(signal, order, spot)
+        _book_expiry(state, signal, order, spot, intrinsic, now, contract)
+        kind = "OTM, full premium loss" if intrinsic <= 1e-9 else f"intrinsic {intrinsic:.2f}"
+        lines.append(
+            f"Expired unsold {contract or signal_id}. Underlying close {spot:.2f}. {kind}. "
+            "No order was sent."
+        )
+        closed.add(signal_id)
+    if closed:
+        state["positions"] = [
+            row
+            for row in (state.get("positions") or [])
+            if not (isinstance(row, dict) and str(row.get("id") or "") in closed)
+        ]
+    return closed
+
+
+def _book_expiry(state, signal, order, spot: float, intrinsic: float, now: datetime, contract: str) -> None:
+    when = to_ny(now).isoformat()
+    price = round(max(0.0, intrinsic), 2)
+    signal_id = str(signal.get("id") or "")
+    if order is None:
+        order = {
+            "key": f"{signal_id}|exit",
+            "id": f"{signal_id}|expiry",
+            "kind": "exit",
+            "side": "SELL",
+            "qty": str(signal.get("qty") or 1),
+            "symbol": signal.get("symbol"),
+            "right": signal.get("option_type") or signal.get("right"),
+            "option_type": signal.get("option_type") or signal.get("right"),
+            "strike": signal.get("strike"),
+            "expiry": signal.get("expiry"),
+            "option_symbol": contract,
+            "status": "cancelled",
+        }
+        state.setdefault("orders", []).append(order)
+    order["fill"] = price
+    order["settlement"] = "expiry"
+    order["settlement_underlying"] = spot
+    order["broker_status"] = "expired"
+    order["status"] = "cancelled"
+    order["fill_time"] = when
+    order.pop("dispatch", None)
+    signal["status"] = "closed"
+    signal["settlement"] = "expiry"
+    signal["settlement_underlying"] = spot
+    signal["intrinsic"] = price
+    if not signal.get("exit_time"):
+        signal["exit_time"] = when
+    _stamp_expiry_fill(state, signal_id, price, when)
+    found = False
+    for row in state.get("exits") or []:
+        if isinstance(row, dict) and row.get("id") == signal_id:
+            row["settlement"] = "expiry"
+            row["settlement_underlying"] = spot
+            row["intrinsic"] = price
+            found = True
+    if not found:
+        state.setdefault("exits", []).append(
+            {
+                "id": signal_id,
+                "time": when,
+                "right": signal.get("right"),
+                "reason": "expiry",
+                "underlying": spot,
+                "settlement": "expiry",
+                "intrinsic": price,
+            }
+        )
+
+
+def _stamp_expiry_fill(state, signal_id: str, price: float, when: str) -> None:
+    for row in state.get("fills") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("id") == signal_id and str(row.get("side") or "") == "SELL":
+            row["fill"] = price
+            row["fill_time"] = when
+            row["fill_source"] = "expiry"
+            return
+    state.setdefault("fills", []).append(
+        {
+            "id": signal_id,
+            "side": "SELL",
+            "qty": "1",
+            "price": f"{price:.2f}",
+            "fill": price,
+            "time": when,
+            "fill_source": "expiry",
+        }
+    )
+
+
+def _exit_order(state: dict, signal_id: str) -> Optional[dict]:
+    key = f"{signal_id}|exit"
+    for order in state.get("orders") or []:
+        if isinstance(order, dict) and str(order.get("key") or "") == key:
+            return order
+    return None
+
+
+def _sold(order: Optional[dict]) -> bool:
+    if not isinstance(order, dict) or str(order.get("settlement") or "") == "expiry":
+        return False
+    if _known(order.get("fill")) is not None:
+        return True
+    qty = _known(order.get("filled_qty"))
+    return qty is not None and qty > 0
+
+
+def _zero_dte(signal: dict, expiry: Optional[date]) -> bool:
+    if expiry is None:
+        return False
+    opened = _as_date(signal.get("entry_time") or signal.get("signal_time") or signal.get("time"))
+    if opened is None:
+        return True
+    return opened == expiry
+
+
+def _underlying_symbol(signal: dict, order: Optional[dict]) -> str:
+    raw = str((signal or {}).get("symbol") or (order or {}).get("symbol") or "")
+    upper = raw.upper()
+    if upper.startswith("QQQ"):
+        return "QQQ"
+    if upper.startswith("SPY"):
+        return "SPY"
+    return upper or "QQQ"
+
+
+def _intrinsic(signal: dict, order: Optional[dict], spot: float) -> float:
+    strike = _known((signal or {}).get("strike") or (order or {}).get("strike"))
+    if strike is None:
+        strike = _strike_from_occ(str((signal or {}).get("option_symbol") or (order or {}).get("option_symbol") or ""))
+    if strike is None:
+        return 0.0
+    right = str((signal or {}).get("option_type") or (signal or {}).get("right") or (order or {}).get("option_type") or (order or {}).get("right") or "")
+    token = right.strip().upper()
+    if token in {"P", "PUT"}:
+        return max(0.0, strike - spot)
+    if token in {"C", "CALL"}:
+        return max(0.0, spot - strike)
+    return 0.0
+
+
+def _strike_from_occ(contract: str) -> Optional[float]:
+    import re
+
+    match = re.search(r"[CP](\d{8})$", str(contract or "").upper())
+    if match is None:
+        return None
+    return int(match.group(1)) / 1000.0
+
+
+def _settlement_spot(broker, symbol: str, expiry: Optional[date], now: datetime) -> Optional[float]:
+    if expiry is None or not symbol:
+        return None
+    getter = getattr(broker, "underlying_close", None)
+    if callable(getter):
+        try:
+            price = _known(getter(symbol, expiry.isoformat()))
+        except Exception:
+            price = None
+        if price is not None:
+            return price
+    local = to_ny(now)
+    if local.date() == expiry and local.time() >= time(16, 0):
+        from webull_bot.execution.forward_vwap import _positive
+
+        quote = getattr(broker, "underlying_quote", None)
+        if callable(quote):
+            try:
+                price = _positive(quote(symbol))
+            except Exception:
+                price = None
+            if price is not None:
+                return price
+    return _yahoo_close(symbol, expiry)
+
+
+def _yahoo_close(symbol: str, expiry: date) -> Optional[float]:
+    try:
+        import yfinance as yf
+    except Exception:
+        return None
+    try:
+        frame = yf.Ticker(symbol).history(
+            start=expiry.isoformat(),
+            end=(expiry + timedelta(days=1)).isoformat(),
+            auto_adjust=False,
+        )
+    except Exception:
+        return None
+    if frame is None or getattr(frame, "empty", True) or "Close" not in getattr(frame, "columns", []):
+        return None
+    return _known(frame["Close"].iloc[-1])
 
 
 def _contract_expired(expiry: Optional[date], now: datetime) -> bool:

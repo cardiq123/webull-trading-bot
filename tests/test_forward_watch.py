@@ -564,6 +564,28 @@ def test_the_stop_uses_a_local_price_while_webull_reads_hang(tmp_path):
     assert "open position" in open_tick_alert(31.2, True)[0]
     assert open_tick_alert(29.0, True) == []
     assert open_tick_alert(90.0, False) == []
+    from webull_bot.execution.forward_watch import position_still_held, still_held_alert
+
+    assert still_held_alert(_at("15:49"), True) == []
+    loud = still_held_alert(_at("15:50"), True)[0]
+    assert loud.startswith("Cycle alert:")
+    assert "15:50" in loud
+    assert "flatten did not close" in loud
+    assert still_held_alert(_at("15:50"), False) == []
+    held = Journal(tmp_path / "held.sqlite")
+    pending = empty_state()
+    pending["positions"] = []
+    pending["orders"] = [
+        {
+            "key": "sig-1|exit",
+            "kind": "exit",
+            "status": "cancelled",
+            "limit": "0.25",
+            "fill": None,
+        }
+    ]
+    held.forward_save(NAME, pending)
+    assert position_still_held(held, [NAME]) is True
 
 
 def test_a_hung_snapshot_is_abandoned_and_a_hung_sell_is_not_repeated(tmp_path, monkeypatch):

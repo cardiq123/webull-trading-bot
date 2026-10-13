@@ -38,7 +38,7 @@ import re
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, time as clock, timedelta
 from pathlib import Path
 from typing import Iterator, Optional
 from zoneinfo import ZoneInfo
@@ -58,6 +58,8 @@ ENTRY_TARGET_S = 30.0
 SLOW_CYCLE_S = 60.0
 # A tick that still holds an open position past this is the sandbox-read stall.
 OPEN_TICK_ALERT_S = 30.0
+# A contract still unsold at this clock is the flatten that did not get out.
+HELD_ALERT_AT = clock(15, 50)
 BAR_REFRESH_TIMEOUT_S = 20.0
 TAIL_DAYS = 3
 # Socket budgets for every Webull call on this loop. One retry, and only
@@ -546,6 +548,57 @@ def open_tick_alert(elapsed: float, open_position: bool) -> list[str]:
     ]
 
 
+def position_still_held(journal, names: list[str]) -> bool:
+    """True when the journal still has a contract that has not been sold."""
+    if holds_open_position(journal, names):
+        return True
+    if journal is None:
+        return False
+    for name in names:
+        try:
+            state = journal.forward_load(name) or {}
+        except Exception:
+            continue
+        for signal in state.get("signals") or []:
+            if isinstance(signal, dict) and signal.get("status") == "open" and signal.get("settlement") != "expiry":
+                return True
+        for order in state.get("orders") or []:
+            if not isinstance(order, dict) or order.get("kind") != "exit":
+                continue
+            if str(order.get("settlement") or "") == "expiry":
+                continue
+            if order.get("error") == "no entry fill":
+                continue
+            fill = order.get("fill")
+            try:
+                if fill not in (None, "") and float(fill) > 0:
+                    continue
+            except (TypeError, ValueError):
+                pass
+            status = str(order.get("status") or "")
+            broker_status = str(order.get("broker_status") or "")
+            if status in {"submitted", "partial", "intent", "cancelled", "canceled", "rejected", "expired"}:
+                return True
+            if broker_status in {"working", "partial", "cancelled", "canceled", "rejected", "expired"}:
+                return True
+    return False
+
+
+def still_held_alert(now: datetime, held: bool) -> list[str]:
+    """Loud line when a contract is still unsold at 15:50 ET."""
+    from webull_bot.calendar import to_ny
+
+    local = to_ny(now)
+    if not held or local.time() < HELD_ALERT_AT:
+        return []
+    return [
+        (
+            "Cycle alert: a position is still held at 15:50 ET. "
+            "The flatten did not close it."
+        )
+    ]
+
+
 def snapshot_prices(broker, symbols: list[str], budget: EndpointBudget) -> dict[str, float]:
     """One batched stock snapshot. A failure returns no prices and changes nothing."""
     client = getattr(broker, "_data", None)
@@ -723,14 +776,14 @@ def _visit_books(
             if prepare_cash(state, broker, _stake(), local.date()):
                 journal.forward_save(name, state)
             if not entries:
-                from webull_bot.execution.forward_reconcile import chase_exit_orders
-
-                if chase_exit_orders(state, broker, now, lines):
-                    journal.forward_save(name, state)
                 try:
                     _manage_open(state, _frame(bars5, symbol), now, view, lines, journal)
                 except Exception:
                     lines.append(f"{name} exit check failed. The position was not changed.")
+                from webull_bot.execution.forward_reconcile import chase_exit_orders
+
+                if chase_exit_orders(state, broker, now, lines):
+                    journal.forward_save(name, state)
                 _write_ticks(name, symbol, state, prices.get(symbol), broker, now)
             else:
                 try:
@@ -753,14 +806,14 @@ def _visit_books(
         if prepare_cash(state, broker, TRAP_STAKE, local.date()):
             journal.forward_save(TRAP_NAME, state)
         if not entries:
-            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_trap_exits
-
-            if chase_trap_exits(state, broker, now, lines):
-                journal.forward_save(TRAP_NAME, state)
             try:
                 trap_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
             except Exception:
                 lines.append("QQQ Trapdoor exit check failed. The position was not changed.")
+            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_trap_exits
+
+            if chase_trap_exits(state, broker, now, lines):
+                journal.forward_save(TRAP_NAME, state)
             _write_ticks(TRAP_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
         else:
             try:
@@ -779,14 +832,14 @@ def _visit_books(
         if prepare_cash(state, broker, HOUR_STAKE, local.date()):
             journal.forward_save(HOUR_NAME, state)
         if not entries:
-            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_hour_exits
-
-            if chase_hour_exits(state, broker, now, lines):
-                journal.forward_save(HOUR_NAME, state)
             try:
                 hour_manage(state, _frame(bars5, "QQQ"), now, view, lines, journal)
             except Exception:
                 lines.append("4hr exit check failed. The position was not changed.")
+            from webull_bot.execution.forward_reconcile import chase_exit_orders as chase_hour_exits
+
+            if chase_hour_exits(state, broker, now, lines):
+                journal.forward_save(HOUR_NAME, state)
             _write_ticks(HOUR_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
         else:
             try:
@@ -1081,6 +1134,7 @@ def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
         entries_s = time.monotonic() - entry_started
         lines = _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
         lines.extend(open_tick_alert(time.monotonic() - started, held))
+        lines.extend(still_held_alert(now, position_still_held(journal, names)))
         return lines
 
 

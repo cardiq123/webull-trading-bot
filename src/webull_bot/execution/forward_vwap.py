@@ -1306,7 +1306,11 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
-    limit = _sell_limit(sandbox_bid if sandbox_bid is not None else model_bid)
+    limit = _exit_limit(
+        sandbox_bid if sandbox_bid is not None else model_bid,
+        when,
+        position.get("expiry"),
+    )
     if existing is None:
         order = {
             "key": key,
@@ -2259,8 +2263,23 @@ def _buy_limit(price: float) -> float:
 
 
 def _sell_limit(price: float) -> float:
+    """One cent through the bid, and never under one cent."""
     floored = math.floor((float(price) + 1e-9) * 100.0) / 100.0
+    if floored + 1e-9 >= float(price):
+        floored = round(floored - 0.01, 2)
     return max(0.01, floored)
+
+
+def _exit_limit(price: float, when=None, expiry=None) -> float:
+    """Marketable sell. From 15:44 on the expiry day the limit is one cent."""
+    limit = _sell_limit(price)
+    if when is None:
+        return limit
+    from webull_bot.execution.forward_reconcile import at_exit_floor
+
+    if at_exit_floor(when, expiry):
+        return 0.01
+    return limit
 
 
 def _minute_key(stamp) -> str:

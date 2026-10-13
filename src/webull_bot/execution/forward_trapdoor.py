@@ -71,7 +71,7 @@ from webull_bot.execution.forward_vwap import (
     _missing,
     _place,
     _print_open,
-    _sell_limit,
+    _exit_limit,
     _spot,
 )
 from webull_bot.journal.store import Journal
@@ -789,7 +789,11 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
     source = "webull" if sandbox_bid is not None else "model"
-    limit = _sell_limit(sandbox_bid if sandbox_bid is not None else model_bid)
+    limit = _exit_limit(
+        sandbox_bid if sandbox_bid is not None else model_bid,
+        when,
+        position.get("expiry"),
+    )
     if existing is None:
         order = {
             "key": key,

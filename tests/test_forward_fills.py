@@ -152,6 +152,17 @@ def test_a_marketable_buy_is_one_cent_through_the_ask():
     assert _buy_limit(2.501) == pytest.approx(2.51)
 
 
+def test_a_marketable_sell_is_one_cent_through_the_bid():
+    from webull_bot.execution.forward_vwap import _exit_limit, _sell_limit
+
+    assert _sell_limit(0.40) == pytest.approx(0.39)
+    assert _sell_limit(0.25) == pytest.approx(0.24)
+    assert _sell_limit(0.401) == pytest.approx(0.40)
+    assert _sell_limit(0.01) == pytest.approx(0.01)
+    assert _exit_limit(0.40, _at("14:00"), DAY) == pytest.approx(0.39)
+    assert _exit_limit(0.40, _at("15:44"), DAY) == pytest.approx(0.01)
+
+
 def test_a_working_entry_does_not_sell_until_the_fill_is_confirmed(tmp_path):
     journal = Journal(tmp_path / "working.sqlite")
     state = _ticket(NAME, "spy-1000", "0.86", "1.44", 1000.0, 1000.0, 86.0)

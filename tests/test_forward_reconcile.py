@@ -261,7 +261,7 @@ def test_a_working_order_is_read_again_on_the_next_cycle():
 
 def test_a_working_exit_is_repriced_only_after_the_wait():
     state = _state()
-    state["orders"][0]["submitted_at"] = "2026-10-09T14:39:40-04:00"
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:39:58-04:00"
     broker = _Broker({"exit-1": {"status": "SUBMITTED", "limit_price": "0.60"}})
     lines = []
     chase_exit_orders(state, broker, _now("14:40"), lines)
@@ -274,8 +274,8 @@ def test_a_working_exit_is_repriced_only_after_the_wait():
     chase_exit_orders(state, broker, _now("14:40"), lines)
     assert broker.placed == []
     assert broker.cancelled == []
-    assert broker.replaced == [("exit-1", 3.0, 0.40)]
-    assert state["orders"][0]["limit"] == "0.40"
+    assert broker.replaced == [("exit-1", 3.0, 0.39)]
+    assert state["orders"][0]["limit"] == "0.39"
     assert any("not a fill" in line for line in lines)
 
 
@@ -303,11 +303,224 @@ def test_a_cancelled_exit_is_resent_and_an_expired_contract_is_not():
 
 def test_the_flatten_window_walks_the_limit_down():
     state = _state()
-    state["orders"][0]["submitted_at"] = "2026-10-09T15:49:30-04:00"
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:39:50-04:00"
     state["orders"][0]["limit"] = "0.40"
     state["orders"][0]["sandbox_price"] = "0.40"
     broker = _Broker({"exit-1": {"status": "SUBMITTED", "limit_price": "0.40"}})
     broker.option_contract_quote = lambda symbol: {"bid": 0.40}
-    chase_exit_orders(state, broker, _now("15:50"), [])
+    chase_exit_orders(state, broker, _now("14:40"), [])
     assert broker.replaced[-1][2] == pytest.approx(0.39)
     assert broker.placed == []
+
+    later = _state()
+    later["orders"][0]["submitted_at"] = "2026-10-09T15:39:00-04:00"
+    later["orders"][0]["limit"] = "2.00"
+    floor = _Broker({"exit-1": {"status": "SUBMITTED", "limit_price": "2.00"}})
+    chase_exit_orders(later, floor, _now("15:40"), [])
+    assert floor.replaced[-1][2] == pytest.approx(0.01)
+    assert floor.placed == []
+
+    flat = _state()
+    flat["orders"][0]["submitted_at"] = "2026-10-09T15:49:30-04:00"
+    flat["orders"][0]["limit"] = "0.40"
+    flat["orders"][0]["sandbox_price"] = "0.40"
+    broker = _Broker({"exit-1": {"status": "SUBMITTED", "limit_price": "0.40"}})
+    broker.option_contract_quote = lambda symbol: {"bid": 0.40}
+    chase_exit_orders(flat, broker, _now("15:50"), [])
+    assert broker.replaced[-1][2] == pytest.approx(0.01)
+    assert broker.placed == []
+
+
+def test_the_watch_exit_view_still_reprices_through_the_bid():
+    from webull_bot.execution.forward_watch import _ExitView, _LivePrice
+
+    state = _state()
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:34:56-04:00"
+    inner = _Broker({"exit-1": {"status": "SUBMITTED", "limit_price": "0.60"}})
+    view = _LivePrice(_ExitView(inner, {}), {})
+    chase_exit_orders(state, view, _now("14:40"), [])
+    assert inner.replaced == [("exit-1", 3.0, 0.39)]
+    assert inner.placed == []
+
+
+def test_a_rejected_modify_is_cancelled_and_replaced_and_the_body_is_logged():
+    state = _state()
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:34:56-04:00"
+
+    class Reject(_Broker):
+        def replace_order(self, client_order_id, quantity, limit_price=None):
+            self.replaced.append((client_order_id, quantity, limit_price))
+            raise RuntimeError("INVALID_MODIFY app_secret=super-secret-value")
+
+    broker = Reject({"exit-1": {"status": "SUBMITTED", "limit_price": "0.60"}})
+    lines = []
+    chase_exit_orders(state, broker, _now("14:40"), lines)
+    text = "\n".join(lines)
+    assert "INVALID_MODIFY" in text
+    assert "super-secret-value" not in text
+    assert "[redacted]" in text
+    assert broker.cancelled == ["exit-1"]
+    assert len(broker.placed) == 1
+    assert broker.placed[0]["side"] == "SELL"
+    assert broker.placed[0]["position_intent"] == "SELL_TO_CLOSE"
+    assert state["orders"][0]["modify_rejected"] is True
+
+    new_id = state["orders"][0]["id"]
+    broker._trade.order_v3.payloads[new_id] = {"status": "SUBMITTED", "limit_price": state["orders"][0]["limit"]}
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:39:40-04:00"
+    state["orders"][0]["broker_status"] = "working"
+    before = len(broker.replaced)
+    chase_exit_orders(state, broker, _now("14:40"), [])
+    assert len(broker.replaced) == before
+    assert len(broker.placed) == 2
+    assert broker.cancelled[-1] == new_id
+
+
+def test_an_expired_unsold_qqq_put_books_a_full_premium_loss(tmp_path):
+    """QQQ closed at 746.04 on 2026-10-12, so the 745 put expired out of the money."""
+    from webull_bot.execution.forward_cash import option_cash
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_trapdoor import report_text as trap_report
+
+    journal = Journal(tmp_path / "trapdoor.sqlite")
+    journal.forward_save(TRAP_NAME, _trapdoor_put())
+    broker = _Broker(
+        {"exit-put": {"status": "CANCELLED", "limit_price": "0.25"}},
+        holdings=[],
+    )
+    broker.underlying_close = lambda symbol, day: 746.039978
+    lines = reconcile_book(journal, broker, TRAP_NAME, _now("10:00", "2026-10-13"))
+    text = "\n".join(lines)
+    assert "does not place" in text
+    assert "No order was sent." in text
+    assert "full premium loss" in text
+    assert broker.placed == []
+    assert broker.cancelled == []
+    assert broker.replaced == []
+    saved = journal.forward_load(TRAP_NAME)
+    assert saved["positions"] == []
+    assert saved["orders"][1]["fill"] == pytest.approx(0.0)
+    assert saved["orders"][1]["settlement"] == "expiry"
+    debit = option_cash(0.40, 1, sell=False)
+    assert saved["signals"][0]["fill_pnl"] == pytest.approx(-debit)
+    assert "Fill pending" not in text
+    report = trap_report(journal)
+    assert "Fill pending" not in report
+    assert f"${saved['signals'][0]['fill_pnl']:.2f}" in report
+
+
+def test_an_expired_unsold_put_books_intrinsic_when_it_finishes_in_the_money(tmp_path):
+    from webull_bot.execution.forward_cash import option_cash
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+
+    journal = Journal(tmp_path / "itm.sqlite")
+    journal.forward_save(TRAP_NAME, _trapdoor_put())
+    broker = _Broker({"exit-put": {"status": "CANCELLED", "limit_price": "0.25"}})
+    broker.underlying_close = lambda symbol, day: 740.0
+    reconcile_book(journal, broker, TRAP_NAME, _now("10:00", "2026-10-13"))
+    saved = journal.forward_load(TRAP_NAME)
+    assert saved["orders"][1]["fill"] == pytest.approx(5.0)
+    debit = option_cash(0.40, 1, sell=False)
+    assert saved["signals"][0]["fill_pnl"] == pytest.approx(500.0 - debit)
+    assert broker.placed == []
+
+
+def test_an_expired_contract_the_account_still_holds_is_not_closed(tmp_path):
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+
+    journal = Journal(tmp_path / "held.sqlite")
+    journal.forward_save(TRAP_NAME, _trapdoor_put())
+    broker = _Broker(
+        {"exit-put": {"status": "CANCELLED", "limit_price": "0.25"}},
+        holdings=[{"symbol": "QQQ261012P00745000", "quantity": 1}],
+    )
+    broker.underlying_close = lambda symbol, day: 746.039978
+    lines = reconcile_book(journal, broker, TRAP_NAME, _now("10:00", "2026-10-13"))
+    assert any("still holds" in line for line in lines)
+    saved = journal.forward_load(TRAP_NAME)
+    assert saved["orders"][1].get("settlement") != "expiry"
+    assert saved["orders"][1].get("fill") in (None, "")
+    assert broker.placed == []
+
+
+def _trapdoor_put() -> dict:
+    return {
+        "book": "neckline_trapdoor_qqq",
+        "stake": 2500.0,
+        "settled": 2459.96,
+        "unsettled": [],
+        "signals": [
+            {
+                "id": "qqq-trap",
+                "status": "closed",
+                "symbol": "QQQ",
+                "direction": "short",
+                "right": "put",
+                "option_type": "PUT",
+                "strike": 745.0,
+                "expiry": "2026-10-12",
+                "option_symbol": "QQQ261012P00745000",
+                "qty": 1,
+                "signal_time": "2026-10-12T14:00:00-04:00",
+                "entry_time": "2026-10-12T14:05:00-04:00",
+                "exit_time": "2026-10-12T15:34:55-04:00",
+                "model_debit": 180.0,
+                "model_credit": 25.0,
+                "pnl": -155.0,
+                "reason": "stop",
+            }
+        ],
+        "orders": [
+            {
+                "key": "qqq-trap|entry",
+                "id": "entry-put",
+                "kind": "entry",
+                "side": "BUY",
+                "qty": "1",
+                "symbol": "QQQ",
+                "right": "PUT",
+                "option_type": "PUT",
+                "strike": 745.0,
+                "expiry": "2026-10-12",
+                "option_symbol": "QQQ261012P00745000",
+                "status": "submitted",
+                "broker_status": "filled",
+                "limit": "0.42",
+                "fill": 0.40,
+                "submitted_at": "2026-10-12T14:05:00-04:00",
+            },
+            {
+                "key": "qqq-trap|exit",
+                "id": "exit-put",
+                "kind": "exit",
+                "side": "SELL",
+                "qty": "1",
+                "symbol": "QQQ",
+                "right": "PUT",
+                "option_type": "PUT",
+                "strike": 745.0,
+                "expiry": "2026-10-12",
+                "option_symbol": "QQQ261012P00745000",
+                "status": "submitted",
+                "broker_status": "cancelled",
+                "limit": "0.25",
+                "fill": None,
+                "submitted_at": "2026-10-12T15:34:55-04:00",
+            },
+        ],
+        "fills": [
+            {"id": "qqq-trap", "side": "BUY", "qty": "1", "right": "put", "price": "0.42", "fill": 0.40},
+            {"id": "qqq-trap", "side": "SELL", "qty": "1", "right": "put", "price": "0.25", "fill": None},
+        ],
+        "exits": [
+            {
+                "id": "qqq-trap",
+                "time": "2026-10-12T15:34:55-04:00",
+                "right": "put",
+                "reason": "stop",
+                "underlying": 746.3,
+                "pnl": -155.0,
+            }
+        ],
+        "positions": [],
+    }

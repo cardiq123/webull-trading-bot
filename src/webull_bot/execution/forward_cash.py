@@ -73,8 +73,9 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
     The entry debit and the exit credit use the order-detail fill when the
     order has one, otherwise the fill stored on the journal row. A leg that
     has neither keeps its model debit or credit. ``pnl`` on the signal stays
-    the model figure. ``fill_pnl`` is set only when both legs have a sandbox
-    fill.
+    the model figure. ``fill_pnl`` is set when both legs have a sandbox fill,
+    and also when an expired unsold contract is closed at intrinsic value.
+    A worthless expiry is a fill of zero and a full premium loss.
     """
     settled = float(stake)
     unsettled: list[dict[str, Any]] = []
@@ -106,8 +107,17 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
             signal["fill_credit"] = None
             signal["fill_pnl"] = None
             continue
+        exit_order = _order_for(state, str(signal.get("id") or ""), "exit")
+        expiry_close = isinstance(exit_order, dict) and str(exit_order.get("settlement") or "") == "expiry"
         exit_px, exit_src = _leg_price(state, signal, "exit")
-        if exit_px is None:
+        if expiry_close:
+            px = 0.0 if exit_px is None else float(exit_px)
+            credit = px * CONTRACT_MULTIPLIER * qty
+            signal["fill_exit"] = px
+            signal["fill_credit"] = credit
+            exit_px = px
+            exit_src = "expiry"
+        elif exit_px is None:
             credit = model_credit or 0.0
             signal["fill_exit"] = None
             signal["fill_credit"] = None
@@ -119,7 +129,10 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
                 signal["fill_source"] = entry_src if entry_src == exit_src else "order"
         due = next_trading_day(_day(signal.get("exit_time")) or session_day(state))
         unsettled.append({"date": due.isoformat(), "amount": credit, "id": signal.get("id")})
-        if entry_px is not None and exit_px is not None:
+        has_premium = entry_px is not None or _number(signal.get("model_debit")) is not None
+        if expiry_close and exit_px is not None and has_premium:
+            signal["fill_pnl"] = credit - debit
+        elif entry_px is not None and exit_px is not None:
             signal["fill_pnl"] = credit - debit
         else:
             signal["fill_pnl"] = None
@@ -215,18 +228,20 @@ def _has_cash_basis(state: dict) -> bool:
 def _leg_price(state: dict, signal: dict, kind: str) -> tuple[Optional[float], str]:
     order = _order_for(state, str(signal.get("id") or ""), kind)
     if order is not None:
-        price = _known_fill(order.get("fill"))
+        expiry = str(order.get("settlement") or "") == "expiry"
+        price = _known_fill(order.get("fill"), allow_zero=expiry)
         if price is not None:
-            return price, "order"
+            return price, "expiry" if expiry else "order"
     side = "BUY" if kind == "entry" else "SELL"
     for row in state.get("fills") or []:
         if not isinstance(row, dict):
             continue
         if row.get("id") != signal.get("id") or str(row.get("side") or "") != side:
             continue
-        price = _known_fill(row.get("fill"))
+        expiry = str(row.get("fill_source") or "") == "expiry"
+        price = _known_fill(row.get("fill"), allow_zero=expiry)
         if price is not None:
-            return price, "journal"
+            return price, "expiry" if expiry else "journal"
     return None, ""
 
 
@@ -310,9 +325,11 @@ def _signal_id_from_key(key: str, kind: str) -> str:
     return ""
 
 
-def _known_fill(value) -> Optional[float]:
+def _known_fill(value, *, allow_zero: bool = False) -> Optional[float]:
     number = _number(value)
-    if number is None or number <= 0:
+    if number is None or number < 0:
+        return None
+    if number == 0.0 and not allow_zero:
         return None
     return number
 
