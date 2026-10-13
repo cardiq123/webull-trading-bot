@@ -1041,7 +1041,8 @@ def run_watch(config, args, names: list[str]) -> int:
         if not in_forward_window(now):
             print(
                 f"forward-watch idle at {now.astimezone(NY).isoformat()}. "
-                "Outside the 09:50-15:50 ET window. No orders."
+                "Outside the 09:50-15:50 ET window. No orders.",
+                flush=True,
             )
             if once:
                 return 0
@@ -1050,14 +1051,15 @@ def run_watch(config, args, names: list[str]) -> int:
         if dry_run and not full_cycle_due(now, LATEST.get("full")):
             print(
                 f"forward-watch fast tick at {now.astimezone(NY).isoformat()}. "
-                "Dry run: no snapshots, no orders, journal not written."
+                "Dry run: no snapshots, no orders, journal not written.",
+                flush=True,
             )
             if once:
                 return 0
             time.sleep(next_wake(_clock()))
             continue
         lines = watch_cycle(config, args, names, now, dry_run)
-        print("\n".join(lines))
+        print("\n".join(lines), flush=True)
         if once:
             return 0
         time.sleep(next_wake(_clock()))

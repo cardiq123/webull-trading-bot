@@ -14,6 +14,7 @@ out of the money.
 from __future__ import annotations
 
 import os
+import re
 import time as time_mod
 from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
@@ -264,6 +265,34 @@ def holding_for(contract: str, holdings: list[dict]) -> Optional[dict]:
     return None
 
 
+# A bare position row is only the underlying. Its average confirms one order
+# when that average sits near the order's limit. $0.50 still leaves the
+# 11:00 limits (0.76, 1.26, 2.81) off a $3.53 put.
+_PREMIUM_MATCH = 0.50
+
+
+def match_holding(state: dict, order: dict, holdings: list[dict]) -> Optional[dict]:
+    """The position row for this order.
+
+    An OCC symbol matches first. Otherwise the row's strike, expiry, and
+    right, or a shared instrument id. A row that is only the underlying
+    matches when its average is near this order's premium and this book has
+    one unfilled entry on that underlying. The underlying ticker alone does
+    not match.
+    """
+    if not isinstance(order, dict):
+        return None
+    contract = contract_for(state, order)
+    found = holding_for(contract, holdings or [])
+    if found is not None:
+        return found
+    identity = _order_identity(state, order)
+    for row in holdings or []:
+        if isinstance(row, dict) and _identity_match(row, identity):
+            return row
+    return _premium_match(state, order, holdings or [], identity)
+
+
 def send_cooled(order_id: str) -> bool:
     """A retry of an unsent entry waits 20 seconds. The first send does not."""
     if not order_id:
@@ -297,11 +326,15 @@ def _fetch_position_rows(broker) -> list[dict]:
         held = positions()
         found = []
         for row in held or []:
-            symbol = str(getattr(row, "symbol", "") or "")
-            quantity = getattr(row, "quantity", None)
-            if symbol and quantity not in (None, 0, 0.0):
-                avg = getattr(row, "avg_price", None)
-                found.append({"symbol": symbol.upper(), "quantity": quantity, "symbols": [symbol.upper()], "avg": avg})
+            parsed = _parse_position(
+                {
+                    "symbol": getattr(row, "symbol", None),
+                    "quantity": getattr(row, "quantity", None),
+                    "avg_price": getattr(row, "avg_price", None),
+                }
+            )
+            if parsed:
+                found.append(parsed)
         return found
     payload = _trade_call(broker, method, account, key="account_position")
     return _position_rows(payload)
@@ -419,10 +452,15 @@ def read_holdings(broker) -> list[dict]:
         return []
     found = []
     for row in held or []:
-        symbol = str(getattr(row, "symbol", "") or "")
-        quantity = getattr(row, "quantity", None)
-        if symbol and quantity not in (None, 0, 0.0):
-            found.append({"symbol": symbol.upper(), "quantity": quantity})
+        parsed = _parse_position(
+            {
+                "symbol": getattr(row, "symbol", None),
+                "quantity": getattr(row, "quantity", None),
+                "avg_price": getattr(row, "avg_price", None),
+            }
+        )
+        if parsed:
+            found.append(parsed)
     return found
 
 
@@ -447,23 +485,24 @@ def holdings_lines(state: dict, holdings: list[dict], orders: list[dict]) -> lis
     if not holdings:
         lines.append("- The account list is empty.")
     for row in holdings:
-        lines.append(f"- {row.get('symbol')} quantity {row.get('quantity')}")
+        lines.append(_describe_holding(row))
     if not orders:
         lines.append("No pending order to match against the account.")
         return lines
     for order in orders:
         contract = contract_for(state, order)
+        held = match_holding(state, order, holdings)
+        if held is not None:
+            label = contract or str(order.get("key") or "order")
+            lines.append(f"{label}: the sandbox account still holds {held.get('quantity')}.")
+            continue
         if not contract:
             lines.append(
                 f"{order.get('side')} {order.get('qty')} {order.get('key')}: "
                 "the journal has no contract symbol. Compare the account list above."
             )
             continue
-        still = _held(contract, holdings)
-        if still:
-            lines.append(f"{contract}: the sandbox account still holds {still}.")
-        else:
-            lines.append(f"{contract}: the sandbox account does not hold this contract.")
+        lines.append(f"{contract}: the sandbox account does not hold this contract.")
     return lines
 
 
@@ -1001,6 +1040,34 @@ def _walk(payload: Any, found: dict) -> None:
             _walk(value, found)
 
 
+_OCC_RE = re.compile(r"^([A-Z]{1,6})(\d{6})([CP])(\d{8})$")
+_TICKER_RE = re.compile(r"^[A-Z]{1,6}$")
+_STRIKE_KEYS = ("strike_price", "strikePrice", "strike", "exercise_price")
+_EXPIRY_KEYS = (
+    "option_expire_date",
+    "optionExpireDate",
+    "expiration_date",
+    "expire_date",
+    "expiry",
+    "exp_date",
+)
+_RIGHT_KEYS = ("option_type", "optionType", "put_call", "putCall", "right", "call_put")
+_SYMBOL_KEYS = ("option_symbol", "optionSymbol", "occ_symbol", "contract_symbol", "symbol", "symbol_name", "ticker")
+_UNDERLYING_KEYS = ("underlying_symbol", "underlying", "symbol", "ticker", "symbol_name")
+_ID_KEYS = ("instrument_id", "instrumentId", "contract_id", "contractId")
+_AVG_KEYS = (
+    "avg_cost",
+    "avgPrice",
+    "avg_price",
+    "cost_price",
+    "average_cost",
+    "costPrice",
+    "unit_cost",
+    "averagePrice",
+)
+_QTY_KEYS = ("quantity", "qty", "position", "position_qty")
+
+
 def _position_rows(payload: Any) -> list[dict]:
     rows = payload if isinstance(payload, list) else []
     if isinstance(payload, dict):
@@ -1014,30 +1081,310 @@ def _position_rows(payload: Any) -> list[dict]:
                     return nested
     found = []
     for row in rows:
-        if not isinstance(row, dict):
-            continue
-        symbols = []
-        for key in ("option_symbol", "symbol", "ticker", "instrument_id", "symbol_name"):
-            if row.get(key):
-                symbols.append(str(row.get(key)).upper())
-        quantity = None
-        for key in ("quantity", "qty", "position", "position_qty"):
-            number = _known(row.get(key))
-            if number is not None:
-                quantity = number
-                break
-        if quantity in (None, 0, 0.0):
-            continue
-        symbol = next((item for item in symbols if len(item) > 8), symbols[0] if symbols else "")
-        if symbol:
-            avg = None
-            for key in ("avg_cost", "avgPrice", "avg_price", "cost_price", "average_cost", "costPrice"):
-                number = _known(row.get(key))
-                if number is not None:
-                    avg = number
-                    break
-            found.append({"symbol": symbol, "quantity": quantity, "symbols": symbols, "avg": avg})
+        parsed = _parse_position(row)
+        if parsed:
+            found.append(parsed)
     return found
+
+
+def _parse_position(row: Any) -> Optional[dict]:
+    """One held contract. Nested legs supply strike, expiry, and right."""
+    if not isinstance(row, dict):
+        return None
+    bag = {
+        "symbols": [],
+        "instrument_ids": [],
+        "underlying": "",
+        "strike": None,
+        "expiry": "",
+        "right": "",
+        "quantity": None,
+        "avg": None,
+        "occs": [],
+    }
+    _collect_position(row, bag, 0)
+    if bag["quantity"] in (None, 0, 0.0):
+        return None
+    occ = bag["occs"][0] if bag["occs"] else ""
+    if not occ:
+        occ = _built_occ(bag["underlying"], bag["expiry"], bag["right"], bag["strike"])
+        if occ and occ not in bag["symbols"]:
+            bag["symbols"].append(occ)
+            bag["occs"].append(occ)
+    if occ:
+        parsed = _parse_occ(occ)
+        bag["underlying"] = bag["underlying"] or parsed.get("underlying") or ""
+        if bag["strike"] is None:
+            bag["strike"] = parsed.get("strike")
+        bag["expiry"] = bag["expiry"] or parsed.get("expiry") or ""
+        bag["right"] = bag["right"] or parsed.get("right") or ""
+    display = occ or bag["underlying"] or (bag["symbols"][0] if bag["symbols"] else "")
+    if not display and not bag["instrument_ids"]:
+        return None
+    if not display:
+        display = str(bag["instrument_ids"][0])
+    option_known = bool(bag["occs"]) or (
+        bag["strike"] is not None and bool(bag["right"]) and bool(bag["expiry"])
+    )
+    return {
+        "symbol": display,
+        "quantity": bag["quantity"],
+        "symbols": bag["symbols"],
+        "avg": bag["avg"],
+        "underlying": bag["underlying"],
+        "strike": bag["strike"],
+        "expiry": str(bag["expiry"])[:10],
+        "right": bag["right"],
+        "instrument_ids": bag["instrument_ids"],
+        "option_known": option_known,
+    }
+
+
+def _collect_position(node: dict, bag: dict, depth: int) -> None:
+    if depth > 6 or not isinstance(node, dict):
+        return
+    if bag["quantity"] is None:
+        for key in _QTY_KEYS:
+            number = _known(node.get(key))
+            if number is not None:
+                bag["quantity"] = number
+                break
+    if bag["avg"] is None:
+        for key in _AVG_KEYS:
+            number = _known(node.get(key))
+            if number is not None:
+                bag["avg"] = number
+                break
+    for key in _ID_KEYS:
+        value = node.get(key)
+        if value in (None, ""):
+            continue
+        text = str(value)
+        if text not in bag["instrument_ids"]:
+            bag["instrument_ids"].append(text)
+    for key in _SYMBOL_KEYS:
+        raw = node.get(key)
+        if not raw:
+            continue
+        text = str(raw).upper().strip()
+        if _OCC_RE.match(text):
+            if text not in bag["occs"]:
+                bag["occs"].append(text)
+            if text not in bag["symbols"]:
+                bag["symbols"].append(text)
+            parsed = _parse_occ(text)
+            bag["underlying"] = bag["underlying"] or parsed.get("underlying") or ""
+            if bag["strike"] is None:
+                bag["strike"] = parsed.get("strike")
+            bag["expiry"] = bag["expiry"] or parsed.get("expiry") or ""
+            bag["right"] = bag["right"] or parsed.get("right") or ""
+        elif key in _UNDERLYING_KEYS and _TICKER_RE.match(text):
+            bag["underlying"] = bag["underlying"] or text
+            if text not in bag["symbols"]:
+                bag["symbols"].append(text)
+    if bag["strike"] is None:
+        for key in _STRIKE_KEYS:
+            number = _known(node.get(key))
+            if number is not None:
+                bag["strike"] = number
+                break
+    if not bag["expiry"]:
+        for key in _EXPIRY_KEYS:
+            found = _as_date(node.get(key))
+            if found is not None:
+                bag["expiry"] = found.isoformat()
+                break
+    if not bag["right"]:
+        for key in _RIGHT_KEYS:
+            right = _norm_right(node.get(key))
+            if right:
+                bag["right"] = right
+                break
+    for value in node.values():
+        if isinstance(value, dict):
+            _collect_position(value, bag, depth + 1)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _collect_position(item, bag, depth + 1)
+
+
+def _parse_occ(contract: str) -> dict:
+    match = _OCC_RE.match(str(contract or "").upper())
+    if match is None:
+        return {}
+    try:
+        expiry = datetime.strptime(match.group(2), "%y%m%d").date().isoformat()
+    except ValueError:
+        return {}
+    return {
+        "underlying": match.group(1),
+        "expiry": expiry,
+        "right": match.group(3),
+        "strike": int(match.group(4)) / 1000.0,
+    }
+
+
+def _built_occ(underlying: str, expiry, right: str, strike) -> str:
+    if not underlying or strike is None or not expiry or not right:
+        return ""
+    if not _TICKER_RE.match(str(underlying).upper()):
+        return ""
+    found = _as_date(expiry)
+    if found is None:
+        return ""
+    try:
+        from webull_bot.execution.forward_quotes import occ_symbol
+
+        return occ_symbol(str(underlying), found, str(right), float(strike))
+    except Exception:
+        return ""
+
+
+def _norm_right(value) -> str:
+    text = str(value or "").strip().upper()
+    if text in {"C", "CALL"} or text.startswith("CALL"):
+        return "C"
+    if text in {"P", "PUT"} or text.startswith("PUT"):
+        return "P"
+    return ""
+
+
+def _order_identity(state: dict, order: dict) -> dict:
+    contract = contract_for(state, order) if isinstance(state, dict) else ""
+    parsed = _parse_occ(contract)
+    underlying = str(parsed.get("underlying") or "")
+    strike = parsed.get("strike")
+    expiry = str(parsed.get("expiry") or "")
+    right = str(parsed.get("right") or "")
+    ids = set()
+    sources = [order]
+    if isinstance(state, dict):
+        sources.extend(_related(state, _signal_id(str(order.get("key") or ""))))
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        if not underlying:
+            ticker = str(source.get("symbol") or source.get("underlying") or "").upper()
+            if _TICKER_RE.match(ticker):
+                underlying = ticker
+        if strike is None:
+            strike = _known(source.get("strike") if source.get("strike") not in (None, "") else source.get("order_strike"))
+        if not expiry:
+            found = _as_date(source.get("expiry"))
+            if found is not None:
+                expiry = found.isoformat()
+        if not right:
+            right = _norm_right(source.get("option_type") or source.get("right"))
+        for key in _ID_KEYS:
+            if source.get(key) not in (None, ""):
+                ids.add(str(source.get(key)))
+    return {
+        "underlying": underlying,
+        "strike": strike,
+        "expiry": expiry[:10],
+        "right": right,
+        "instrument_ids": ids,
+        "contract": contract,
+    }
+
+
+def _identity_match(row: dict, identity: dict) -> bool:
+    row_ids = {str(item) for item in row.get("instrument_ids") or [] if item not in (None, "")}
+    if identity["instrument_ids"] and row_ids and identity["instrument_ids"] & row_ids:
+        return True
+    if not identity["underlying"] or identity["strike"] is None or not identity["expiry"] or not identity["right"]:
+        return False
+    if not row.get("option_known") and row.get("strike") in (None, "") and not row.get("right"):
+        return False
+    row_under = str(row.get("underlying") or "").upper()
+    if not row_under:
+        row_under = str(_parse_occ(str(row.get("symbol") or "")).get("underlying") or "")
+    if row_under != identity["underlying"]:
+        return False
+    if row.get("strike") in (None, ""):
+        return False
+    if abs(float(row["strike"]) - float(identity["strike"])) > 0.001:
+        return False
+    if str(row.get("expiry") or "")[:10] != identity["expiry"]:
+        return False
+    return _norm_right(row.get("right")) == identity["right"]
+
+
+def _premium_match(state: dict, order: dict, holdings: list[dict], identity: dict) -> Optional[dict]:
+    underlying = identity.get("underlying") or ""
+    if not underlying or not _sole_open_entry(state, underlying, order):
+        return None
+    prices = _order_premiums(order)
+    if not prices:
+        return None
+    for row in holdings:
+        if not isinstance(row, dict) or not _bare_underlying(row, underlying):
+            continue
+        avg = _known(row.get("avg"))
+        if avg is None:
+            continue
+        if any(abs(avg - price) <= _PREMIUM_MATCH for price in prices):
+            return row
+    return None
+
+
+def _bare_underlying(row: dict, underlying: str) -> bool:
+    if str(row.get("underlying") or "").upper() != underlying:
+        return False
+    if row.get("option_known"):
+        return False
+    if row.get("strike") not in (None, "") or row.get("right") or row.get("expiry"):
+        return False
+    for name in row.get("symbols") or []:
+        if _OCC_RE.match(str(name).upper()):
+            return False
+    symbol = str(row.get("symbol") or "").upper()
+    return not _OCC_RE.match(symbol)
+
+
+def _sole_open_entry(state: dict, underlying: str, order: dict) -> bool:
+    if not underlying or not isinstance(state, dict):
+        return False
+    matches = []
+    for row in state.get("orders") or []:
+        if not isinstance(row, dict) or str(row.get("kind") or "") != "entry":
+            continue
+        if str(row.get("status") or "") not in {"submitted", "intent", "partial"}:
+            continue
+        if _known(row.get("fill")) is not None:
+            continue
+        if str(row.get("broker_status") or "") in {"filled", "cancelled", "canceled", "expired", "rejected"}:
+            continue
+        if _order_identity(state, row).get("underlying") != underlying:
+            continue
+        matches.append(row)
+    return len(matches) == 1 and matches[0] is order
+
+
+def _order_premiums(order: dict) -> list[float]:
+    found = []
+    for key in ("sandbox_price", "quote_px", "limit", "sandbox_ask"):
+        number = _known(order.get(key))
+        if number is not None:
+            found.append(number)
+    return found
+
+
+def _describe_holding(row: dict) -> str:
+    bits = ["-", str(row.get("underlying") or row.get("symbol") or "")]
+    right = _norm_right(row.get("right"))
+    if right:
+        bits.append("PUT" if right == "P" else "CALL")
+    if row.get("strike") not in (None, ""):
+        strike = float(row["strike"])
+        bits.append(str(int(strike)) if strike == int(strike) else str(strike))
+    if row.get("expiry"):
+        bits.append(str(row.get("expiry"))[:10])
+    bits.append(f"quantity {row.get('quantity')}")
+    if row.get("avg") not in (None, ""):
+        bits.append(f"avg {row.get('avg')}")
+    return " ".join(bits)
 
 
 def _held(contract: str, holdings: list[dict]) -> Optional[object]:

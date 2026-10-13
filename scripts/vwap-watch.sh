@@ -16,6 +16,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 export WEBULL_ENV="${WEBULL_ENV:-sandbox}"
+export PYTHONUNBUFFERED=1
 PY="${PYTHON:-python3}"
-exec "$PY" -m webull_bot forward-watch \
+exec "$PY" -u -m webull_bot forward-watch \
   vwap_band_15m vwap_band_15m_qqq_aggr vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq four_hour_qqq_1dte "$@"

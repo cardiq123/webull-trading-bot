@@ -122,17 +122,30 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
                     f"Entry working. {_limit_text(order)} No exit until the fill is confirmed."
                 )
             continue
-        if kind == "working" and _cancel(broker, order, lines):
+        held, listing = _account_presence(state, order, broker)
+        if held is True or listing == "filled":
+            lines.append(
+                "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
+            )
+            continue
+        if kind == "working" or listing == "working":
+            if _cancel(broker, order, lines):
+                order["broker_status"] = "cancelled"
+                order["status"] = "cancelled"
+                _release(state, signal_id, reason, lines, broker)
+                changed = True
+            else:
+                lines.append("Entry is still working. The cancel was not accepted. No exit was sent.")
+            continue
+        if held is False and listing == "absent":
             order["broker_status"] = "cancelled"
             order["status"] = "cancelled"
             _release(state, signal_id, reason, lines, broker)
             changed = True
-        elif kind == "working":
-            lines.append("Entry is still working. The cancel was not accepted. No exit was sent.")
-        else:
-            lines.append(
-                "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
-            )
+            continue
+        lines.append(
+            "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
+        )
     _drop_rejected_exits(state, lines)
     return changed
 
@@ -348,7 +361,7 @@ def _signal_filled(state, signal_id: str) -> bool:
 
 def _confirm_from_account(state, order, broker) -> bool:
     """A held contract or a filled order-list row confirms the buy. The limit is not the fill."""
-    from webull_bot.execution.forward_reconcile import account_view, contract_for, holding_for
+    from webull_bot.execution.forward_reconcile import account_view, match_holding
 
     if broker is None:
         return False
@@ -370,8 +383,7 @@ def _confirm_from_account(state, order, broker) -> bool:
             return True
     if not view.get("holdings_ok"):
         return False
-    contract = contract_for(state, order)
-    held = holding_for(contract, view.get("holdings") or [])
+    held = match_holding(state, order, view.get("holdings") or [])
     if held is None:
         return False
     order["broker_status"] = "filled"
@@ -401,11 +413,44 @@ def _read(broker, order_id: str) -> dict:
     return read_order_detail(broker, order_id)
 
 
+def _account_presence(state, order, broker) -> tuple:
+    """``(held, listing)``. None means that account list was not read.
+
+    ``held`` is True or False when positions were read. ``listing`` is
+    ``working``, ``filled``, or ``absent`` when open orders were read.
+    """
+    from webull_bot.execution.forward_reconcile import account_view, match_holding
+
+    if broker is None:
+        return None, None
+    view = account_view(broker)
+    held = None
+    if view.get("holdings_ok"):
+        held = match_holding(state, order, view.get("holdings") or []) is not None
+    listing = None
+    if view.get("orders_ok"):
+        listing = "absent"
+        client_id = str(order.get("id") or "")
+        for row in view.get("orders") or []:
+            if str(row.get("id") or "") != client_id:
+                continue
+            kind = str(row.get("kind") or "")
+            if kind in {"filled", "partial"}:
+                listing = "filled"
+            elif kind in {"cancelled", "canceled", "expired", "rejected"}:
+                listing = "absent"
+            else:
+                listing = "working"
+            break
+    return held, listing
+
+
 def _cancel(broker, order, lines) -> bool:
     """Cancel one working buy. A broker with no cancel path is not a success."""
-    if not broker_reports_detail(broker):
-        return False
     cancel = getattr(broker, "cancel_order", None)
+    if not callable(cancel):
+        inner = getattr(broker, "_inner", None)
+        cancel = getattr(inner, "cancel_order", None) if inner is not None else None
     if not callable(cancel):
         lines.append("Entry cancel was not sent. The broker has no cancel path.")
         return False

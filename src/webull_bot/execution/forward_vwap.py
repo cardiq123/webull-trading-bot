@@ -1155,7 +1155,7 @@ def _clear_to_place(state, order, broker, lines) -> str:
     ``unread`` means the account list failed, including HTTP 429, so no second
     order is sent.
     """
-    from webull_bot.execution.forward_reconcile import account_view, contract_for, holding_for
+    from webull_bot.execution.forward_reconcile import account_view, match_holding
 
     view = account_view(broker)
     if not view.get("holdings_ok") or not view.get("orders_ok"):
@@ -1173,7 +1173,7 @@ def _clear_to_place(state, order, broker, lines) -> str:
             order["broker_status"] = "working"
         lines.append("Entry is already at the sandbox. Not sent again.")
         return "adopt"
-    held = holding_for(contract_for(state, order), view.get("holdings") or [])
+    held = match_holding(state, order, view.get("holdings") or [])
     if held is not None:
         order["broker_status"] = "filled"
         order["fill_source"] = "position"

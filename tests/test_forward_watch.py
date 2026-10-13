@@ -243,6 +243,10 @@ def test_four_hour_qqq_1dte_is_loaded_and_evaluated(tmp_path, monkeypatch):
 
     script = Path(__file__).resolve().parents[1].joinpath("scripts", "vwap-watch.sh").read_text()
     assert "four_hour_qqq_1dte" in script
+    assert "PYTHONUNBUFFERED=1" in script
+    assert "-u -m webull_bot forward-watch" in script
+    watch_source = Path(__file__).resolve().parents[1].joinpath("src/webull_bot/execution/forward_watch.py").read_text()
+    assert "flush=True" in watch_source
     seen = []
     monkeypatch.setattr(
         "webull_bot.execution.forward_four_hour._manage_open",

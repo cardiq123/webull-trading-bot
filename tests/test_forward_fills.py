@@ -410,3 +410,269 @@ def test_a_journaled_model_compound_buy_is_sent(tmp_path):
     assert state["orders"][0]["status"] == "submitted"
     assert state["positions"]
     assert state["positions"][0]["stop"] == pytest.approx(744.0)
+
+
+DAY13 = "2026-10-13"
+FOUR_HOUR_CONTRACT = "QQQ261014P00745000"
+AGGR_CONTRACT = "QQQ261013P00742000"
+
+
+def _at13(hhmm: str) -> datetime:
+    hour, minute = hhmm.split(":")
+    return datetime(2026, 10, 13, int(hour), int(minute), tzinfo=NY)
+
+
+def _qqq_position_row() -> dict:
+    """Sandbox shape: the underlying is the symbol, and the put is a nested leg."""
+    return {
+        "symbol": "QQQ",
+        "quantity": "1.0",
+        "cost_price": "3.53",
+        "instrument_type": "OPTION",
+        "items": [
+            {
+                "symbol": "QQQ",
+                "option_type": "PUT",
+                "strike_price": "745",
+                "option_expire_date": "2026-10-14",
+                "instrument_id": "opt-4hr",
+                "quantity": "1",
+            }
+        ],
+    }
+
+
+def _four_hour_state() -> dict:
+    signal_id = "qqq-4hr"
+    state = empty_state()
+    state["book"] = "four_hour_qqq_1dte"
+    state["stake"] = 2500.0
+    state["settled"] = 2500.0
+    state["signals"] = [
+        {
+            "id": signal_id,
+            "status": "open",
+            "symbol": "QQQ",
+            "direction": "short",
+            "right": "put",
+            "option_type": "PUT",
+            "qty": 1,
+            "strike": 745.0,
+            "expiry": "2026-10-14",
+            "stop": 748.0,
+            "target": 744.0,
+            "entry": 746.0,
+            "entry_time": f"{DAY13}T10:05:00-04:00",
+        }
+    ]
+    state["positions"] = [
+        {
+            "id": signal_id,
+            "direction": "short",
+            "right": "put",
+            "option_type": "PUT",
+            "qty": 1,
+            "strike": 745.0,
+            "model_strike": 745.0,
+            "expiry": "2026-10-14",
+            "option_symbol": FOUR_HOUR_CONTRACT,
+            "stop": 748.0,
+            "target": 744.0,
+            "entry": 746.0,
+            "entry_time": f"{DAY13}T10:05:00-04:00",
+            "fill_time": f"{DAY13}T10:05:00-04:00",
+            "entry_filled": False,
+            "iv": 0.2,
+            "model_debit": 353.0,
+        }
+    ]
+    state["orders"] = [
+        {
+            "key": f"{signal_id}|entry",
+            "id": "qqq-4hr-buy",
+            "kind": "entry",
+            "side": "BUY",
+            "qty": "1",
+            "symbol": "QQQ",
+            "right": "PUT",
+            "status": "submitted",
+            "limit": "3.54",
+            "sandbox_price": "3.53",
+            "price_source": "webull",
+            "strike": 745.0,
+            "expiry": "2026-10-14",
+            "option_type": "PUT",
+            "submitted_at": f"{DAY13}T10:05:00-04:00",
+        }
+    ]
+    return state
+
+
+def _aggr_state() -> dict:
+    signal_id = "qqq-1100"
+    state = empty_state()
+    state["book"] = "vwap_band_15m_qqq_aggr"
+    state["stake"] = 2500.0
+    state["settled"] = 2500.0
+    state["signals"] = [
+        {
+            "id": signal_id,
+            "status": "open",
+            "symbol": "QQQ",
+            "direction": "short",
+            "right": "put",
+            "option_type": "PUT",
+            "qty": 1,
+            "strike": 742.0,
+            "expiry": DAY13,
+            "stop": 744.0,
+            "target": 741.0,
+            "entry": 743.0,
+            "entry_time": f"{DAY13}T11:05:00-04:00",
+        }
+    ]
+    state["positions"] = [
+        {
+            "id": signal_id,
+            "direction": "short",
+            "right": "put",
+            "option_type": "PUT",
+            "qty": 1,
+            "strike": 742.0,
+            "expiry": DAY13,
+            "option_symbol": AGGR_CONTRACT,
+            "stop": 744.0,
+            "target": 741.0,
+            "entry": 743.0,
+            "entry_time": f"{DAY13}T11:05:00-04:00",
+            "entry_filled": False,
+        }
+    ]
+    state["orders"] = [
+        {
+            "key": f"{signal_id}|entry",
+            "id": "qqq-742-buy",
+            "kind": "entry",
+            "side": "BUY",
+            "qty": "1",
+            "symbol": "QQQ",
+            "right": "PUT",
+            "status": "submitted",
+            "limit": "0.76",
+            "sandbox_price": "0.75",
+            "price_source": "webull",
+            "strike": 742.0,
+            "expiry": DAY13,
+            "option_type": "PUT",
+            "option_symbol": AGGR_CONTRACT,
+            "submitted_at": f"{DAY13}T11:00:00-04:00",
+        }
+    ]
+    return state
+
+
+class _RateLimited(_Broker):
+    def __init__(self, positions, open_orders=None):
+        super().__init__({})
+        self.positions = positions
+        self.open_orders = [] if open_orders is None else open_orders
+
+        def detail(account_id, client_order_id):
+            raise RuntimeError("HTTP 429 Too Many Requests")
+
+        self._trade.order_v3.get_order_detail = detail
+        self._trade.account_v2.get_account_position = lambda account_id: {"positions": self.positions}
+        self._trade.order_v3.get_order_open = lambda **kwargs: self.open_orders
+
+
+def test_option_fields_confirm_the_four_hour_put_and_not_the_other_qqq_buy(tmp_path):
+    """The account row says QQQ. The leg is the 745 put at $3.53, so that book can sell."""
+    reset_order_poll()
+    import pandas as pd
+
+    from webull_bot.execution.forward_four_hour import _manage_open as hour_manage
+    from webull_bot.execution.forward_reconcile import holdings_lines
+
+    journal = Journal(tmp_path / "hour.sqlite")
+    state = _four_hour_state()
+    broker = _RateLimited([_qqq_position_row()])
+    broker.underlying_quote = lambda symbol: 740.0
+    broker.option_contract_quote = lambda option_symbol: {"bid": 4.10, "ask": 4.20}
+    lines = []
+    hour_manage(state, pd.DataFrame(), _at13("12:10"), broker, lines, journal)
+    assert broker.cancelled == []
+    assert len(broker.placed) == 1
+    assert broker.placed[0]["side"] == "SELL"
+    assert broker.placed[0]["legs"][0]["strike_price"] == "745.00"
+    saved_order = next(row for row in state["orders"] if row.get("kind") == "entry")
+    assert saved_order["fill"] == pytest.approx(3.53)
+    assert saved_order["fill_source"] == "position"
+
+    other = _aggr_state()
+    other_lines = []
+    sync_working_entries(other, _RateLimited([_qqq_position_row()], open_orders=[]), _at13("11:20"), 743.0, other_lines)
+    assert other["orders"][0].get("fill") in (None, "")
+    assert other["signals"][0]["skip"] == "unfilled"
+    assert other["positions"] == []
+
+    from webull_bot.execution.forward_reconcile import _position_rows
+
+    parsed = _position_rows({"positions": [_qqq_position_row()]})
+    text = "\n".join(holdings_lines(state, parsed, [state["orders"][0], other["orders"][0]]))
+    assert "PUT" in text and "745" in text and "avg 3.53" in text
+    assert f"{FOUR_HOUR_CONTRACT}: the sandbox account still holds" in text
+    assert f"{AGGR_CONTRACT}: the sandbox account does not hold this contract." in text
+
+
+def test_a_bare_qqq_average_confirms_only_the_near_premium(tmp_path):
+    reset_order_poll()
+    bare = [{"symbol": "QQQ", "quantity": "1.0", "cost_price": "3.53"}]
+    state = _four_hour_state()
+    lines = []
+    sync_working_entries(state, _RateLimited(bare, open_orders=[]), _at13("12:10"), 746.0, lines)
+    assert state["orders"][0]["fill"] == pytest.approx(3.53)
+    assert state["positions"][0]["entry_filled"] is True
+    assert state["signals"][0]["status"] == "open"
+
+    stock = [{"symbol": "QQQ", "quantity": "1.0", "cost_price": "740.00"}]
+    missed = _four_hour_state()
+    sync_working_entries(missed, _RateLimited(stock, open_orders=[]), _at13("12:10"), 746.0, [])
+    assert missed["orders"][0].get("fill") in (None, "")
+    assert missed["signals"][0]["skip"] == "unfilled"
+
+
+def test_an_unfilled_11_buy_gets_a_missed_fill_shadow(tmp_path):
+    reset_order_poll()
+    from webull_bot.execution.forward_missed import apply_missed_fills
+
+    state = _aggr_state()
+    broker = _RateLimited([_qqq_position_row()], open_orders=[])
+    lines = []
+    sync_working_entries(state, broker, _at13("11:20"), 743.0, lines)
+    assert broker.cancelled == []
+    assert state["signals"][0]["status"] == "skip"
+    assert state["signals"][0]["skip"] == "unfilled"
+    assert state["orders"][0]["status"] == "cancelled"
+    assert apply_missed_fills(state, "vwap_band_15m_qqq_aggr", tmp_path)
+    shadow = state["missed_fills"][0]
+    assert shadow["id"] == "qqq-1100"
+    assert shadow["ask"] == pytest.approx(0.75)
+    assert shadow["missed_pnl"] is None
+    assert shadow["status"] in {"open", "no_quote"}
+
+
+def test_a_still_working_buy_cancels_through_the_exit_view():
+    reset_order_poll()
+    from webull_bot.execution.forward_watch import _ExitView
+
+    state = _aggr_state()
+    inner = _RateLimited(
+        [_qqq_position_row()],
+        open_orders=[{"client_order_id": "qqq-742-buy", "status": "SUBMITTED", "limit_price": "0.76"}],
+    )
+    view = _ExitView(inner, {"QQQ": 743.0})
+    lines = []
+    sync_working_entries(state, view, _at13("11:20"), 743.0, lines)
+    assert inner.cancelled == ["qqq-742-buy"]
+    assert state["signals"][0]["skip"] == "unfilled"
+    assert inner.placed == []
