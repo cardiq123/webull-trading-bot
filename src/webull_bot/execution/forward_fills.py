@@ -102,6 +102,10 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             _promote(state, order, lines)
             changed = True
             continue
+        if _confirm_from_account(state, order, broker):
+            _promote(state, order, lines)
+            changed = True
+            continue
         if kind in {"cancelled", "expired", "rejected"}:
             order["broker_status"] = kind
             order["status"] = kind
@@ -131,6 +135,24 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             )
     _drop_rejected_exits(state, lines)
     return changed
+
+
+def entry_needs_send(order) -> bool:
+    """True when this buy was journaled and the sandbox has not accepted it.
+
+    A model price is still a real order. ``submitted`` and a working broker
+    status are left alone so a restart does not send the buy a second time.
+    """
+    if not isinstance(order, dict) or str(order.get("kind") or "") not in {"", "entry"}:
+        return False
+    if _price(order.get("fill")) is not None:
+        return False
+    if str(order.get("broker_status") or "") in {"working", "filled", "partial", "cancelled", "canceled", "expired"}:
+        return False
+    status = str(order.get("status") or "")
+    if status in {"intent", "not_sent"}:
+        return True
+    return status == "rejected" and str(order.get("price_source") or "") == "model"
 
 
 def entry_order(state, signal_id) -> Optional[dict]:
@@ -324,8 +346,48 @@ def _signal_filled(state, signal_id: str) -> bool:
     return False
 
 
+def _confirm_from_account(state, order, broker) -> bool:
+    """A held contract or a filled order-list row confirms the buy. The limit is not the fill."""
+    from webull_bot.execution.forward_reconcile import account_view, contract_for, holding_for
+
+    if broker is None:
+        return False
+    view = account_view(broker)
+    client_id = str(order.get("id") or "")
+    if view.get("orders_ok"):
+        for row in view.get("orders") or []:
+            if str(row.get("id") or "") != client_id:
+                continue
+            if str(row.get("kind") or "") not in {"filled", "partial"}:
+                continue
+            price = _price(row.get("price"))
+            if price is None and str(row.get("kind")) != "filled":
+                continue
+            order["broker_status"] = "filled" if str(row.get("kind")) == "filled" else "partial"
+            if price is not None:
+                order["fill"] = price
+                order["fill_source"] = "order_list"
+            return True
+    if not view.get("holdings_ok"):
+        return False
+    contract = contract_for(state, order)
+    held = holding_for(contract, view.get("holdings") or [])
+    if held is None:
+        return False
+    order["broker_status"] = "filled"
+    price = _price(held.get("avg"))
+    if price is not None:
+        order["fill"] = price
+        order["fill_source"] = "position"
+    return True
+
+
 def _read(broker, order_id: str) -> dict:
-    if not broker_reports_detail(broker):
+    """Order detail, including through the exit view that hides its trade client.
+
+    The watch spaces these reads. A missing client is ``unknown`` and does not cancel.
+    """
+    if broker is None:
         return {"kind": "unknown"}
     custom = getattr(broker, "order_detail", None)
     if callable(custom):

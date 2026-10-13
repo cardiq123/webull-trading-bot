@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from webull_bot.execution.forward_fills import sync_working_entries
-from webull_bot.execution.forward_reconcile import chase_exit_orders, reconcile_book
+from webull_bot.execution.forward_reconcile import chase_exit_orders, read_order_detail, reconcile_book, reset_order_poll
 from webull_bot.execution.forward_vwap import (
     NAME,
     QQQ_COMPOUND_NAME,
@@ -287,3 +287,126 @@ def test_reconcile_marks_the_october_12_buys_unfilled(tmp_path):
     assert saved_compound["orders"][1]["limit"] == "3.49"
     assert all(row.get("fill") in (None, "") for row in saved_spy["fills"])
     assert all(row.get("side") != "SELL" or row.get("status") != "submitted" for row in saved_spy["orders"])
+
+
+def test_a_held_contract_sells_when_order_detail_is_rate_limited(tmp_path):
+    """The SPY put is already through the target. The position list confirms the fill."""
+    reset_order_poll()
+    journal = Journal(tmp_path / "held.sqlite")
+    state = _ticket(NAME, "spy-held", "0.50", "1.44", 1000.0, 1000.0, 50.0)
+    state["orders"] = [state["orders"][0]]
+    state["positions"][0]["entry_filled"] = False
+    state["positions"][0]["option_symbol"] = "SPY261013P00776000"
+    state["orders"][0]["option_symbol"] = "SPY261013P00776000"
+
+    class Limited(_Broker):
+        def __init__(self):
+            super().__init__({})
+            self.detail_calls = 0
+
+        def get_order_detail(self, account_id, client_order_id):
+            self.detail_calls += 1
+            raise RuntimeError("HTTP 429 Too Many Requests")
+
+    broker = Limited()
+    broker._trade.order_v3.get_order_detail = broker.get_order_detail
+    broker._trade.account_v2.get_account_position = lambda account_id: {
+        "positions": [{"symbol": "SPY261013P00776000", "quantity": 1, "avg_cost": "0.50"}]
+    }
+    broker.underlying_quote = lambda symbol: 667.0
+    token = _activate(NAME)
+    try:
+        journal.forward_save(NAME, state)
+        lines = []
+        _manage_open(journal.forward_load(NAME), None, _at("10:05"), broker, lines, journal)
+    finally:
+        _ACTIVE.reset(token)
+    assert broker.cancelled == []
+    assert len(broker.placed) == 1
+    assert broker.placed[0]["side"] == "SELL"
+    saved = journal.forward_load(NAME)
+    assert any(row.get("fill") == pytest.approx(0.50) for row in saved["orders"] if row.get("kind") == "entry")
+    assert saved["positions"] == [] or saved["positions"][0].get("entry_filled") is True
+
+
+def test_order_detail_is_read_once_per_order_on_the_watch():
+    reset_order_poll()
+    calls = {"n": 0}
+
+    class Once:
+        def get_order_detail(self, account_id, client_order_id):
+            calls["n"] += 1
+            return {"status": "SUBMITTED", "limit_price": "0.76"}
+
+    broker = _Broker({})
+    broker._watch_armed = True
+    broker._trade.order_v3.get_order_detail = Once().get_order_detail
+    first = read_order_detail(broker, "aggr-buy")
+    second = read_order_detail(broker, "aggr-buy")
+    other = read_order_detail(broker, "other-buy")
+    assert first["kind"] == "working"
+    assert second["kind"] == "working"
+    assert other["kind"] == "deferred"
+    assert calls["n"] == 1
+    reset_order_poll()
+
+
+def test_a_journaled_model_compound_buy_is_sent(tmp_path):
+    reset_order_poll()
+    journal = Journal(tmp_path / "compound.sqlite")
+    signal_id = "qqq-1100"
+    built = {
+        "id": signal_id,
+        "status": "open",
+        "direction": "short",
+        "right": "put",
+        "option_type": "PUT",
+        "qty": 1,
+        "strike": 742.0,
+        "expiry": "2026-10-14",
+        "signal_time": f"{DAY}T11:00:00-04:00",
+        "fill_time": f"{DAY}T11:05:00-04:00",
+        "entry_time": f"{DAY}T11:05:00-04:00",
+        "entry": 743.0,
+        "modeled_entry": 743.0,
+        "stop": 744.0,
+        "target": 742.0,
+        "model_ask": 1.25,
+        "model_debit": 126.0,
+        "iv": 0.2,
+    }
+    state = empty_state()
+    state["book"] = QQQ_COMPOUND_NAME
+    state["stake"] = 5000.0
+    state["settled"] = 5000.0
+    state["orders"] = [
+        {
+            "key": f"{signal_id}|entry",
+            "id": "compound-1100",
+            "kind": "entry",
+            "side": "BUY",
+            "qty": "1",
+            "status": "intent",
+            "limit": "1.26",
+            "price_source": "model",
+            "right": "PUT",
+            "symbol": "QQQ",
+        }
+    ]
+    broker = _Broker({})
+    broker._trade.order_v3.get_order_open = lambda **kwargs: []
+    from webull_bot.execution.forward_vwap import _send_open
+
+    token = _activate(QQQ_COMPOUND_NAME)
+    try:
+        lines = []
+        _send_open(state, built, _at("11:06"), broker, lines, journal)
+    finally:
+        _ACTIVE.reset(token)
+    assert len(broker.placed) == 1
+    assert broker.placed[0]["side"] == "BUY"
+    assert broker.placed[0]["symbol"] == "QQQ"
+    assert float(broker.placed[0]["limit_price"]) == pytest.approx(1.26)
+    assert state["orders"][0]["status"] == "submitted"
+    assert state["positions"]
+    assert state["positions"][0]["stop"] == pytest.approx(744.0)

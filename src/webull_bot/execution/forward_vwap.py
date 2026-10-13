@@ -1083,7 +1083,11 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
     for signal in _extensions(view, now_ts):
         sid = _signal_id(signal)
         prior = next((row for row in state.get("signals") or [] if str(row.get("id")) == sid), None)
-        if sid in open_ids or (prior is not None and prior.get("status") not in {"pending", "wait"}):
+        from webull_bot.execution.forward_fills import entry_needs_send, entry_order
+
+        unsent = entry_order(state, sid)
+        resume = entry_needs_send(unsent)
+        if not resume and (sid in open_ids or (prior is not None and prior.get("status") not in {"pending", "wait"})):
             lines.append(f"Signal {_clock(signal.signal_time)} already journaled. Not sent again.")
             continue
         if state.get("positions"):
@@ -1119,6 +1123,7 @@ def _take_signals(state, bars15, bars5, now, points, iv_closes, broker, lines, j
             broker,
             frozen,
             equity=_mirror_equity(state),
+            resume=resume,
         )
         if built.get("status") == "wait":
             _remember_pending(state, signal, built)
@@ -1144,12 +1149,50 @@ def _flatten_open(state, now, broker, lines, journal) -> None:
     state["positions"] = kept
 
 
+def _clear_to_place(state, order, broker, lines) -> str:
+    """``send`` when the sandbox has no such order. ``adopt`` when it already does.
+
+    ``unread`` means the account list failed, including HTTP 429, so no second
+    order is sent.
+    """
+    from webull_bot.execution.forward_reconcile import account_view, contract_for, holding_for
+
+    view = account_view(broker)
+    if not view.get("holdings_ok") or not view.get("orders_ok"):
+        lines.append("Entry was not sent. The account list was not read. No second order.")
+        return "unread"
+    client_id = str(order.get("id") or "")
+    for row in view.get("orders") or []:
+        if str(row.get("id") or "") != client_id:
+            continue
+        if str(row.get("kind") or "") in {"filled", "partial"} and row.get("price") not in (None, ""):
+            order["fill"] = float(row["price"])
+            order["fill_source"] = "order_list"
+            order["broker_status"] = "filled"
+        else:
+            order["broker_status"] = "working"
+        lines.append("Entry is already at the sandbox. Not sent again.")
+        return "adopt"
+    held = holding_for(contract_for(state, order), view.get("holdings") or [])
+    if held is not None:
+        order["broker_status"] = "filled"
+        order["fill_source"] = "position"
+        if held.get("avg") not in (None, ""):
+            order["fill"] = float(held["avg"])
+        lines.append("Entry is already held at the sandbox. Not sent again.")
+        return "adopt"
+    return "send"
+
+
 def _send_open(state, built, now, broker, lines, journal) -> None:
     key = f"{built['id']}|entry"
     existing = next((row for row in state.get("orders") or [] if row.get("key") == key), None)
-    if existing and existing.get("status") in {"intent", "submitted"}:
-        lines.append("Entry already journaled. Not sent again.")
-        return
+    from webull_bot.execution.forward_fills import entry_needs_send
+
+    if existing and not entry_needs_send(existing):
+        if existing.get("status") in {"intent", "submitted", "rejected", "not_sent"}:
+            lines.append("Entry already journaled. Not sent again.")
+            return
     quote = _entry_quote(broker, built)
     if quote and _dte() > 0:
         session = str(built.get("fill_time") or built.get("signal_time") or "")[:10]
@@ -1209,15 +1252,37 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             "sandbox_price": None if sandbox_ask is None else f"{sandbox_ask:.4f}",
             "price_source": source,
             "kind": "entry",
+            "strike": strike,
+            "expiry": expiry,
+            "option_type": built["option_type"],
+            "option_symbol": option_symbol,
         }
         state["orders"].append(order)
     else:
         order = existing
         order["status"] = "intent"
         order["limit"] = f"{limit:.2f}"
+        order["qty"] = str(qty)
         order["model_price"] = f"{model_ask:.4f}"
         order["sandbox_price"] = None if sandbox_ask is None else f"{sandbox_ask:.4f}"
         order["price_source"] = source
+        order["strike"] = strike
+        order["expiry"] = expiry
+        order["option_type"] = built["option_type"]
+        order["option_symbol"] = option_symbol or order.get("option_symbol") or ""
+    adopt = False
+    if existing is not None and entry_needs_send(order):
+        from webull_bot.execution.forward_reconcile import mark_send, send_cooled
+
+        if not send_cooled(str(order.get("id") or "")):
+            lines.append("Entry already journaled. The sandbox send waits out the rate limit.")
+            return
+        mark_send(str(order.get("id") or ""))
+        verdict = _clear_to_place(state, order, broker, lines)
+        if verdict == "unread":
+            journal.forward_save(_book(), state)
+            return
+        adopt = verdict == "adopt"
     journal.forward_save(_book(), state)
     payload = build_single_option_order(
         client_order_id=order["id"],
@@ -1231,7 +1296,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         order_type="LIMIT",
         position_intent="BUY_TO_OPEN",
     )
-    if not _place(broker, payload, order, lines, "entry"):
+    if not adopt and not _place(broker, payload, order, lines, "entry"):
         journal.forward_save(_book(), state)
         return
     order["status"] = "submitted"
@@ -1265,9 +1330,14 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     from webull_bot.execution.forward_fills import note_entry_submission
 
     note_entry_submission(state, built, position, order, now, broker)
+    if order.get("fill") not in (None, "") or str(order.get("broker_status") or "") == "filled":
+        position["entry_filled"] = True
+        built["status"] = "open"
     _drop_pending(state, built.get("id"))
+    state["signals"] = [row for row in (state.get("signals") or []) if str(row.get("id")) != str(built.get("id"))]
     state["signals"].append(built)
-    state["positions"].append(position)
+    if not any(str(row.get("id")) == str(built.get("id")) for row in state.get("positions") or []):
+        state["positions"].append(position)
     if position.get("entry_filled"):
         state["fills"].append(
             {
@@ -1681,6 +1751,7 @@ def _decide_entry(
     broker=None,
     frozen_open: Optional[float] = None,
     equity: Optional[float] = None,
+    resume: bool = False,
 ) -> dict:
     """Price the order at this cycle. A missing open waits. It is not a skip.
 
@@ -1688,9 +1759,11 @@ def _decide_entry(
     the current price, and only when that price is still strictly between them.
     The cycle also has to fall within the entry cap after the signal bar
     closes. Bars between the modeled fill and this cycle are not an exit.
-    A position that is already open is not decided here.
+    A position that is already open is not decided here. ``resume`` prices a
+    buy that was already journaled and never reached the sandbox, including
+    after the entry window.
     """
-    if _entry_is_late(signal.signal_time, now_ts):
+    if _entry_is_late(signal.signal_time, now_ts) and not resume:
         row = _skip(signal, "expired", "expired, late")
         row["reason"] = "expired, late"
         row["entry_deadline"] = _entry_deadline(signal.signal_time).isoformat()

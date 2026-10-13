@@ -14,6 +14,7 @@ out of the money.
 from __future__ import annotations
 
 import os
+import time as time_mod
 from datetime import date, datetime, time, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -29,6 +30,23 @@ FLAT_AT = time(15, 45)
 FLOOR_AT = time(15, 44)
 EXPIRED_AT = time(16, 5)
 MIN_SELL = 0.01
+# One order-detail read per order, and the calls are spaced across the watch.
+DETAIL_GAP_S = 20.0
+DETAIL_GLOBAL_GAP_S = 1.0
+LIST_GAP_S = 20.0
+_DETAIL_BACKOFF_S = (15.0, 30.0, 60.0)
+_POLL = {
+    "detail_at": {},
+    "detail": {},
+    "last_detail": 0.0,
+    "blocked_until": 0.0,
+    "strikes": 0,
+    "view": None,
+    "view_at": 0.0,
+    "list_blocked_until": 0.0,
+    "list_strikes": 0,
+    "send_at": {},
+}
 
 _FILL_KEYS = ("avg_filled_price", "filled_price", "avg_price", "fill_price", "average_price")
 _STATUS_KEYS = ("status", "order_status", "orderStatus")
@@ -110,10 +128,40 @@ def _watch_armed(broker) -> bool:
     return any(getattr(current, "_watch_armed", False) for current in _broker_chain(broker))
 
 
+def reset_order_poll() -> None:
+    """Drop the watch's order-read cache. Tests start from a clean clock."""
+    _POLL["detail_at"] = {}
+    _POLL["detail"] = {}
+    _POLL["last_detail"] = 0.0
+    _POLL["blocked_until"] = 0.0
+    _POLL["strikes"] = 0
+    _POLL["view"] = None
+    _POLL["view_at"] = 0.0
+    _POLL["list_blocked_until"] = 0.0
+    _POLL["list_strikes"] = 0
+    _POLL["send_at"] = {}
+
+
 def read_order_detail(broker, client_order_id: str) -> dict:
-    """One order-detail read. An error becomes ``kind=error`` and the text is dropped."""
+    """One order-detail read. An error becomes ``kind=error`` and the text is dropped.
+
+    On the watch, each order is read at most once every 20 seconds, the calls
+    are spaced, and HTTP 429 backs off. A skipped read is ``kind=deferred``
+    and does not change the journal.
+    """
     if not client_order_id or broker is None:
         return {"kind": "unknown"}
+    armed = _watch_armed(broker)
+    now = time_mod.monotonic()
+    if armed:
+        cached = _POLL["detail"].get(client_order_id)
+        if now < float(_POLL["blocked_until"] or 0.0):
+            return cached or {"kind": "deferred"}
+        last = _POLL["detail_at"].get(client_order_id)
+        if last is not None and now - float(last) < DETAIL_GAP_S:
+            return cached or {"kind": "deferred"}
+        if now - float(_POLL["last_detail"] or 0.0) < DETAIL_GLOBAL_GAP_S:
+            return cached or {"kind": "deferred"}
     trade = _broker_trade(broker)
     account = getattr(broker, "account_id", None)
     if not account:
@@ -122,24 +170,180 @@ def read_order_detail(broker, client_order_id: str) -> dict:
     if method is None or not account:
         return {"kind": "unknown"}
     try:
-        if _watch_armed(broker):
-            from webull_bot.execution.forward_watch import bounded_call
-
-            payload = bounded_call(method, account, client_order_id, key=f"order_detail:{client_order_id}")
-        else:
-            from webull_bot.execution.forward_quotes import _call
-
-            payload = _call(method, account, client_order_id)
-    except Exception:
+        payload = _trade_call(broker, method, account, client_order_id, key=f"order_detail:{client_order_id}")
+    except Exception as exc:
+        if armed and _rate_limited(exc):
+            _penalize(_POLL, "blocked_until", "strikes", now)
         return {"kind": "error"}
     parsed = parse_order_detail(payload)
+    if armed:
+        stamp = time_mod.monotonic()
+        _POLL["detail_at"][client_order_id] = stamp
+        _POLL["last_detail"] = stamp
+        _POLL["detail"][client_order_id] = parsed
+        _POLL["strikes"] = 0
     return parsed
+
+
+def _rate_limited(exc: BaseException) -> bool:
+    code = getattr(exc, "status_code", None)
+    if code is None:
+        code = getattr(exc, "http_status_code", None)
+    if code == 429:
+        return True
+    text = str(exc)
+    return "429" in text or "Too Many Requests" in text
+
+
+def _penalize(box: dict, until_key: str, strike_key: str, now: float) -> None:
+    strike = int(box.get(strike_key) or 0)
+    delay = _DETAIL_BACKOFF_S[min(strike, len(_DETAIL_BACKOFF_S) - 1)]
+    box[strike_key] = strike + 1
+    box[until_key] = now + delay
+
+
+def _trade_call(broker, method, *args, key: str = "", **kwargs):
+    if _watch_armed(broker):
+        from webull_bot.execution.forward_watch import bounded_call
+
+        return bounded_call(method, *args, key=key or getattr(method, "__name__", "trade"), **kwargs)
+    from webull_bot.execution.forward_quotes import _call
+
+    return _call(method, *args, **kwargs)
+
+
+def account_view(broker) -> dict:
+    """Positions and open orders, once each 20 seconds on the watch.
+
+    ``holdings_ok`` is false when that read did not finish, including HTTP 429.
+    An empty list with ``holdings_ok`` true means the account holds nothing.
+    """
+    empty = {"holdings_ok": False, "orders_ok": False, "holdings": [], "orders": []}
+    if broker is None:
+        return empty
+    armed = _watch_armed(broker)
+    now = time_mod.monotonic()
+    cached = _POLL.get("view")
+    if armed and isinstance(cached, dict) and cached.get("holdings_ok") and now - float(_POLL["view_at"] or 0.0) < LIST_GAP_S:
+        return cached
+    if armed and now < float(_POLL["list_blocked_until"] or 0.0):
+        return cached if isinstance(cached, dict) else empty
+    view = {"holdings_ok": False, "orders_ok": False, "holdings": [], "orders": []}
+    try:
+        view["holdings"] = _fetch_position_rows(broker)
+        view["holdings_ok"] = True
+    except Exception as exc:
+        if _rate_limited(exc):
+            _penalize(_POLL, "list_blocked_until", "list_strikes", now)
+        return view
+    try:
+        view["orders"] = _fetch_open_rows(broker)
+        view["orders_ok"] = True
+    except Exception as exc:
+        if _rate_limited(exc):
+            _penalize(_POLL, "list_blocked_until", "list_strikes", now)
+    if armed and view["holdings_ok"]:
+        _POLL["view"] = view
+        _POLL["view_at"] = time_mod.monotonic()
+        if view["orders_ok"]:
+            _POLL["list_strikes"] = 0
+    return view
+
+
+def holding_for(contract: str, holdings: list[dict]) -> Optional[dict]:
+    """The position row for this OCC symbol."""
+    target = str(contract or "").upper()
+    if not target:
+        return None
+    for row in holdings:
+        if not isinstance(row, dict):
+            continue
+        names = [str(row.get("symbol") or "").upper(), *[str(item).upper() for item in row.get("symbols") or []]]
+        if target in names:
+            return row
+    return None
+
+
+def send_cooled(order_id: str) -> bool:
+    """A retry of an unsent entry waits 20 seconds. The first send does not."""
+    if not order_id:
+        return True
+    last = _POLL["send_at"].get(order_id)
+    if last is None:
+        return True
+    return time_mod.monotonic() - float(last) >= DETAIL_GAP_S
+
+
+def mark_send(order_id: str) -> None:
+    if order_id:
+        _POLL["send_at"][order_id] = time_mod.monotonic()
+
+
+def _account_id(broker) -> str:
+    account = getattr(broker, "account_id", None)
+    if account:
+        return str(account)
+    return str(getattr(getattr(broker, "_inner", None), "account_id", None) or "")
+
+
+def _fetch_position_rows(broker) -> list[dict]:
+    trade = _broker_trade(broker)
+    account = _account_id(broker)
+    method = getattr(getattr(trade, "account_v2", None), "get_account_position", None)
+    if method is None or not account:
+        positions = getattr(broker, "positions", None)
+        if not callable(positions):
+            raise RuntimeError("no positions")
+        held = positions()
+        found = []
+        for row in held or []:
+            symbol = str(getattr(row, "symbol", "") or "")
+            quantity = getattr(row, "quantity", None)
+            if symbol and quantity not in (None, 0, 0.0):
+                avg = getattr(row, "avg_price", None)
+                found.append({"symbol": symbol.upper(), "quantity": quantity, "symbols": [symbol.upper()], "avg": avg})
+        return found
+    payload = _trade_call(broker, method, account, key="account_position")
+    return _position_rows(payload)
+
+
+def _fetch_open_rows(broker) -> list[dict]:
+    trade = _broker_trade(broker)
+    account = _account_id(broker)
+    method = getattr(getattr(trade, "order_v3", None), "get_order_open", None)
+    if method is None or not account:
+        raise RuntimeError("no open orders")
+    payload = _trade_call(broker, method, account_id=account, page_size=50, key="open_orders")
+    rows = payload if isinstance(payload, list) else []
+    if isinstance(payload, dict):
+        for key in ("orders", "data", "items", "result"):
+            if isinstance(payload.get(key), list):
+                rows = payload[key]
+                break
+    found = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        client_id = str(row.get("client_order_id") or row.get("clientOrderId") or "")
+        if not client_id:
+            continue
+        detail = parse_order_detail(row)
+        symbol = str(row.get("option_symbol") or row.get("symbol") or "").upper()
+        found.append(
+            {
+                "id": client_id,
+                "kind": detail.get("kind"),
+                "price": detail.get("price"),
+                "symbol": symbol,
+            }
+        )
+    return found
 
 
 def apply_order_detail(order: dict, detail: dict) -> None:
     """Store the broker status. The limit already on the order is left as the limit."""
     kind = str(detail.get("kind") or "unknown")
-    if kind in {"unknown", "error"}:
+    if kind in {"unknown", "error", "deferred"}:
         return
     order["broker_status"] = kind
     if detail.get("time"):
@@ -326,7 +530,7 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
             continue
         detail = read_order_detail(broker, str(order.get("id") or ""))
         kind = str(detail.get("kind") or "unknown")
-        if kind in {"error", "unknown"}:
+        if kind in {"error", "unknown", "deferred"}:
             if kind == "error":
                 lines.append(
                     "Exit order detail was not read. The reason was not printed. "
@@ -826,7 +1030,13 @@ def _position_rows(payload: Any) -> list[dict]:
             continue
         symbol = next((item for item in symbols if len(item) > 8), symbols[0] if symbols else "")
         if symbol:
-            found.append({"symbol": symbol, "quantity": quantity, "symbols": symbols})
+            avg = None
+            for key in ("avg_cost", "avgPrice", "avg_price", "cost_price", "average_cost", "costPrice"):
+                number = _known(row.get(key))
+                if number is not None:
+                    avg = number
+                    break
+            found.append({"symbol": symbol, "quantity": quantity, "symbols": symbols, "avg": avg})
     return found
 
 
