@@ -784,6 +784,7 @@ def _visit_books(
 
                 if chase_exit_orders(state, broker, now, lines):
                     journal.forward_save(name, state)
+                _refresh_missed(state, name, lines, now, journal)
                 _write_ticks(name, symbol, state, prices.get(symbol), broker, now)
             else:
                 try:
@@ -814,6 +815,7 @@ def _visit_books(
 
             if chase_trap_exits(state, broker, now, lines):
                 journal.forward_save(TRAP_NAME, state)
+            _refresh_missed(state, TRAP_NAME, lines, now, journal)
             _write_ticks(TRAP_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
         else:
             try:
@@ -840,6 +842,7 @@ def _visit_books(
 
             if chase_hour_exits(state, broker, now, lines):
                 journal.forward_save(HOUR_NAME, state)
+            _refresh_missed(state, HOUR_NAME, lines, now, journal)
             _write_ticks(HOUR_NAME, "QQQ", state, prices.get("QQQ"), broker, now)
         else:
             try:
@@ -862,14 +865,35 @@ def _frame(book, symbol: str) -> pd.DataFrame:
     return frame
 
 
+def _refresh_missed(state, book: str, lines: list[str], now: datetime, journal) -> None:
+    """Update the shadow and print the daily summary once, at 15:50 ET."""
+    from datetime import time as clock
+
+    from webull_bot.execution.forward_missed import apply_missed_fills, daily_summary_line
+
+    if apply_missed_fills(state, book):
+        journal.forward_save(book, state)
+    local = now.astimezone(NY)
+    if local.time() < clock(15, 50):
+        return
+    stamp = local.date().isoformat()
+    if state.get("missed_summary_on") == stamp:
+        return
+    state["missed_summary_on"] = stamp
+    lines.append(daily_summary_line(state))
+    journal.forward_save(book, state)
+
+
 def _write_ticks(book: str, symbol: str, state: dict, underlying, broker, now: datetime) -> None:
-    from webull_bot.execution.forward_quotes import cached_option
+    from webull_bot.execution.forward_missed import open_missed
+    from webull_bot.execution.forward_quotes import cached_option, quote_dir
 
     positions = [row for row in (state.get("positions") or []) if isinstance(row, dict)]
+    positions.extend(open_missed(state))
     if not positions:
         return
     quotes = {str(row.get("option_symbol") or ""): cached_option(str(row.get("option_symbol") or "")) for row in positions}
-    folder = Path("data/forward")
+    folder = quote_dir()
     try:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"ticks_{book}_{now.astimezone(NY).strftime('%Y%m%d')}.csv"

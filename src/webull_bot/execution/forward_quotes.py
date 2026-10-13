@@ -706,6 +706,10 @@ def option_symbols_for(state, client, symbol: str, spot, now, include_ladder: bo
     for position in state.get("positions") or []:
         if isinstance(position, dict):
             add(position.get("option_symbol"))
+    from webull_bot.execution.forward_missed import open_missed
+
+    for row in open_missed(state):
+        add(row.get("option_symbol"))
     for row in list(state.get("signals") or []) + list(state.get("exits") or []):
         if isinstance(row, dict):
             add(row.get("option_symbol") or row.get("order_symbol"))

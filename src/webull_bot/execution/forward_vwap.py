@@ -919,6 +919,9 @@ def _report_text(journal: Journal) -> str:
     lines.append(
         f"Realized fill P&L ${fill_realized:.2f}. Model P&L ${realized:.2f}."
     )
+    from webull_bot.execution.forward_missed import append_report
+
+    append_report(lines, state, journal, _book())
     from webull_bot.execution.forward_quotes import report_lines
 
     lines.extend(report_lines(state))
