@@ -49,7 +49,16 @@ _POLL = {
     "send_at": {},
 }
 
-_FILL_KEYS = ("avg_filled_price", "filled_price", "avg_price", "fill_price", "average_price")
+_FILL_KEYS = (
+    "avg_filled_price",
+    "filled_price",
+    "avg_price",
+    "fill_price",
+    "average_price",
+    "avgFilledPrice",
+    "filledPrice",
+    "avgFillPrice",
+)
 _STATUS_KEYS = ("status", "order_status", "orderStatus")
 _FILLED_QTY_KEYS = ("filled_quantity", "filledQuantity", "filled_qty", "filledQty")
 _TOTAL_QTY_KEYS = ("total_quantity", "totalQuantity", "quantity", "qty", "entrust_quantity")
@@ -143,18 +152,19 @@ def reset_order_poll() -> None:
     _POLL["send_at"] = {}
 
 
-def read_order_detail(broker, client_order_id: str) -> dict:
+def read_order_detail(broker, client_order_id: str, force: bool = False) -> dict:
     """One order-detail read. An error becomes ``kind=error`` and the text is dropped.
 
     On the watch, each order is read at most once every 20 seconds, the calls
     are spaced, and HTTP 429 backs off. A skipped read is ``kind=deferred``
-    and does not change the journal.
+    and does not change the journal. ``force`` skips that cache so a cancel
+    rejection can see a fill that just happened.
     """
     if not client_order_id or broker is None:
         return {"kind": "unknown"}
     armed = _watch_armed(broker)
     now = time_mod.monotonic()
-    if armed:
+    if armed and not force:
         cached = _POLL["detail"].get(client_order_id)
         if now < float(_POLL["blocked_until"] or 0.0):
             return cached or {"kind": "deferred"}
@@ -436,19 +446,66 @@ def _fetch_open_rows(broker) -> list[dict]:
         if not isinstance(row, dict):
             continue
         client_id = str(row.get("client_order_id") or row.get("clientOrderId") or "")
-        if not client_id:
-            continue
         detail = parse_order_detail(row)
         symbol = str(row.get("option_symbol") or row.get("symbol") or "").upper()
-        found.append(
-            {
-                "id": client_id,
-                "kind": detail.get("kind"),
-                "price": detail.get("price"),
-                "symbol": symbol,
-            }
-        )
+        quantity = row.get("quantity")
+        if quantity in (None, ""):
+            quantity = row.get("qty")
+        if quantity in (None, ""):
+            quantity = row.get("total_quantity")
+        if quantity in (None, ""):
+            quantity = row.get("totalQuantity")
+        parsed = {
+            "id": client_id,
+            "kind": detail.get("kind"),
+            "price": detail.get("price"),
+            "symbol": symbol,
+            "side": str(row.get("side") or "").upper(),
+            "order_type": str(row.get("order_type") or row.get("orderType") or "").upper(),
+            "quantity": quantity,
+            "strike": row.get("strike_price") or row.get("strikePrice") or row.get("strike"),
+            "expiry": row.get("option_expire_date") or row.get("optionExpireDate"),
+            "option_type": row.get("option_type") or row.get("optionType"),
+        }
+        if not client_id and not _blank_order(parsed):
+            continue
+        found.append(parsed)
     return found
+
+
+def _qty_filled(filled, total) -> bool:
+    """A full filled quantity is a fill even when the status text still says submitted."""
+    if filled is None or total is None:
+        return False
+    try:
+        filled_n = float(filled)
+        total_n = float(total)
+    except (TypeError, ValueError):
+        return False
+    return total_n > 0 and filled_n + 1e-9 >= total_n
+
+
+def _blank_order(row: dict) -> bool:
+    """A MARKET buy with no symbol and a quantity of 0.
+
+    An option reprice used to call the equity replace with only a client id,
+    a quantity, and a limit. The sandbox left that shape open as this order.
+    """
+    if not isinstance(row, dict):
+        return False
+    if str(row.get("symbol") or "").strip():
+        return False
+    if row.get("strike") not in (None, "") or row.get("expiry") or row.get("option_type"):
+        return False
+    try:
+        quantity = float(row.get("quantity"))
+    except (TypeError, ValueError):
+        return False
+    if quantity > 0:
+        return False
+    side = str(row.get("side") or "BUY").upper()
+    order_type = str(row.get("order_type") or "MARKET").upper()
+    return side in {"BUY", ""} and order_type in {"MARKET", ""}
 
 
 def apply_order_detail(order: dict, detail: dict) -> None:
@@ -621,6 +678,255 @@ def reconcile_book(journal, broker, book: str, now: datetime) -> list[str]:
     return lines
 
 
+NIGHTLY_BOOKS = (
+    "vwap_band_15m",
+    "vwap_band_15m_qqq_aggr",
+    "vwap_band_15m_qqq_aggr_1dte",
+    "vwap_band_15m_qqq_compound",
+    "neckline_trapdoor_qqq",
+    "four_hour_qqq_1dte",
+)
+_BLANK_TRIED: set = set()
+
+
+def cancel_blank_orders(broker, lines, view=None) -> int:
+    """Cancel a MARKET buy that has no symbol and a quantity of 0.
+
+    That order cannot be a held option. A real working sell is left alone.
+    """
+    if view is None:
+        view = account_view(broker)
+    if not view.get("orders_ok"):
+        return 0
+    cancel = getattr(broker, "cancel_order", None)
+    if not callable(cancel):
+        inner = getattr(broker, "_inner", None)
+        cancel = getattr(inner, "cancel_order", None) if inner is not None else None
+    count = 0
+    for row in view.get("orders") or []:
+        if not _blank_order(row):
+            continue
+        oid = str(row.get("id") or "")
+        lines.append(
+            f"Blank open order {oid or 'no id'} {row.get('side') or 'BUY'} "
+            f"{row.get('order_type') or 'MARKET'} quantity {row.get('quantity')} symbol empty."
+        )
+        if not oid:
+            lines.append("Blank order has no client id. It was not cancelled.")
+            continue
+        if oid in _BLANK_TRIED:
+            continue
+        if not callable(cancel):
+            lines.append("Blank order was not cancelled. The broker has no cancel path.")
+            _BLANK_TRIED.add(oid)
+            continue
+        try:
+            cancel(oid)
+        except Exception as exc:
+            lines.append(f"Blank order cancel was rejected. {_rejection_body(exc)} No new order was sent.")
+            _BLANK_TRIED.add(oid)
+            continue
+        _BLANK_TRIED.add(oid)
+        lines.append(f"Cancelled blank order {oid}. No new order was sent.")
+        count += 1
+    return count
+
+
+def nightly_reconcile(journal, broker, now: datetime) -> list[str]:
+    """Compare each watch book with the sandbox. Does not place an order and does not save.
+
+    The one write is cancelling a blank MARKET buy with no symbol and quantity 0.
+    """
+    lines = [
+        "Nightly reconcile. The journal is compared with sandbox holdings and orders. "
+        "No order is placed. A blank MARKET buy with no symbol and quantity 0 is cancelled. "
+        "Live trading stays off.",
+    ]
+    view = account_view(broker) if broker is not None else {
+        "holdings_ok": False,
+        "orders_ok": False,
+        "holdings": [],
+        "orders": [],
+    }
+    holdings_ok = bool(view.get("holdings_ok"))
+    holdings = list(view.get("holdings") or []) if holdings_ok else []
+    if not holdings_ok:
+        lines.append(
+            "Sandbox position list was not read. It was not treated as empty. No holding mismatches inferred."
+        )
+    elif not holdings:
+        lines.append("Sandbox position list is empty.")
+    else:
+        for row in holdings:
+            lines.append("Sandbox position " + _describe_holding(row))
+    if view.get("orders_ok"):
+        cancel_blank_orders(broker, lines, view)
+        for row in view.get("orders") or []:
+            if _blank_order(row):
+                continue
+            lines.append(
+                f"Open order {row.get('id') or 'no id'} {row.get('side') or ''} "
+                f"{row.get('order_type') or ''} {row.get('symbol') or 'no symbol'} "
+                f"quantity {row.get('quantity')}."
+            )
+    else:
+        lines.append("Open orders were not read. A blank order was not cancelled.")
+    mismatches: list[str] = []
+    loaded = []
+    for book in NIGHTLY_BOOKS:
+        try:
+            state, _stake = _load(journal, book)
+        except Exception:
+            mismatches.append(f"{book}: the journal was not read.")
+            continue
+        if not isinstance(state, dict):
+            continue
+        loaded.append((book, state))
+        mismatches.extend(_book_mismatches(book, state, broker, holdings, holdings_ok))
+    if holdings_ok:
+        for row in holdings:
+            if not _holding_explained(row, loaded):
+                mismatches.append("Unexplained holding. " + _describe_holding(row).lstrip("- ").strip())
+    if mismatches:
+        lines.append("Mismatches:")
+        lines.extend(mismatches)
+    else:
+        lines.append("No mismatches.")
+    return lines
+
+
+def _book_mismatches(book: str, state: dict, broker, holdings: list, holdings_ok: bool) -> list[str]:
+    from webull_bot.execution.forward_fills import _was_unfilled, entry_order, position_is_filled
+
+    found = []
+    for position in state.get("positions") or []:
+        if not isinstance(position, dict) or not position_is_filled(state, position):
+            continue
+        if not holdings_ok:
+            continue
+        probe = _position_probe(position)
+        if match_holding(state, probe, holdings) is None:
+            name = position.get("option_symbol") or position.get("right") or position.get("id")
+            found.append(
+                f"{book} {position.get('id')}: journal says this position is held ({name}). "
+                "The sandbox account does not hold it."
+            )
+    for signal in state.get("signals") or []:
+        if not isinstance(signal, dict) or not _was_unfilled(signal):
+            continue
+        signal_id = str(signal.get("id") or "")
+        order = entry_order(state, signal_id)
+        if order is None:
+            continue
+        if holdings_ok and match_holding(state, order, holdings) is not None:
+            found.append(
+                f"{book} {signal_id}: journal says skipped unfilled. "
+                "The sandbox account holds a matching contract."
+            )
+        if broker is None:
+            continue
+        detail = read_order_detail(broker, str(order.get("id") or ""))
+        kind = str(detail.get("kind") or "")
+        if kind in {"filled", "filled_no_price"} or (kind == "partial" and _known(detail.get("price")) is not None):
+            price = detail.get("price")
+            found.append(
+                f"{book} {signal_id}: journal says skipped unfilled. "
+                f"Order detail is filled at {price if price not in (None, '') else 'an unknown price'}."
+            )
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict) or str(order.get("kind") or "") != "entry":
+            continue
+        if _known(order.get("fill")) is None or not holdings_ok:
+            continue
+        signal_id = ""
+        key = str(order.get("key") or "")
+        if key.endswith("|entry"):
+            signal_id = key[: -len("|entry")]
+        if any(isinstance(row, dict) and str(row.get("id") or "") == signal_id for row in state.get("positions") or []):
+            continue
+        signal = next(
+            (row for row in state.get("signals") or [] if isinstance(row, dict) and str(row.get("id") or "") == signal_id),
+            None,
+        )
+        if signal is None or str(signal.get("status") or "") == "closed":
+            continue
+        if match_holding(state, order, holdings) is not None:
+            continue
+        found.append(
+            f"{book} {signal_id}: order detail fill {order.get('fill')} is on the journal. "
+            "The sandbox account does not hold it."
+        )
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict) or str(order.get("kind") or "") != "exit":
+            continue
+        if _known(order.get("fill")) is not None:
+            continue
+        status = str(order.get("status") or "")
+        broker_status = str(order.get("broker_status") or "")
+        if status not in {"submitted", "intent", "partial", "rejected"} and broker_status not in {
+            "working",
+            "rejected",
+            "partial",
+        }:
+            continue
+        if broker is None:
+            continue
+        detail = read_order_detail(broker, str(order.get("id") or ""))
+        kind = str(detail.get("kind") or "")
+        label = order.get("id") or order.get("key")
+        if kind in {"filled", "filled_no_price"}:
+            found.append(
+                f"{book} exit {label}: journal says fill pending. "
+                f"Order detail is filled at {detail.get('price') or 'an unknown price'}."
+            )
+        elif (
+            holdings_ok
+            and status in {"submitted", "partial"}
+            and match_holding(state, order, holdings) is None
+        ):
+            found.append(
+                f"{book} exit {label}: journal says fill pending. "
+                "The sandbox account does not hold the contract."
+            )
+        elif kind == "rejected" or status == "rejected" or broker_status == "rejected":
+            found.append(
+                f"{book} exit {label}: the sell is rejected. "
+                f"{order.get('error') or kind or 'no reason was stored'}."
+            )
+    return found
+
+
+def _position_probe(position: dict) -> dict:
+    return {
+        "key": f"{position.get('id')}|entry",
+        "kind": "entry",
+        "symbol": position.get("symbol"),
+        "option_symbol": position.get("option_symbol"),
+        "strike": position.get("strike"),
+        "expiry": position.get("expiry"),
+        "right": position.get("right"),
+        "option_type": position.get("option_type") or position.get("right"),
+        "qty": position.get("qty") or position.get("quantity"),
+        "limit": position.get("fill"),
+    }
+
+
+def _holding_explained(row: dict, loaded: list) -> bool:
+    from webull_bot.execution.forward_fills import entry_order
+
+    for _book, state in loaded:
+        for position in state.get("positions") or []:
+            if isinstance(position, dict) and match_holding(state, _position_probe(position), [row]) is not None:
+                return True
+        for signal in state.get("signals") or []:
+            if not isinstance(signal, dict):
+                continue
+            order = entry_order(state, str(signal.get("id") or ""))
+            if order is not None and match_holding(state, order, [row]) is not None:
+                return True
+    return False
+
+
 def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> bool:
     """Re-read a working sell and step the limit down when it is still open.
 
@@ -654,12 +960,19 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
                     + limit_fill_text(order.get("limit"), None)
                 )
             continue
+        if kind == "filled_no_price":
+            apply_order_detail(order, detail)
+            _fill_from_position(state, order, broker)
+            _stamp_fill_row(state, order)
+            changed = True
+            lines.append(_detail_line(order, detail) + " No new sell.")
+            continue
         if kind not in {"unknown"}:
             apply_order_detail(order, detail)
             _stamp_fill_row(state, order)
             changed = True
             lines.append(_detail_line(order, detail))
-        if _known(order.get("fill")) is not None or str(order.get("broker_status") or "") == "filled":
+        if _known(order.get("fill")) is not None or str(order.get("broker_status") or "") in {"filled", "filled_no_price"}:
             continue
         from webull_bot.execution.forward_fills import _signal_filled, _signal_id as _fill_signal
 
@@ -672,8 +985,13 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
                 if callable(cancel):
                     try:
                         cancel(str(order.get("id") or ""))
-                    except Exception:
-                        lines.append("Exit cancel was rejected. The reason was not printed.")
+                    except Exception as exc:
+                        body = _rejection_body(exc)
+                        lines.append(f"Exit cancel was rejected. {body}")
+                        if "OPENAPI_ORDER_CAN_NOT_BE_CANCEL" in body:
+                            if _reconcile_stuck_exit(state, order, broker, lines):
+                                changed = True
+                            continue
             order["status"] = "rejected"
             order["broker_status"] = "rejected"
             order["error"] = "no entry fill"
@@ -745,20 +1063,26 @@ def _reprice_exit(state, order, broker, now, lines, expiry: Optional[date]) -> b
             "The marketable limit is unchanged."
         )
         return False
+    if order.get("reverse_blocked"):
+        lines.append("A sell is already working. No second sell.")
+        return _reconcile_stuck_exit(state, order, broker, lines)
     if order.get("modify_rejected"):
         return _resend_exit(state, order, broker, now, lines, limit=new_limit)
     qty = _qty(order)
-    replacer = getattr(broker, "replace_order", None)
-    if not callable(replacer):
+    if not _replace_available(broker):
         return _resend_exit(state, order, broker, now, lines, limit=new_limit)
     try:
-        replacer(str(order.get("id") or ""), qty, limit_price=new_limit)
+        _call_replace(state, order, broker, qty, new_limit)
     except TimeoutError:
         lines.append("Exit reprice call timed out. No second order was sent while that call is still out.")
         return False
     except Exception as exc:
         order["modify_rejected"] = True
-        lines.append(f"Exit reprice was rejected. {_rejection_body(exc)}")
+        body = _rejection_body(exc)
+        order["error"] = body
+        lines.append(f"Exit reprice was rejected. {body}")
+        if "OPENAPI_ORDER_CAN_NOT_BE_CANCEL" in body:
+            return _reconcile_stuck_exit(state, order, broker, lines)
         return _resend_exit(state, order, broker, now, lines, limit=new_limit)
     order["limit"] = f"{new_limit:.2f}"
     order["submitted_at"] = to_ny(now).isoformat()
@@ -773,6 +1097,9 @@ def _reprice_exit(state, order, broker, now, lines, expiry: Optional[date]) -> b
 
 def _resend_exit(state, order, broker, now, lines, limit: Optional[float] = None) -> bool:
     """Cancel a dead or stuck sell and send one new marketable limit."""
+    if order.get("reverse_blocked"):
+        lines.append("A sell is already working. No second sell.")
+        return _reconcile_stuck_exit(state, order, broker, lines)
     if _pending_exit(order):
         return _finish_exit_send(state, order, broker, now, lines)
     if _contract_expired(_expiry_of(state, order), now):
@@ -790,7 +1117,10 @@ def _resend_exit(state, order, broker, now, lines, limit: Optional[float] = None
             lines.append("Exit cancel call timed out. A second sell was not sent.")
             return False
         except Exception as exc:
-            lines.append(f"Exit cancel was rejected. A second sell was not sent. {_rejection_body(exc)}")
+            body = _rejection_body(exc)
+            lines.append(f"Exit cancel was rejected. A second sell was not sent. {body}")
+            if "OPENAPI_ORDER_CAN_NOT_BE_CANCEL" in body:
+                return _reconcile_stuck_exit(state, order, broker, lines)
             return False
     return _place_exit(state, order, broker, now, lines, new_limit, remember_prior=True)
 
@@ -840,10 +1170,23 @@ def _place_exit(state, order, broker, now, lines, new_limit: float, client_order
     except Exception as exc:
         if payload.get("order_type") == "MARKET" and not order.get("market_rejected"):
             return _exit_limit_fallback(sender, payload, order, now, lines, new_limit, exc)
+        body = _rejection_body(exc)
+        order["error"] = body
+        order.pop("dispatch", None)
+        if "OPENAPI_ORDER_NOT_SUPPORT_REVERSE_OPTION" in body or "NOT_SUPPORT_REVERSE" in body:
+            _restore_prior_id(order)
+            order["status"] = "submitted"
+            order["broker_status"] = "working"
+            order["reverse_blocked"] = True
+            lines.append(f"Exit resend was rejected. {body} No second sell.")
+            return False
+        if "OPENAPI_ORDER_CAN_NOT_BE_CANCEL" in body:
+            _restore_prior_id(order)
+            lines.append(f"Exit resend was rejected. {body} No second sell.")
+            return _reconcile_stuck_exit(state, order, broker, lines)
         order["status"] = "submitted"
         order["broker_status"] = "rejected"
-        order.pop("dispatch", None)
-        lines.append(f"Exit resend was rejected. {_rejection_body(exc)}")
+        lines.append(f"Exit resend was rejected. {body}")
         return False
     _mark_exit_working(order, now, lines)
     return True
@@ -949,7 +1292,9 @@ def _force_min_limit(expiry: Optional[date], now: datetime, previous: Optional[f
 
 def _rejection_body(exc: BaseException) -> str:
     """The broker rejection, with credentials stripped."""
-    from webull_bot.logging_setup import redact_text
+    import os
+
+    from webull_bot.logging_setup import _SECRET_ENV, redact_text
 
     parts = [type(exc).__name__]
     text = str(exc).strip()
@@ -959,10 +1304,147 @@ def _rejection_body(exc: BaseException) -> str:
     body = getattr(response, "text", None) if response is not None else None
     if body:
         parts.append(str(body))
-    rendered = redact_text(" ".join(parts))
+    secrets = [os.environ.get(name, "") for name in _SECRET_ENV]
+    rendered = redact_text(" ".join(parts), secrets)
     if len(rendered) > 400:
         rendered = rendered[:400]
     return rendered or "The rejection body was empty."
+
+
+def _replace_available(broker) -> bool:
+    option = getattr(broker, "replace_option_order", None)
+    equity = getattr(broker, "replace_order", None)
+    return callable(option) or callable(equity)
+
+
+def _call_replace(state, order, broker, qty: float, new_limit: float):
+    """Reprice one option sell.
+
+    The equity replace body has no symbol, side, or order type. The sandbox
+    accepted that shape as a new MARKET buy with quantity 0 and no symbol.
+    An option replace sends the contract. A test double that only implements
+    ``replace_order`` still receives the old three arguments.
+    """
+    option = getattr(broker, "replace_option_order", None)
+    if callable(option):
+        fields = _option_replace_fields(state, order)
+        if not fields.get("symbol"):
+            raise RuntimeError("OPENAPI_PARAM_ERR option replace is missing the contract")
+        return option(str(order.get("id") or ""), qty, limit_price=new_limit, **fields)
+    replacer = getattr(broker, "replace_order", None)
+    if not callable(replacer):
+        raise RuntimeError("the broker has no replace path")
+    return replacer(str(order.get("id") or ""), qty, limit_price=new_limit)
+
+
+def _option_replace_fields(state, order) -> dict:
+    payload = _sell_payload(state, order, 0.01)
+    if not isinstance(payload, dict):
+        return {}
+    leg = (payload.get("legs") or [{}])[0]
+    if not isinstance(leg, dict):
+        leg = {}
+    return {
+        "symbol": payload.get("symbol") or "",
+        "side": payload.get("side") or "SELL",
+        "strike_price": leg.get("strike_price"),
+        "option_expire_date": leg.get("option_expire_date"),
+        "option_type": leg.get("option_type"),
+        "position_intent": payload.get("position_intent") or "SELL_TO_CLOSE",
+    }
+
+
+def _restore_prior_id(order: dict) -> None:
+    prior = list(order.get("prior_ids") or [])
+    if not prior:
+        return
+    order["id"] = prior.pop()
+    order["prior_ids"] = prior
+
+
+def _fill_from_position(state, order, broker) -> None:
+    if _known(order.get("fill")) is not None or broker is None:
+        return
+    from webull_bot.execution.forward_fills import _price
+
+    view = account_view(broker)
+    if not view.get("holdings_ok"):
+        return
+    held = match_holding(state, order, view.get("holdings") or [])
+    price = _price((held or {}).get("avg"))
+    if price is None:
+        return
+    order["fill"] = price
+    order["fill_source"] = "position"
+    if str(order.get("broker_status") or "") == "filled_no_price":
+        order["broker_status"] = "filled"
+
+
+def _reconcile_stuck_exit(state, order, broker, lines) -> bool:
+    """Read the sell again. A filled or still-working order is not resent."""
+    detail = read_order_detail(broker, str(order.get("id") or ""), force=True)
+    kind = str(detail.get("kind") or "unknown")
+    if kind in {"filled", "filled_no_price"} or (kind == "partial" and _known(detail.get("price")) is not None):
+        apply_order_detail(order, detail)
+        _fill_from_position(state, order, broker)
+        _stamp_fill_row(state, order)
+        lines.append(_detail_line(order, detail) + " No new sell.")
+        return True
+    if kind in {"working", "partial"}:
+        order["status"] = "submitted"
+        order["broker_status"] = kind if kind == "partial" else "working"
+        lines.append("Exit is still working. The cancel was not accepted. No second sell.")
+        return True
+    lines.append("Exit status was not read. No second sell.")
+    return False
+
+
+def exit_retry_decision(order, broker, lines) -> str:
+    """What to do with a rejected flatten or exit.
+
+    ``send`` uses a new client id. ``keep`` leaves the working order alone.
+    ``filled`` means order detail already has the fill. A reverse rejection
+    never sends a second sell.
+    """
+    if not isinstance(order, dict):
+        return "keep"
+    error = str(order.get("error") or "")
+    if "NOT_SUPPORT_REVERSE" in error or order.get("reverse_blocked"):
+        order["reverse_blocked"] = True
+        order["status"] = "submitted"
+        order["broker_status"] = "working"
+        lines.append(f"Exit was not retried. {error or 'A sell is already working.'} No second sell.")
+        _reconcile_stuck_exit({}, order, broker, lines)
+        return "keep"
+    detail = read_order_detail(broker, str(order.get("id") or ""), force=True)
+    kind = str(detail.get("kind") or "unknown")
+    if kind in {"filled", "filled_no_price"} or (kind == "partial" and _known(detail.get("price")) is not None):
+        apply_order_detail(order, detail)
+        lines.append(_detail_line(order, detail) + " No new sell.")
+        return "filled"
+    if kind in {"working", "partial"}:
+        order["status"] = "submitted"
+        order["broker_status"] = "working" if kind == "working" else "partial"
+        lines.append("Exit is still working. No second sell.")
+        return "keep"
+    if kind in {"rejected", "cancelled", "expired"} or (error and not order.get("flatten_retried")):
+        if kind in {"unknown", "error", "deferred", ""} and not error:
+            lines.append("Exit was not retried. Order detail was not read.")
+            return "keep"
+        from webull_bot.broker.webull import new_client_order_id
+
+        prior = list(order.get("prior_ids") or [])
+        if order.get("id"):
+            prior.append(order.get("id"))
+        order["prior_ids"] = prior
+        order["id"] = new_client_order_id()
+        order.pop("error", None)
+        order["flatten_retried"] = True
+        order["status"] = "intent"
+        lines.append("Flatten retry with a new order id.")
+        return "send"
+    lines.append("Exit was not retried. Order detail was not read.")
+    return "keep"
 
 
 def _bid(broker, contract: str) -> Optional[float]:
@@ -1057,7 +1539,11 @@ def _classify(found: dict) -> dict:
         kind = "cancelled"
     elif status in _REJECTED:
         kind = "rejected"
-    elif status in _FILLED or (price is not None and status is None and not partial_qty):
+    elif (
+        status in _FILLED
+        or _qty_filled(filled, total)
+        or (price is not None and status is None and not partial_qty)
+    ):
         kind = "filled" if price is not None else "filled_no_price"
     elif status in _PARTIAL or partial_qty:
         kind = "partial"

@@ -82,6 +82,8 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
     if not isinstance(state, dict):
         return False
     changed = adopt_held_entries(state, broker, now, lines)
+    if restore_from_order_detail(state, broker, lines):
+        changed = True
     for order in list(state.get("orders") or []):
         if not isinstance(order, dict) or str(order.get("kind") or "") != "entry":
             continue
@@ -99,8 +101,10 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             continue
         detail = _read(broker, str(order.get("id") or ""))
         kind = str(detail.get("kind") or "unknown")
-        if kind == "filled" or (kind == "partial" and _price(detail.get("price")) is not None):
+        if _detail_confirms_fill(kind, detail):
             _store_fill(order, detail)
+            if _price(order.get("fill")) is None:
+                _confirm_from_account(state, order, broker)
             _promote(state, order, lines)
             changed = True
             continue
@@ -111,6 +115,18 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
         if kind in {"cancelled", "expired", "rejected"}:
             if _keep_because_held(state, order, broker, lines):
                 changed = True
+                continue
+            held, listing = _account_presence(state, order, broker)
+            if held is None:
+                lines.append(
+                    "Order detail says the entry is not working. Positions were not read. "
+                    "The buy was not marked unfilled."
+                )
+                continue
+            if held is True or listing in {"working", "filled"}:
+                lines.append(
+                    "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
+                )
                 continue
             order["broker_status"] = kind
             order["status"] = kind
@@ -137,24 +153,37 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
                 "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
             )
             continue
+        if kind in {"unknown", "error", "deferred", ""} and listing != "working":
+            lines.append(
+                "Order detail was not read. Entry status was not confirmed. "
+                "The buy was not marked unfilled. No exit was sent and the buy was not cancelled."
+            )
+            continue
         if kind == "working" or listing == "working":
             if _keep_because_held(state, order, broker, lines):
                 changed = True
                 continue
             if _cancel(broker, order, lines):
+                if _promote_if_detail_filled(state, order, broker, lines):
+                    changed = True
+                    continue
                 order["broker_status"] = "cancelled"
                 order["status"] = "cancelled"
                 _release(state, signal_id, reason, lines, broker)
                 changed = True
+            elif "OPENAPI_ORDER_CAN_NOT_BE_CANCEL" in str(order.get("cancel_error") or ""):
+                if _promote_if_detail_filled(state, order, broker, lines):
+                    changed = True
+                else:
+                    lines.append(
+                        "Entry is still working. The cancel was not accepted. It was not marked unfilled."
+                    )
             else:
                 lines.append("Entry is still working. The cancel was not accepted. No exit was sent.")
             continue
-        if held is False and listing == "absent":
-            if _keep_because_held(state, order, broker, lines):
-                changed = True
-                continue
-            order["broker_status"] = "cancelled"
-            order["status"] = "cancelled"
+        if held is False and listing == "absent" and kind in {"cancelled", "expired", "rejected"}:
+            order["broker_status"] = kind
+            order["status"] = kind
             _release(state, signal_id, reason, lines, broker)
             changed = True
             continue
@@ -659,6 +688,8 @@ def _account_presence(state, order, broker) -> tuple:
 
 def _cancel(broker, order, lines) -> bool:
     """Cancel one working buy. A broker with no cancel path is not a success."""
+    from webull_bot.execution.forward_reconcile import _rejection_body
+
     cancel = getattr(broker, "cancel_order", None)
     if not callable(cancel):
         inner = getattr(broker, "_inner", None)
@@ -668,8 +699,10 @@ def _cancel(broker, order, lines) -> bool:
         return False
     try:
         cancel(str(order.get("id") or ""))
-    except Exception:
-        lines.append("Entry cancel was rejected. The reason was not printed. No exit was sent.")
+    except Exception as exc:
+        body = _rejection_body(exc)
+        order["cancel_error"] = body
+        lines.append(f"Entry cancel was rejected. {body} No exit was sent.")
         return False
     lines.append(
         f"Cancelled {order.get('side') or 'BUY'} {order.get('qty')} {order.get('right')}. "
@@ -678,8 +711,205 @@ def _cancel(broker, order, lines) -> bool:
     return True
 
 
+def _detail_confirms_fill(kind: str, detail: dict) -> bool:
+    if kind == "filled" or kind == "filled_no_price":
+        return True
+    return kind == "partial" and _price(detail.get("price")) is not None
+
+
+def _promote_if_detail_filled(state, order, broker, lines) -> bool:
+    """A cancel that the broker refused may already be a fill. Do not skip it."""
+    from webull_bot.execution.forward_reconcile import read_order_detail
+
+    detail = read_order_detail(broker, str(order.get("id") or ""), force=True)
+    kind = str(detail.get("kind") or "unknown")
+    if not _detail_confirms_fill(kind, detail):
+        return False
+    _store_fill(order, detail)
+    if _price(order.get("fill")) is None:
+        _confirm_from_account(state, order, broker)
+    _promote(state, order, lines)
+    lines.append("Entry filled. The cancel was not applied. It was not marked unfilled.")
+    return True
+
+
+def restore_from_order_detail(state, broker, lines) -> bool:
+    """Re-open a skipped buy when its own order detail says it filled.
+
+    Two books can share a premium, so the position list is not the tie-break.
+    The client order id is. No new buy is sent. A fill the account no longer
+    holds is recorded and is not sold again.
+    """
+    from webull_bot.execution.forward_reconcile import account_view, match_holding, read_order_detail
+
+    if broker is None or not isinstance(state, dict):
+        return False
+    changed = False
+    view = account_view(broker)
+    holdings_ok = bool(view.get("holdings_ok"))
+    holdings = list(view.get("holdings") or [])
+    for signal in list(state.get("signals") or []):
+        if not isinstance(signal, dict) or not _was_unfilled(signal):
+            continue
+        signal_id = str(signal.get("id") or "")
+        order = entry_order(state, signal_id)
+        if order is None:
+            continue
+        detail = read_order_detail(broker, str(order.get("id") or ""))
+        kind = str(detail.get("kind") or "unknown")
+        if not _detail_confirms_fill(kind, detail):
+            continue
+        _store_fill(order, detail)
+        held = match_holding(state, order, holdings) if holdings_ok else None
+        if held is not None and _price(order.get("fill")) is None:
+            price = _price(held.get("avg"))
+            if price is not None:
+                order["fill"] = price
+                order["fill_source"] = "position"
+        if not holdings_ok:
+            lines.append(
+                f"Order detail says {signal_id} filled"
+                + (f" at {order.get('fill')}" if order.get("fill") else "")
+                + ". Positions were not read. The buy was not marked unfilled."
+            )
+            continue
+        if held is None:
+            signal["status"] = "open"
+            signal["skip"] = ""
+            signal["reason"] = ""
+            signal["detail"] = "order detail filled; the account does not hold it"
+            _clear_unfilled_shadow(state, signal_id)
+            lines.append(
+                f"Restored {signal_id} from order detail fill {order.get('fill') or 'unknown'}. "
+                "The sandbox account does not hold it. Missed-fill shadow removed. No new buy. No sell."
+            )
+            changed = True
+            continue
+        _reopen_from_holding(state, signal, order, held, lines)
+        price = order.get("fill")
+        lines.append(
+            f"Restored {signal_id} from order detail fill {price}. Missed-fill shadow removed. No new buy."
+        )
+        changed = True
+    return changed
+
+
+def _clear_unfilled_shadow(state, signal_id: str) -> None:
+    state["missed_fills"] = [
+        row
+        for row in (state.get("missed_fills") or [])
+        if not (isinstance(row, dict) and str(row.get("id") or "") == signal_id)
+    ]
+    state["orders"] = [
+        row
+        for row in (state.get("orders") or [])
+        if not (
+            isinstance(row, dict)
+            and str(row.get("kind") or "") == "exit"
+            and _signal_id(str(row.get("key") or "")) == signal_id
+            and row.get("error") == "no entry fill"
+            and _price(row.get("fill")) is None
+        )
+    ]
+
+
+def carried_overnight(position, now) -> bool:
+    """A filled contract from an earlier session that has not expired yet."""
+    from datetime import time as clock
+
+    if not isinstance(position, dict) or now is None:
+        return False
+    local = to_ny(now)
+    if local.time() < clock(9, 30):
+        return False
+    raw = position.get("entry_time") or position.get("submitted_at")
+    if not raw:
+        return False
+    try:
+        opened = to_ny(datetime.fromisoformat(str(raw)))
+    except ValueError:
+        return False
+    if opened.date() >= local.date():
+        return False
+    expiry_raw = position.get("expiry")
+    if expiry_raw not in (None, ""):
+        try:
+            expiry = datetime.fromisoformat(str(expiry_raw)[:10]).date()
+        except ValueError:
+            expiry = None
+        if expiry is not None and expiry < local.date():
+            return False
+    return True
+
+
+def account_blocks_sell(state, position, broker, lines) -> bool:
+    """True when the account was read and this contract is not in it.
+
+    An unread list is not an empty account, so the sell is left to the caller.
+    """
+    from webull_bot.execution.forward_reconcile import account_view, match_holding
+
+    if broker is None or not isinstance(position, dict):
+        return False
+    view = account_view(broker)
+    if not view.get("holdings_ok"):
+        return False
+    probe = {
+        "key": f"{position.get('id')}|entry",
+        "kind": "entry",
+        "symbol": position.get("symbol"),
+        "option_symbol": position.get("option_symbol"),
+        "strike": position.get("strike"),
+        "expiry": position.get("expiry"),
+        "right": position.get("right"),
+        "option_type": position.get("option_type") or position.get("right"),
+        "qty": position.get("qty") or position.get("quantity"),
+        "limit": position.get("fill"),
+    }
+    if match_holding(state, probe, view.get("holdings") or []) is not None:
+        return False
+    if not position.get("absent_noted"):
+        name = position.get("option_symbol") or position.get("right") or position.get("id")
+        lines.append(
+            f"No sell. The sandbox account does not hold {name}. "
+            "The journal position was left in place. No order."
+        )
+        position["absent_noted"] = True
+    return True
+
+
+def close_preface(state, position, broker, lines, existing) -> str:
+    """``send`` places the sell. ``stop`` does not. ``done`` the close is finished."""
+    if account_blocks_sell(state, position, broker, lines):
+        return "stop"
+    if not isinstance(existing, dict):
+        return "send"
+    if _price(existing.get("fill")) is not None:
+        return "done"
+    status = str(existing.get("status") or "")
+    broker_status = str(existing.get("broker_status") or "")
+    if status not in {"rejected", "cancelled", "canceled", "expired"} and broker_status not in {
+        "rejected",
+        "cancelled",
+        "canceled",
+        "expired",
+    }:
+        return "send"
+    from webull_bot.execution.forward_reconcile import exit_retry_decision
+
+    decision = exit_retry_decision(existing, broker, lines)
+    if decision == "filled":
+        return "done"
+    if decision != "send":
+        if str(existing.get("status") or "") == "submitted":
+            return "done"
+        return "stop"
+    return "send"
+
+
 def _store_fill(order, detail) -> None:
-    order["broker_status"] = "filled" if str(detail.get("kind")) == "filled" else "partial"
+    kind = str(detail.get("kind"))
+    order["broker_status"] = "filled" if kind in {"filled", "filled_no_price"} else "partial"
     price = _price(detail.get("price"))
     if price is not None:
         order["fill"] = price

@@ -794,6 +794,7 @@ class WebullBroker(Broker):
     def place_order(self, order: Order) -> Order:
         self._require_account()
         self._guard_sandbox()
+        _refuse_blank_order(order.symbol, order.quantity)
         if not order.client_order_id:
             order.client_order_id = new_client_order_id()
         payload = build_equity_order(
@@ -810,6 +811,7 @@ class WebullBroker(Broker):
         )
         response = self._trade.order_v3.place_order(self.account_id, [payload])
         body = _payload(response)
+        _raise_if_business_error(body)
         order.status = OrderStatus.NEW
         order.note = f"submitted keys={_keys(body)}"
         return order
@@ -872,13 +874,18 @@ class WebullBroker(Broker):
         self._guard_sandbox()
         if payload.get("instrument_type") != "OPTION":
             raise WebullError("place_option_order accepts an option payload only")
+        _refuse_blank_order(payload.get("symbol"), payload.get("quantity"))
         response = self._trade.order_v3.place_order(self.account_id, [payload])
-        return _payload(response)
+        body = _payload(response)
+        _raise_if_business_error(body)
+        return body
 
     def cancel_order(self, client_order_id: str) -> None:
         self._require_account()
         self._guard_sandbox()
-        self._trade.order_v3.cancel_order(account_id=self.account_id, client_order_id=client_order_id)
+        response = self._trade.order_v3.cancel_order(account_id=self.account_id, client_order_id=client_order_id)
+        if response is not None:
+            _raise_if_business_error(_response_body(response))
 
     def _guard_sandbox(self) -> None:
         if not self.sandbox_only:
@@ -897,14 +904,69 @@ class WebullBroker(Broker):
         limit_price: Optional[float] = None,
         stop_price: Optional[float] = None,
     ) -> None:
+        """Equity replace. Option sells use ``replace_option_order``.
+
+        A body with only a client id, quantity, and limit has no symbol and
+        no side. The sandbox left that shape open as a MARKET buy with
+        quantity 0 and no symbol.
+        """
         self._require_account()
         self._guard_sandbox()
+        if float(quantity) <= 0:
+            raise WebullError("Refusing a replace with quantity 0. No order was sent.")
         modify: dict[str, str] = {"client_order_id": client_order_id, "quantity": _qty(quantity)}
         if limit_price is not None:
             modify["limit_price"] = f"{limit_price:.2f}"
         if stop_price is not None:
             modify["stop_price"] = f"{stop_price:.2f}"
-        self._trade.order_v3.replace_order(self.account_id, [modify])
+        response = self._trade.order_v3.replace_order(self.account_id, [modify])
+        if response is not None:
+            _raise_if_business_error(_response_body(response))
+
+    def replace_option_order(self, client_order_id: str, quantity: float, limit_price: Optional[float] = None, **contract):
+        """Replace one option order. The body names the contract and stays a limit."""
+        self._require_account()
+        self._guard_sandbox()
+        symbol = str(contract.get("symbol") or "")
+        _refuse_blank_order(symbol, quantity)
+        side = str(contract.get("side") or "SELL").upper()
+        strike = contract.get("strike_price")
+        expiry = str(contract.get("option_expire_date") or "")[:10]
+        option_type = str(contract.get("option_type") or "").upper()
+        if limit_price is None or strike in (None, "") or not expiry or option_type not in {"CALL", "PUT"}:
+            raise WebullError(
+                "OPENAPI_PARAM_ERR Refusing an option replace that is missing the limit, strike, expiry, or right."
+            )
+        modify = {
+            "client_order_id": client_order_id,
+            "instrument_type": "OPTION",
+            "market": "US",
+            "symbol": symbol,
+            "side": side,
+            "order_type": "LIMIT",
+            "quantity": _qty(quantity),
+            "limit_price": f"{float(limit_price):.2f}",
+            "option_strategy": "SINGLE",
+            "time_in_force": "DAY",
+            "entrust_type": "QTY",
+            "position_intent": str(contract.get("position_intent") or "SELL_TO_CLOSE"),
+            "legs": [
+                {
+                    "side": side,
+                    "quantity": _qty(quantity),
+                    "symbol": symbol,
+                    "strike_price": f"{float(strike):.2f}",
+                    "option_expire_date": expiry,
+                    "instrument_type": "OPTION",
+                    "option_type": option_type,
+                    "market": "US",
+                }
+            ],
+        }
+        response = self._trade.order_v3.replace_order(self.account_id, [modify])
+        body = _payload(response)
+        _raise_if_business_error(body)
+        return body if isinstance(body, dict) else {}
 
     def flatten(self) -> list[Fill]:
         """Cancel open orders and submit market sells for long stock positions.
@@ -972,6 +1034,60 @@ def _add_sandbox_endpoints(api, region: str) -> list[str]:
             api.add_endpoint(region, host)
             recorded.append(host)
     return recorded
+
+
+_BUSINESS_CODES = (
+    "OPENAPI_PARAM_ERR",
+    "OPENAPI_ORDER_CAN_NOT_BE_CANCEL",
+    "OPENAPI_ORDER_NOT_SUPPORT_REVERSE_OPTION",
+)
+
+
+def _refuse_blank_order(symbol, quantity) -> None:
+    """Do not send the MARKET buy the sandbox kept with no symbol and quantity 0."""
+    text = str(symbol or "").strip()
+    try:
+        qty = float(quantity)
+    except (TypeError, ValueError):
+        qty = 0.0
+    if not text or qty <= 0:
+        raise WebullError("Refusing an order with no symbol or a quantity of 0. No order was sent.")
+
+
+def _response_body(response: Any) -> Any:
+    """JSON when the client has it. A non-JSON success is not an error by itself."""
+    if response is None:
+        return None
+    status = getattr(response, "status_code", None)
+    if status is not None and int(status) >= 400:
+        text = getattr(response, "text", "") or ""
+        raise WebullResponseError(f"Webull HTTP {status}: {text[:400]}")
+    if hasattr(response, "json"):
+        try:
+            return response.json()
+        except Exception:
+            return getattr(response, "text", None)
+    return response
+
+
+def _raise_if_business_error(body: Any) -> None:
+    if body in (None, ""):
+        return
+    if isinstance(body, dict):
+        text = " ".join(
+            str(body.get(key) or "")
+            for key in ("code", "error_code", "msg", "message", "error", "status")
+        )
+        if not any(code in text for code in _BUSINESS_CODES):
+            import json
+
+            text = json.dumps(body)
+    else:
+        text = str(body)
+    for code in _BUSINESS_CODES:
+        if code in text:
+            shown = text if len(text) <= 400 else text[:400]
+            raise WebullResponseError(shown)
 
 
 def _payload(response: Any) -> Any:

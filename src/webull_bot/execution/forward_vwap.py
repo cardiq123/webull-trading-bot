@@ -1042,7 +1042,7 @@ def _settle(state: dict, day: date) -> None:
 
 
 def _manage_open(state, bars5, now, broker, lines, journal) -> None:
-    from webull_bot.execution.forward_fills import position_is_filled, sync_working_entries
+    from webull_bot.execution.forward_fills import carried_overnight, position_is_filled, sync_working_entries
 
     spot = _underlying_price(broker)
     if spot is None:
@@ -1057,6 +1057,13 @@ def _manage_open(state, bars5, now, broker, lines, journal) -> None:
                 f"Entry working {position.get('right')} from {position.get('entry_time')}. "
                 "Fill is not confirmed. No exit."
             )
+            continue
+        if carried_overnight(position, now):
+            lines.append("Carried position from a prior session. Flatten on this cycle.")
+            price = float(spot) if spot is not None else float(position.get("entry") or 0.0)
+            if _send_close(state, position, "flat", price, to_ny(now), broker, lines, journal):
+                continue
+            kept.append(position)
             continue
         outcome = _position_exit(position, bars5, now)
         if outcome is None:
@@ -1376,6 +1383,15 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
             journal.forward_save(_book(), state)
             return True
         return False
+    from webull_bot.execution.forward_fills import close_preface
+
+    preface = close_preface(state, position, broker, lines, existing)
+    if preface == "stop":
+        return False
+    if preface == "done":
+        _drop_open(state, position)
+        journal.forward_save(_book(), state)
+        return True
     qty = _lot(position, closing=True)
     model_bid = _exit_model_bid(position, underlying, when)
     sandbox_bid = _exit_bid(broker, position)
@@ -1523,10 +1539,15 @@ def _place(broker, payload, order, lines, kind: str) -> bool:
     except Exception as exc:
         if payload.get("order_type") == "MARKET" and order.get("limit") not in (None, "") and not order.get("market_rejected"):
             return _place_limit_fallback(sender, payload, order, lines, kind, exc)
+        from webull_bot.execution.forward_reconcile import _rejection_body
+
+        body = _rejection_body(exc)
         order["status"] = "rejected"
-        order["error"] = "rejected"
+        order["error"] = body
         order.pop("dispatch", None)
-        lines.append(f"Option {kind} was rejected. The reason was not printed.")
+        if "NOT_SUPPORT_REVERSE" in body:
+            order["reverse_blocked"] = True
+        lines.append(f"Option {kind} was rejected. {body}")
         return False
     order["dispatch"] = "done"
     return True

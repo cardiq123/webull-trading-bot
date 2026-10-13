@@ -221,6 +221,9 @@ def test_a_confirmed_fill_can_exit(tmp_path):
     broker = _Broker(
         {"spy-fill-buy": {"status": "FILLED", "limit_price": "0.86", "avg_filled_price": "0.80"}}
     )
+    broker._trade.account_v2.get_account_position = lambda account_id: {
+        "positions": [{"symbol": "TEST", "quantity": "1", "cost_price": "0.80"}]
+    }
     token = _activate(NAME)
     try:
         journal.forward_save(NAME, state)
@@ -572,15 +575,19 @@ def _aggr_state() -> dict:
 
 
 class _RateLimited(_Broker):
-    def __init__(self, positions, open_orders=None):
+    def __init__(self, positions, open_orders=None, detail=None):
         super().__init__({})
         self.positions = positions
         self.open_orders = [] if open_orders is None else open_orders
 
-        def detail(account_id, client_order_id):
+        def detail_fn(account_id, client_order_id):
+            if isinstance(detail, Exception):
+                raise detail
+            if detail is not None:
+                return detail
             raise RuntimeError("HTTP 429 Too Many Requests")
 
-        self._trade.order_v3.get_order_detail = detail
+        self._trade.order_v3.get_order_detail = detail_fn
         self._trade.account_v2.get_account_position = lambda account_id: {"positions": self.positions}
         self._trade.order_v3.get_order_open = lambda **kwargs: self.open_orders
 
@@ -610,7 +617,13 @@ def test_option_fields_confirm_the_four_hour_put_and_not_the_other_qqq_buy(tmp_p
 
     other = _aggr_state()
     other_lines = []
-    sync_working_entries(other, _RateLimited([_qqq_position_row()], open_orders=[]), _at13("11:20"), 743.0, other_lines)
+    sync_working_entries(
+        other,
+        _RateLimited([_qqq_position_row()], open_orders=[], detail={"status": "CANCELLED"}),
+        _at13("11:20"),
+        743.0,
+        other_lines,
+    )
     assert other["orders"][0].get("fill") in (None, "")
     assert other["signals"][0]["skip"] == "unfilled"
     assert other["positions"] == []
@@ -636,7 +649,13 @@ def test_a_bare_qqq_average_confirms_only_the_near_premium(tmp_path):
 
     stock = [{"symbol": "QQQ", "quantity": "1.0", "cost_price": "740.00"}]
     missed = _four_hour_state()
-    sync_working_entries(missed, _RateLimited(stock, open_orders=[]), _at13("12:10"), 746.0, [])
+    sync_working_entries(
+        missed,
+        _RateLimited(stock, open_orders=[], detail={"status": "CANCELLED"}),
+        _at13("12:10"),
+        746.0,
+        [],
+    )
     assert missed["orders"][0].get("fill") in (None, "")
     assert missed["signals"][0]["skip"] == "unfilled"
 
@@ -646,7 +665,7 @@ def test_an_unfilled_11_buy_gets_a_missed_fill_shadow(tmp_path):
     from webull_bot.execution.forward_missed import apply_missed_fills
 
     state = _aggr_state()
-    broker = _RateLimited([_qqq_position_row()], open_orders=[])
+    broker = _RateLimited([_qqq_position_row()], open_orders=[], detail={"status": "CANCELLED"})
     lines = []
     sync_working_entries(state, broker, _at13("11:20"), 743.0, lines)
     assert broker.cancelled == []
@@ -808,11 +827,24 @@ def test_a_holding_without_a_strike_keeps_the_matching_book_open():
     one_dte = _open_put("qqq-1dte", limit=2.81, qty=1, expiry="2026-10-14", strike=742.0)
     compound = _open_put("qqq-compound", limit=1.26, qty=1, expiry="2026-10-14", strike=742.0)
     for state in (one_dte, compound):
-        sync_working_entries(state, _RateLimited(_live_holdings(), open_orders=[]), _at13("11:20"), 743.0, [])
+        cancelled = {"status": "CANCELLED"}
+        sync_working_entries(
+            state,
+            _RateLimited(_live_holdings(), open_orders=[], detail=cancelled),
+            _at13("11:20"),
+            743.0,
+            [],
+        )
         assert state["orders"][0].get("fill") in (None, "")
         assert state["signals"][0]["skip"] == "unfilled"
         assert state["positions"] == []
-        sync_working_entries(state, _RateLimited(_live_holdings(), open_orders=[]), _at13("11:21"), 743.0, [])
+        sync_working_entries(
+            state,
+            _RateLimited(_live_holdings(), open_orders=[], detail=cancelled),
+            _at13("11:21"),
+            743.0,
+            [],
+        )
         assert state["positions"] == []
         assert state["signals"][0]["skip"] == "unfilled"
 
@@ -1035,3 +1067,149 @@ def test_a_client_body_adopts_the_held_puts_and_leaves_the_other_buys():
     assert any("Adopted" in line for line in lines)
     assert all("list is empty" not in line for line in lines)
     reset_bounded_calls()
+
+
+def test_a_rate_limit_does_not_mark_a_buy_unfilled_when_the_open_list_is_empty():
+    reset_order_poll()
+    state = _ticket(NAME, "spy-429", "0.86", "1.44", 1000.0, 1000.0, 86.0)
+    state["orders"] = [state["orders"][0]]
+    broker = _RateLimited([], open_orders=[])
+    lines = []
+    sync_working_entries(state, broker, _at("10:30"), 671.0, lines)
+    assert broker.cancelled == []
+    assert broker.placed == []
+    assert state["positions"]
+    assert state["signals"][0].get("skip") in (None, "")
+    assert any("not marked unfilled" in line for line in lines)
+
+
+def test_a_skipped_buy_is_restored_from_its_own_order_detail():
+    reset_order_poll()
+    state = _open_put("qqq-1dte", limit=2.82, qty=1, expiry="2026-10-14", strike=742.0)
+    _mark_unfilled(state)
+    state["missed_fills"] = [{"id": "qqq-1dte", "missed_pnl": -1.0}]
+    state["orders"].append(
+        {
+            "key": "qqq-1dte|exit",
+            "id": "qqq-1dte-sell",
+            "kind": "exit",
+            "status": "rejected",
+            "error": "no entry fill",
+            "side": "SELL",
+        }
+    )
+    broker = _RateLimited([], open_orders=[], detail={"status": "FILLED", "avg_filled_price": "2.82"})
+    lines = []
+    sync_working_entries(state, broker, _at13("15:00"), 740.0, lines)
+    text = "\n".join(lines)
+    assert state["orders"][0]["fill"] == pytest.approx(2.82)
+    assert state["missed_fills"] == []
+    assert state["positions"] == []
+    assert state["signals"][0].get("skip") in (None, "")
+    assert all(row.get("error") != "no entry fill" for row in state["orders"])
+    assert broker.placed == []
+    assert "Restored qqq-1dte from order detail fill 2.82" in text
+    assert "No new buy" in text
+    assert "No sell" in text
+
+
+def test_a_cancel_the_broker_refuses_does_not_skip_a_filled_buy():
+    reset_order_poll()
+    state = _ticket(NAME, "spy-block", "0.86", "1.44", 1000.0, 1000.0, 86.0)
+    state["orders"] = [state["orders"][0]]
+    calls = {"n": 0}
+
+    class Block(_Broker):
+        def cancel_order(self, client_order_id):
+            self.cancelled.append(client_order_id)
+            raise RuntimeError("OPENAPI_ORDER_CAN_NOT_BE_CANCEL")
+
+    broker = Block({})
+
+    def detail(account_id, client_order_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {"status": "SUBMITTED", "limit_price": "0.86"}
+        return {"status": "FILLED", "avg_filled_price": "0.82", "filled_quantity": "1", "quantity": "1"}
+
+    broker._trade.order_v3.get_order_detail = detail
+    lines = []
+    sync_working_entries(state, broker, _at("10:02"), 671.0, lines)
+    assert state["signals"][0].get("skip") in (None, "")
+    assert state["orders"][0]["fill"] == pytest.approx(0.82)
+    assert state["positions"]
+    assert broker.placed == []
+    assert any("not marked unfilled" in line for line in lines)
+
+
+def test_a_carried_put_flattens_once_at_the_next_open_only_when_it_is_held(tmp_path):
+    import pandas as pd
+
+    from webull_bot.execution.forward_four_hour import _manage_open as hour_manage
+
+    reset_order_poll()
+    journal = Journal(tmp_path / "carry.sqlite")
+    state = {
+        "book": "four_hour_qqq_1dte",
+        "stake": 2500.0,
+        "settled": 2500.0,
+        "signals": [{"id": "qqq-4hr", "status": "open", "symbol": "QQQ"}],
+        "positions": [
+            {
+                "id": "qqq-4hr",
+                "direction": "short",
+                "right": "put",
+                "option_type": "PUT",
+                "qty": 1,
+                "strike": 742.0,
+                "expiry": "2026-10-14",
+                "option_symbol": "QQQ261014P00742000",
+                "symbol": "QQQ",
+                "stop": 750.0,
+                "target": 740.0,
+                "entry": 746.0,
+                "entry_time": "2026-10-13T12:55:00-04:00",
+                "entry_filled": True,
+                "iv": 0.2,
+                "model_debit": 282.0,
+            }
+        ],
+        "orders": [],
+        "fills": [],
+        "exits": [],
+    }
+    held = _Broker({})
+    held._trade.account_v2.get_account_position = lambda account_id: {
+        "positions": [{"symbol": "QQQ261014P00742000", "quantity": "1", "cost_price": "2.82"}]
+    }
+    held.underlying_quote = lambda symbol: 740.0
+    carried = dict(state["positions"][0])
+    morning = datetime(2026, 10, 14, 9, 31, tzinfo=NY)
+    lines = []
+    hour_manage(state, pd.DataFrame(), morning, held, lines, journal)
+    assert len(held.placed) == 1
+    assert held.placed[0]["side"] == "SELL"
+    assert held.placed[0]["instrument_type"] == "OPTION"
+    assert any("Carried position" in line for line in lines)
+    hour_manage(state, pd.DataFrame(), datetime(2026, 10, 14, 9, 32, tzinfo=NY), held, [], journal)
+    assert len(held.placed) == 1
+
+    missed = {
+        "book": "four_hour_qqq_1dte",
+        "stake": 2500.0,
+        "settled": 2500.0,
+        "signals": [{"id": "qqq-4hr", "status": "open"}],
+        "positions": [carried],
+        "orders": [],
+        "fills": [],
+        "exits": [],
+    }
+    # The first manage dropped the position after the sell. Rebuild the carried row.
+    missed["positions"][0]["entry_filled"] = True
+    empty = _Broker({})
+    empty.underlying_quote = lambda symbol: 740.0
+    quiet = []
+    hour_manage(missed, pd.DataFrame(), morning, empty, quiet, journal)
+    assert empty.placed == []
+    assert missed["positions"]
+    assert any("does not hold" in line for line in quiet)

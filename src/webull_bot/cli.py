@@ -151,6 +151,15 @@ def build_parser() -> argparse.ArgumentParser:
             "four_hour_qqq_1dte",
         ],
     )
+    forward_nightly = sub.add_parser(
+        "forward-nightly",
+        help=(
+            "Compare every sandbox forward journal with holdings and open orders. "
+            "Prints mismatches. Cancels only a blank MARKET buy with no symbol and quantity 0. "
+            "Does not place an order. Live trading stays off."
+        ),
+    )
+    _add_config(forward_nightly)
 
     watch = sub.add_parser(
         "forward-watch",
@@ -216,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
         return _forward_report(config, args)
     if args.command == "forward-reconcile":
         return _forward_reconcile(config, args)
+    if args.command == "forward-nightly":
+        return _forward_nightly(config, args)
     parser.error(args.command)
     return 2
 
@@ -933,6 +944,35 @@ def _forward_reconcile(config, args) -> int:
         lines = reconcile_book(journal, broker, args.strategy, now)
     except Exception:
         raise SystemExit("Reconcile failed. The reason was not printed. No order was sent.")
+    print("\n".join(lines))
+    return 0
+
+
+def _forward_nightly(config, args) -> int:
+    """Print journal mismatches. Cancels only a blank order. Does not save the journal."""
+    from webull_bot.execution.forward_reconcile import nightly_reconcile, require_sandbox
+
+    require_sandbox()
+    from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
+    from webull_bot.journal.store import Journal
+
+    try:
+        broker = WebullBroker(environment="sandbox")
+        broker.sandbox_only = True
+        broker.connect()
+        assert_sandbox_hosts(broker.hosts)
+    except SystemExit:
+        raise
+    except Exception:
+        raise SystemExit("Nightly reconcile could not connect. No order was sent.")
+    from zoneinfo import ZoneInfo
+
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    now = datetime.now(ZoneInfo("America/New_York"))
+    try:
+        lines = nightly_reconcile(journal, broker, now)
+    except Exception:
+        raise SystemExit("Nightly reconcile failed. No order was placed.")
     print("\n".join(lines))
     return 0
 

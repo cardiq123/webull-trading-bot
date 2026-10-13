@@ -171,6 +171,11 @@ def test_a_limit_in_the_payload_is_not_a_fill():
     )
     assert partial["kind"] == "partial"
     assert parse_order_detail({"status": "CANCELLED", "limit_price": "0.60"})["kind"] == "cancelled"
+    filled_qty = parse_order_detail(
+        {"status": "SUBMITTED", "limit_price": "2.82", "avgFilledPrice": "2.82", "filledQuantity": "1", "quantity": "1"}
+    )
+    assert filled_qty["kind"] == "filled"
+    assert filled_qty["price"] == pytest.approx(2.82)
     assert parse_order_detail({"status": "EXPIRED", "limit_price": "0.60"})["kind"] == "expired"
 
 
@@ -539,3 +544,167 @@ def _trapdoor_put() -> dict:
         ],
         "positions": [],
     }
+
+
+def test_a_cancel_the_broker_refuses_does_not_send_a_second_sell_and_books_the_fill():
+    state = _state()
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:34:56-04:00"
+    calls = {"n": 0}
+
+    class Block(_Broker):
+        def replace_order(self, client_order_id, quantity, limit_price=None):
+            self.replaced.append((client_order_id, quantity, limit_price))
+            raise RuntimeError("OPENAPI_ORDER_CAN_NOT_BE_CANCEL")
+
+    broker = Block({"exit-1": {"status": "SUBMITTED", "limit_price": "0.60"}})
+
+    def detail(account_id, client_order_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {"status": "SUBMITTED", "limit_price": "0.60"}
+        return {"status": "FILLED", "avg_filled_price": "0.55", "limit_price": "0.60"}
+
+    broker._trade.order_v3.get_order_detail = detail
+    lines = []
+    chase_exit_orders(state, broker, _now("14:40"), lines)
+    assert broker.placed == []
+    assert state["orders"][0]["fill"] == pytest.approx(0.55)
+    assert state["orders"][0]["id"] == "exit-1"
+    assert any("No new sell" in line for line in lines)
+
+
+def test_a_reverse_rejection_restores_the_working_sell_and_does_not_send_another():
+    state = _state()
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:34:56-04:00"
+
+    class Reverse(_Broker):
+        def replace_order(self, client_order_id, quantity, limit_price=None):
+            self.replaced.append((client_order_id, quantity, limit_price))
+            raise RuntimeError("OPENAPI_PARAM_ERR")
+
+        def place_option_order(self, payload):
+            self.placed.append(payload)
+            raise RuntimeError("OPENAPI_ORDER_NOT_SUPPORT_REVERSE_OPTION")
+
+    broker = Reverse({"exit-1": {"status": "SUBMITTED", "limit_price": "0.60"}})
+    lines = []
+    chase_exit_orders(state, broker, _now("14:40"), lines)
+    text = "\n".join(lines)
+    assert "OPENAPI_PARAM_ERR" in text
+    assert "OPENAPI_ORDER_NOT_SUPPORT_REVERSE_OPTION" in text
+    assert state["orders"][0]["id"] == "exit-1"
+    assert state["orders"][0]["reverse_blocked"] is True
+    assert len(broker.placed) == 1
+    before = len(broker.placed)
+    chase_exit_orders(state, broker, _now("14:41"), lines)
+    assert len(broker.placed) == before
+    assert any("No second sell" in line for line in lines)
+
+
+def test_nightly_prints_a_skipped_fill_and_cancels_only_the_blank_buy(tmp_path):
+    from webull_bot.execution.forward_reconcile import _BLANK_TRIED, nightly_reconcile, reset_order_poll
+    from webull_bot.execution.forward_vwap import QQQ_AGGR_1DTE_NAME, empty_state
+
+    reset_order_poll()
+    _BLANK_TRIED.clear()
+    journal = Journal(tmp_path / "night.sqlite")
+    state = empty_state()
+    state["book"] = QQQ_AGGR_1DTE_NAME
+    state["signals"] = [
+        {
+            "id": "qqq-1dte",
+            "status": "skip",
+            "skip": "unfilled",
+            "reason": "unfilled",
+            "symbol": "QQQ",
+            "option_type": "PUT",
+            "right": "put",
+            "qty": 1,
+            "strike": 742.0,
+            "expiry": "2026-10-14",
+        }
+    ]
+    state["orders"] = [
+        {
+            "key": "qqq-1dte|entry",
+            "id": "qqq-1dte-buy",
+            "kind": "entry",
+            "side": "BUY",
+            "qty": "1",
+            "symbol": "QQQ",
+            "right": "PUT",
+            "option_type": "PUT",
+            "status": "cancelled",
+            "limit": "2.82",
+            "strike": 742.0,
+            "expiry": "2026-10-14",
+        }
+    ]
+    state["positions"] = []
+    journal.forward_save(QQQ_AGGR_1DTE_NAME, state)
+
+    class Night(_Broker):
+        def __init__(self):
+            super().__init__({})
+            self._trade.account_v2.get_account_position = lambda account_id: {
+                "positions": [
+                    {
+                        "symbol": "QQQ",
+                        "quantity": "3.0",
+                        "cost_price": "0.77",
+                        "option_type": "PUT",
+                        "option_expire_date": "2026-10-13",
+                    }
+                ]
+            }
+            self._trade.order_v3.get_order_open = lambda **kwargs: [
+                {
+                    "client_order_id": "blank-1",
+                    "side": "BUY",
+                    "order_type": "MARKET",
+                    "quantity": "0",
+                    "symbol": "",
+                    "status": "SUBMITTED",
+                }
+            ]
+            self._trade.order_v3.get_order_detail = lambda account_id, client_order_id: {
+                "status": "FILLED",
+                "avg_filled_price": "2.82",
+            }
+
+    broker = Night()
+    lines = nightly_reconcile(journal, broker, _now("16:10", "2026-10-13"))
+    text = "\n".join(lines)
+    assert "No order is placed" in text
+    assert "skipped unfilled" in text
+    assert "filled at 2.82" in text
+    assert "Unexplained holding" in text
+    assert "Cancelled blank order blank-1" in text
+    assert broker.placed == []
+    assert broker.cancelled == ["blank-1"]
+    saved = journal.forward_load(QQQ_AGGR_1DTE_NAME)
+    assert saved["signals"][0]["skip"] == "unfilled"
+
+
+def test_a_rejected_option_order_logs_the_body():
+    from webull_bot.execution.forward_vwap import _place
+
+    class Fail:
+        def place_option_order(self, payload):
+            raise RuntimeError("OPENAPI_PARAM_ERR missing instrument")
+
+    order = {"id": "flatten-1", "limit": "2.55"}
+    lines = []
+    sent = _place(
+        Fail(),
+        {"instrument_type": "OPTION", "order_type": "LIMIT", "client_order_id": "flatten-1"},
+        order,
+        lines,
+        "exit",
+    )
+    text = "\n".join(lines)
+    assert sent is False
+    assert "OPENAPI_PARAM_ERR" in text
+    assert "was rejected" in text
+    assert order["error"]
+    assert "not printed" not in text

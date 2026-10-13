@@ -60,6 +60,7 @@ SLOW_CYCLE_S = 60.0
 OPEN_TICK_ALERT_S = 30.0
 # A contract still unsold at this clock is the flatten that did not get out.
 HELD_ALERT_AT = clock(15, 50)
+NIGHTLY_AT = clock(16, 5)
 BAR_REFRESH_TIMEOUT_S = 20.0
 TAIL_DAYS = 3
 # Socket budgets for every Webull call on this loop. One retry, and only
@@ -426,6 +427,7 @@ def arm_watch_broker(broker) -> None:
         "place_option_order",
         "cancel_order",
         "replace_order",
+        "replace_option_order",
         "option_contract_quote",
         "option_zero_dte_quote",
     ):
@@ -1100,6 +1102,30 @@ def _dry_cycle(config, names: list[str], now: datetime) -> list[str]:
     return _finish_cycle([], bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
 
 
+def _blank_and_nightly(journal, broker, now: datetime) -> list[str]:
+    """Cancel a blank market buy, and after 16:05 print the journal comparison once."""
+    from webull_bot.calendar import to_ny
+    from webull_bot.execution.forward_reconcile import cancel_blank_orders, nightly_reconcile
+
+    lines: list[str] = []
+    try:
+        cancel_blank_orders(broker, lines)
+    except Exception:
+        lines.append("Blank order check failed. No new order was sent.")
+    local = to_ny(now)
+    if local.time() < NIGHTLY_AT:
+        return lines
+    stamp = local.date().isoformat()
+    if LATEST.get("nightly") == stamp:
+        return lines
+    try:
+        lines.extend(nightly_reconcile(journal, broker, now))
+    except Exception:
+        lines.append("Nightly reconcile failed. No order was placed.")
+    LATEST["nightly"] = stamp
+    return lines
+
+
 def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
     """One sandbox cycle. The lock covers orders. Exits run before the bar fetch."""
     from webull_bot.broker.webull import WebullBroker, assert_sandbox_hosts
@@ -1161,6 +1187,7 @@ def _live_cycle(config, names: list[str], now: datetime) -> list[str]:
         lines = _finish_cycle(exit_lines, bar_lines, entry_lines, exits_s, bars_s, entries_s, refresh_due, now)
         lines.extend(open_tick_alert(time.monotonic() - started, held))
         lines.extend(still_held_alert(now, position_still_held(journal, names)))
+        lines.extend(_blank_and_nightly(journal, broker, now))
         return lines
 
 
