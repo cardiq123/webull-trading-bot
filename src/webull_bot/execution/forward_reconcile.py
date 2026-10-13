@@ -372,6 +372,13 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
             continue
         if broker_status not in {"working", "partial"}:
             continue
+        if str(order.get("order_type") or "") == "MARKET":
+            quote = order.get("quote_px") or order.get("sandbox_price") or "n/a"
+            lines.append(
+                f"Exit working. MARKET, not a fill. Fill pending. "
+                f"Quoted {order.get('quote_side') or 'bid'} {quote}."
+            )
+            continue
         if not _reprice_due(state, order, expiry, now):
             lines.append(
                 f"Exit working. {limit_fill_text(order.get('limit'), order.get('fill'))}"
@@ -492,29 +499,73 @@ def _place_exit(state, order, broker, now, lines, new_limit: float, client_order
         order["prior_ids"] = prior
         order["id"] = payload["client_order_id"]
     order["limit"] = f"{new_limit:.2f}"
+    order["order_type"] = payload.get("order_type") or "LIMIT"
     order["status"] = "intent"
     order["dispatch"] = "timeout"
     order["fill"] = None
+    order.pop("slippage_line", None)
+    order.pop("slippage", None)
+    bid = _bid(broker, contract_for(state, order))
+    if bid is not None:
+        order["sandbox_price"] = f"{float(bid):.4f}"
+    from webull_bot.execution.forward_orders import remember_quote
+
+    remember_quote(order)
     try:
         sender(payload)
     except TimeoutError:
         lines.append("Exit resend call timed out. No second order was sent while that call is still out.")
         return False
     except Exception as exc:
+        if payload.get("order_type") == "MARKET" and not order.get("market_rejected"):
+            return _exit_limit_fallback(sender, payload, order, now, lines, new_limit, exc)
         order["status"] = "submitted"
         order["broker_status"] = "rejected"
         order.pop("dispatch", None)
         lines.append(f"Exit resend was rejected. {_rejection_body(exc)}")
         return False
+    _mark_exit_working(order, now, lines)
+    return True
+
+
+def _exit_limit_fallback(sender, payload, order, now, lines, new_limit: float, exc: Exception) -> bool:
+    """The sandbox rejected a market sell. One limit uses a new client id."""
+    from webull_bot.execution.forward_orders import limit_fallback_payload
+
+    order["market_rejected"] = True
+    lines.append(f"Exit MARKET was rejected. {_rejection_body(exc)} Sending the marketable limit.")
+    fallback = limit_fallback_payload(payload, new_limit)
+    prior = list(order.get("prior_ids") or [])
+    if order.get("id"):
+        prior.append(order.get("id"))
+    order["prior_ids"] = prior
+    order["id"] = fallback["client_order_id"]
+    order["order_type"] = "LIMIT"
+    order["limit"] = f"{float(new_limit):.2f}"
+    order["status"] = "intent"
+    order["dispatch"] = "timeout"
+    try:
+        sender(fallback)
+    except TimeoutError:
+        lines.append("Exit resend call timed out. No second order was sent while that call is still out.")
+        return False
+    except Exception as second:
+        order["status"] = "submitted"
+        order["broker_status"] = "rejected"
+        order.pop("dispatch", None)
+        lines.append(f"Exit resend was rejected. {_rejection_body(second)}")
+        return False
+    _mark_exit_working(order, now, lines)
+    return True
+
+
+def _mark_exit_working(order, now, lines) -> None:
     order["status"] = "submitted"
     order["broker_status"] = "working"
     order["dispatch"] = "done"
     order["submitted_at"] = to_ny(now).isoformat()
-    lines.append(
-        f"Resent SELL {order.get('qty')} {order.get('right')}. "
-        f"{limit_fill_text(order.get('limit'), None)}"
-    )
-    return True
+    style = "MARKET, not a fill. Fill pending." if order.get("order_type") == "MARKET" else limit_fill_text(order.get("limit"), None)
+    lines.append(f"Resent SELL {order.get('qty')} {order.get('right')}. {style}")
 
 
 def _pending_exit(order: dict) -> bool:
@@ -627,7 +678,9 @@ def _sell_payload(state, order, limit: float, client_order_id: Optional[str] = N
     option_type = str(source.get("option_type") or source.get("right") or order.get("right") or "")
     if not symbol or strike is None or not expiry or not option_type:
         return None
-    return build_single_option_order(
+    from webull_bot.execution.forward_orders import style_option_payload
+
+    payload = build_single_option_order(
         client_order_id=client_order_id or new_client_order_id(),
         symbol=symbol,
         side="SELL",
@@ -639,13 +692,23 @@ def _sell_payload(state, order, limit: float, client_order_id: Optional[str] = N
         order_type="LIMIT",
         position_intent="SELL_TO_CLOSE",
     )
+    return style_option_payload(payload)
 
 
 def _detail_line(order: dict, detail: dict) -> str:
     kind = str(detail.get("kind") or order.get("broker_status") or "")
     base = f"{order.get('side')} {order.get('qty')} {order.get('right')} "
     if kind == "filled":
-        return base + limit_fill_text(order.get("limit"), order.get("fill")) + f" Status filled at {order.get('fill_time') or 'n/a'}."
+        from webull_bot.execution.forward_orders import attach_slippage
+
+        attach_slippage(order)
+        slip = f" {order['slippage_line']}" if order.get("slippage_line") else ""
+        return (
+            base
+            + limit_fill_text(order.get("limit"), order.get("fill"))
+            + f" Status filled at {order.get('fill_time') or 'n/a'}."
+            + slip
+        )
     if kind == "partial":
         qty = order.get("filled_qty")
         return (

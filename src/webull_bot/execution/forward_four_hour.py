@@ -67,6 +67,7 @@ from webull_bot.execution.forward_vwap import (
     _missing,
     _place,
     _print_open,
+    sent_clause,
     _exit_limit,
     _spot,
 )
@@ -751,7 +752,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     lines.append(
         "Signal "
         + _event_line(built)
-        + f" Order BUY 1 {built['right']}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
+        + f" Order BUY 1 {built['right']}. {sent_clause(limit)} ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
     journal.forward_save(NAME, state)
@@ -879,7 +880,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     lines.append(
         f"Exit {position.get('right')} reason {reason} underlying {float(underlying):.2f} "
         f"at {_clock(when)}. Model bid {model_bid:.4f}. "
-        f"Order SELL 1 {position.get('right')}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
+        f"Order SELL 1 {position.get('right')}. {sent_clause(limit)} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
     _drop_open(state, position)

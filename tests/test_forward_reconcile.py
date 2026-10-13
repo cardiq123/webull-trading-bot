@@ -376,6 +376,21 @@ def test_a_rejected_modify_is_cancelled_and_replaced_and_the_body_is_logged():
     assert broker.cancelled[-1] == new_id
 
 
+def test_a_working_market_sell_is_not_stepped(monkeypatch):
+    monkeypatch.setenv("FORWARD_OPTION_MARKET", "1")
+    state = _state()
+    state["orders"][0]["submitted_at"] = "2026-10-09T14:34:56-04:00"
+    state["orders"][0]["order_type"] = "MARKET"
+    state["orders"][0]["quote_side"] = "bid"
+    state["orders"][0]["quote_px"] = "0.4000"
+    broker = _Broker({"exit-1": {"status": "SUBMITTED"}})
+    lines = []
+    chase_exit_orders(state, broker, _now("14:40"), lines)
+    assert broker.replaced == []
+    assert broker.placed == []
+    assert any("MARKET, not a fill" in line for line in lines)
+
+
 def test_an_expired_unsold_qqq_put_books_a_full_premium_loss(tmp_path):
     """QQQ closed at 746.04 on 2026-10-12, so the 745 put expired out of the money."""
     from webull_bot.execution.forward_cash import option_cash

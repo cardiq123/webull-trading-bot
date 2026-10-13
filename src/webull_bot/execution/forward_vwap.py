@@ -88,6 +88,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from webull_bot.broker.webull import build_single_option_order, new_client_order_id
+from webull_bot.execution.forward_orders import sent_clause
 from webull_bot.calendar import is_trading_day, next_trading_day, to_ny
 from webull_bot.chart_reads.vwap_band import (
     DIVIDEND,
@@ -1282,7 +1283,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     lines.append(
         "Signal "
         + _event_line(built)
-        + f" Order BUY {qty} {built['right']}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
+        + f" Order BUY {qty} {built['right']}. {sent_clause(limit)} ({source}). "
         + _quote_clause(model_ask, sandbox_ask)
     )
     journal.forward_save(_book(), state)
@@ -1410,7 +1411,7 @@ def _send_close(state, position, reason, underlying, when, broker, lines, journa
     lines.append(
         f"Exit {position.get('right')} reason {reason} underlying {float(underlying):.2f} "
         f"at {_clock(when)}. Model bid {model_bid:.4f}. "
-        f"Order SELL {qty} {position.get('right')}. Limit {limit:.2f}, not a fill. Fill is pending until order detail. ({source}). "
+        f"Order SELL {qty} {position.get('right')}. {sent_clause(limit)} ({source}). "
         + _quote_clause(model_bid, sandbox_bid, bid=True)
     )
     _drop_open(state, position)
@@ -1429,11 +1430,16 @@ def _exit_dispatch_pending(order) -> bool:
 
 
 def _place(broker, payload, order, lines, kind: str) -> bool:
+    from webull_bot.execution.forward_orders import limit_fallback_payload, remember_quote, style_option_payload
+
     sender = getattr(broker, "place_option_order", None)
     if sender is None:
         order["status"] = "not_sent"
         lines.append(f"Option {kind} was not sent. The broker has no option order path.")
         return False
+    style_option_payload(payload)
+    order["order_type"] = payload.get("order_type") or "LIMIT"
+    remember_quote(order)
     try:
         sender(payload)
     except TimeoutError:
@@ -1441,11 +1447,47 @@ def _place(broker, payload, order, lines, kind: str) -> bool:
         order["dispatch"] = "timeout"
         lines.append(f"Option {kind} call timed out. No second order was sent while that call is still out.")
         return False
-    except Exception:
+    except Exception as exc:
+        if payload.get("order_type") == "MARKET" and order.get("limit") not in (None, "") and not order.get("market_rejected"):
+            return _place_limit_fallback(sender, payload, order, lines, kind, exc)
         order["status"] = "rejected"
         order["error"] = "rejected"
         order.pop("dispatch", None)
         lines.append(f"Option {kind} was rejected. The reason was not printed.")
+        return False
+    order["dispatch"] = "done"
+    return True
+
+
+def _place_limit_fallback(sender, payload, order, lines, kind: str, exc: Exception) -> bool:
+    """The sandbox rejected MARKET. One marketable limit uses a new client id."""
+    from webull_bot.execution.forward_orders import limit_fallback_payload
+    from webull_bot.execution.forward_reconcile import _rejection_body
+
+    order["market_rejected"] = True
+    lines.append(
+        f"Option {kind} MARKET was rejected. {_rejection_body(exc)} Sending the marketable limit."
+    )
+    fallback = limit_fallback_payload(payload, float(order["limit"]))
+    prior = list(order.get("prior_ids") or [])
+    if order.get("id"):
+        prior.append(order.get("id"))
+    order["prior_ids"] = prior
+    order["id"] = fallback["client_order_id"]
+    order["order_type"] = "LIMIT"
+    order["status"] = "intent"
+    order.pop("error", None)
+    try:
+        sender(fallback)
+    except TimeoutError:
+        order["dispatch"] = "timeout"
+        lines.append(f"Option {kind} call timed out. No second order was sent while that call is still out.")
+        return False
+    except Exception as second:
+        order["status"] = "rejected"
+        order["error"] = "rejected"
+        order.pop("dispatch", None)
+        lines.append(f"Option {kind} limit was rejected. {_rejection_body(second)}")
         return False
     order["dispatch"] = "done"
     return True

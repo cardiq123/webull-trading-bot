@@ -154,10 +154,15 @@ def _promote(state, order, lines) -> bool:
         position["entry_filled"] = True
     _remember_confirmed_fill(state, order, signal_id)
     if _price(order.get("fill")) is not None:
+        from webull_bot.execution.forward_orders import attach_slippage
+
         lines.append(
             f"Entry filled {order.get('fill')}. "
             f"Limit {order.get('limit')} was not the fill."
         )
+        slip = attach_slippage(order)
+        if slip:
+            lines.append(slip)
     return True
 
 

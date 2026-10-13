@@ -326,6 +326,23 @@ def test_real_cycle_buys_once_and_the_second_signal_is_skipped(tmp_path, monkeyp
     assert "super-secret-value" not in str(saved)
 
 
+def test_the_market_flag_sends_a_buy_without_a_limit(tmp_path, monkeypatch):
+    monkeypatch.setenv("FORWARD_OPTION_MARKET", "1")
+    journal = Journal(tmp_path / "market.sqlite")
+    broker = Broker()
+    lines = _cycle(journal, _two_day(), _five(), "11:50", broker=broker)
+    text = "\n".join(lines)
+    assert len(broker.orders) == 1
+    order = broker.orders[0]
+    assert order["order_type"] == "MARKET"
+    assert "limit_price" not in order
+    assert "MARKET, not a fill" in text
+    saved = journal.forward_load(NAME)
+    assert saved["orders"][0]["order_type"] == "MARKET"
+    assert saved["orders"][0]["quote_side"] == "ask"
+    assert saved["orders"][0]["quote_px"] == "2.5000"
+
+
 def test_the_bot_sells_at_the_stop_and_flattens(tmp_path):
     journal = Journal(tmp_path / "stop.sqlite")
     broker = Broker()
