@@ -290,7 +290,53 @@ def match_holding(state: dict, order: dict, holdings: list[dict]) -> Optional[di
     for row in holdings or []:
         if isinstance(row, dict) and _identity_match(row, identity):
             return row
+    loose = _loose_match(state, order, holdings or [], identity)
+    if loose is not None:
+        return loose
     return _premium_match(state, order, holdings or [], identity)
+
+
+def apply_holding_contract(state: dict, order: dict, holding: dict) -> None:
+    """Copy the position row's strike and OCC onto the journal when the row has them.
+
+    A journal strike can disagree with the account. The sell then uses the
+    strike on the holding. A row with no strike leaves the journal strike.
+    """
+    if not isinstance(order, dict) or not isinstance(holding, dict):
+        return
+    strike = holding.get("strike")
+    occ = ""
+    names = [holding.get("symbol"), *[item for item in (holding.get("symbols") or [])]]
+    for name in names:
+        parsed = _parse_occ(str(name or ""))
+        if not parsed:
+            continue
+        occ = str(name).upper()
+        if strike in (None, ""):
+            strike = parsed.get("strike")
+        break
+    if not occ and strike not in (None, ""):
+        occ = _built_occ(
+            holding.get("underlying") or order.get("symbol"),
+            holding.get("expiry") or order.get("expiry"),
+            holding.get("right") or order.get("right") or order.get("option_type"),
+            strike,
+        )
+    if strike in (None, ""):
+        return
+    order["strike"] = strike
+    if occ:
+        order["option_symbol"] = occ
+    if not isinstance(state, dict):
+        return
+    for source in _related(state, _signal_id(str(order.get("key") or ""))):
+        source["strike"] = strike
+        source["order_strike"] = strike
+        if occ:
+            source["option_symbol"] = occ
+            source["order_symbol"] = occ
+        if holding.get("expiry"):
+            source["expiry"] = str(holding.get("expiry"))[:10]
 
 
 def send_cooled(order_id: str) -> bool:
@@ -1047,9 +1093,13 @@ _EXPIRY_KEYS = (
     "option_expire_date",
     "optionExpireDate",
     "expiration_date",
+    "expirationDate",
     "expire_date",
+    "expireDate",
     "expiry",
     "exp_date",
+    "maturity_date",
+    "maturityDate",
 )
 _RIGHT_KEYS = ("option_type", "optionType", "put_call", "putCall", "right", "call_put")
 _SYMBOL_KEYS = ("option_symbol", "optionSymbol", "occ_symbol", "contract_symbol", "symbol", "symbol_name", "ticker")
@@ -1101,6 +1151,8 @@ def _parse_position(row: Any) -> Optional[dict]:
         "quantity": None,
         "avg": None,
         "occs": [],
+        "raw_symbol": "",
+        "fields": [],
     }
     _collect_position(row, bag, 0)
     if bag["quantity"] in (None, 0, 0.0):
@@ -1137,6 +1189,8 @@ def _parse_position(row: Any) -> Optional[dict]:
         "right": bag["right"],
         "instrument_ids": bag["instrument_ids"],
         "option_known": option_known,
+        "raw_symbol": bag.get("raw_symbol") or "",
+        "fields": list(bag.get("fields") or []),
     }
 
 
@@ -1166,25 +1220,19 @@ def _collect_position(node: dict, bag: dict, depth: int) -> None:
         raw = node.get(key)
         if not raw:
             continue
-        text = str(raw).upper().strip()
-        if _OCC_RE.match(text):
-            if text not in bag["occs"]:
-                bag["occs"].append(text)
-            if text not in bag["symbols"]:
-                bag["symbols"].append(text)
-            parsed = _parse_occ(text)
-            bag["underlying"] = bag["underlying"] or parsed.get("underlying") or ""
-            if bag["strike"] is None:
-                bag["strike"] = parsed.get("strike")
-            bag["expiry"] = bag["expiry"] or parsed.get("expiry") or ""
-            bag["right"] = bag["right"] or parsed.get("right") or ""
-        elif key in _UNDERLYING_KEYS and _TICKER_RE.match(text):
-            bag["underlying"] = bag["underlying"] or text
-            if text not in bag["symbols"]:
-                bag["symbols"].append(text)
+        _absorb_symbol_text(raw, bag, key)
+    _note_row_fields(node, bag)
+    if bag["strike"] is None:
+        for key, value in node.items():
+            if "strike" not in re.sub(r"[^a-z]", "", str(key).lower()) and str(key) not in _STRIKE_KEYS:
+                continue
+            number = _strike_number(value)
+            if number is not None:
+                bag["strike"] = number
+                break
     if bag["strike"] is None:
         for key in _STRIKE_KEYS:
-            number = _known(node.get(key))
+            number = _strike_number(node.get(key))
             if number is not None:
                 bag["strike"] = number
                 break
@@ -1207,6 +1255,80 @@ def _collect_position(node: dict, bag: dict, depth: int) -> None:
             for item in value:
                 if isinstance(item, dict):
                     _collect_position(item, bag, depth + 1)
+
+
+def _absorb_symbol_text(raw, bag: dict, key: str) -> None:
+    """Pull an OCC symbol out of a ticker or a longer contract string."""
+    text = str(raw).upper().strip()
+    if key in {"symbol", "ticker", "symbol_name"} and not bag.get("raw_symbol"):
+        bag["raw_symbol"] = str(raw).strip()
+    compact = re.sub(r"[^A-Z0-9]", "", text)
+    match = re.search(r"[A-Z]{1,6}\d{6}[CP]\d{8}", compact)
+    if match:
+        occ = match.group(0)
+        if occ not in bag["occs"]:
+            bag["occs"].append(occ)
+        if occ not in bag["symbols"]:
+            bag["symbols"].append(occ)
+        parsed = _parse_occ(occ)
+        bag["underlying"] = bag["underlying"] or parsed.get("underlying") or ""
+        if bag["strike"] is None:
+            bag["strike"] = parsed.get("strike")
+        bag["expiry"] = bag["expiry"] or parsed.get("expiry") or ""
+        bag["right"] = bag["right"] or parsed.get("right") or ""
+        return
+    if key in _UNDERLYING_KEYS and _TICKER_RE.match(text):
+        bag["underlying"] = bag["underlying"] or text
+        if text not in bag["symbols"]:
+            bag["symbols"].append(text)
+
+
+def _strike_number(value) -> Optional[float]:
+    number = _known(value)
+    if number is None and isinstance(value, dict):
+        for inner in value.values():
+            number = _known(inner)
+            if number is not None:
+                break
+    if number is None or number >= 20000:
+        return None
+    return number
+
+
+def _note_row_fields(node: dict, bag: dict) -> None:
+    """Keep the scalar fields that identify the contract, for the watch log."""
+    fields = bag.setdefault("fields", [])
+    if len(fields) >= 16:
+        return
+    for key, value in node.items():
+        if isinstance(value, (dict, list)) or isinstance(value, bool):
+            continue
+        low = str(key).lower()
+        if any(part in low for part in ("secret", "token", "password")):
+            continue
+        if not any(
+            part in low
+            for part in (
+                "symbol",
+                "strike",
+                "expir",
+                "expire",
+                "option",
+                "qty",
+                "quant",
+                "cost",
+                "avg",
+                "instrument",
+                "right",
+                "put",
+                "call",
+                "type",
+            )
+        ):
+            continue
+        shown = f"{key}={value}"
+        if shown not in fields and len(fields) < 16:
+            fields.append(shown)
 
 
 def _parse_occ(contract: str) -> dict:
@@ -1311,6 +1433,95 @@ def _identity_match(row: dict, identity: dict) -> bool:
     return _norm_right(row.get("right")) == identity["right"]
 
 
+def _loose_match(state: dict, order: dict, holdings: list[dict], identity: dict) -> Optional[dict]:
+    """Match without a strike: underlying, right, expiry, quantity, and average.
+
+    The sandbox row often names the put and the expiry and leaves the strike
+    off the line. Quantity and the average keep a 3-lot at $0.77 off a
+    1-lot at $3.53, and off a different limit on the same expiry.
+    """
+    qty = _order_qty(state, order)
+    prices = _order_premiums(order)
+    if qty is None or not prices:
+        return None
+    chosen = None
+    chosen_gap = None
+    for row in holdings:
+        if not isinstance(row, dict) or not _loose_row(identity, qty, prices, row):
+            continue
+        gap = _premium_gap(prices, row)
+        if chosen is None or (gap is not None and (chosen_gap is None or gap < chosen_gap)):
+            chosen = row
+            chosen_gap = gap
+    if chosen is None or not _this_order_is_closest(state, order, chosen):
+        return None
+    return chosen
+
+
+def _loose_row(identity: dict, qty: Optional[float], prices: list[float], row: dict) -> bool:
+    if qty is None or not prices or not identity.get("underlying") or not identity.get("right") or not identity.get("expiry"):
+        return False
+    if str(row.get("underlying") or "").upper() != identity["underlying"]:
+        return False
+    if _norm_right(row.get("right")) != identity["right"]:
+        return False
+    if str(row.get("expiry") or "")[:10] != identity["expiry"]:
+        return False
+    held_qty = _known(row.get("quantity"))
+    if held_qty is None or abs(held_qty - float(qty)) > 0.01:
+        return False
+    return _premium_gap(prices, row) is not None
+
+
+def _premium_gap(prices: list[float], row: dict) -> Optional[float]:
+    avg = _known(row.get("avg"))
+    if avg is None or not prices:
+        return None
+    gaps = [abs(avg - price) for price in prices if abs(avg - price) <= _PREMIUM_MATCH]
+    if not gaps:
+        return None
+    return min(gaps)
+
+
+def _order_qty(state: dict, order: dict) -> Optional[float]:
+    sources = [order]
+    if isinstance(state, dict):
+        sources.extend(_related(state, _signal_id(str(order.get("key") or ""))))
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        raw = source.get("qty")
+        if raw in (None, ""):
+            raw = source.get("quantity")
+        number = _known(raw)
+        if number is not None:
+            return number
+    return None
+
+
+def _this_order_is_closest(state: dict, order: dict, row: dict) -> bool:
+    """One holding is not adopted by a worse-priced order in the same book."""
+    if not isinstance(state, dict):
+        return True
+    gap = _premium_gap(_order_premiums(order), row)
+    if gap is None:
+        return False
+    for other in state.get("orders") or []:
+        if other is order or not isinstance(other, dict) or str(other.get("kind") or "") != "entry":
+            continue
+        if _known(other.get("fill")) is not None:
+            continue
+        other_qty = _order_qty(state, other)
+        other_prices = _order_premiums(other)
+        other_identity = _order_identity(state, other)
+        if not _loose_row(other_identity, other_qty, other_prices, row):
+            continue
+        other_gap = _premium_gap(other_prices, row)
+        if other_gap is not None and other_gap + 1e-9 < gap:
+            return False
+    return True
+
+
 def _premium_match(state: dict, order: dict, holdings: list[dict], identity: dict) -> Optional[dict]:
     underlying = identity.get("underlying") or ""
     if not underlying or not _sole_open_entry(state, underlying, order):
@@ -1372,19 +1583,29 @@ def _order_premiums(order: dict) -> list[float]:
 
 
 def _describe_holding(row: dict) -> str:
-    bits = ["-", str(row.get("underlying") or row.get("symbol") or "")]
+    bits = ["-", str(row.get("underlying") or row.get("raw_symbol") or row.get("symbol") or "")]
     right = _norm_right(row.get("right"))
     if right:
         bits.append("PUT" if right == "P" else "CALL")
-    if row.get("strike") not in (None, ""):
+    if row.get("strike") in (None, ""):
+        bits.append("strike missing")
+    else:
         strike = float(row["strike"])
-        bits.append(str(int(strike)) if strike == int(strike) else str(strike))
+        shown = str(int(strike)) if strike == int(strike) else str(strike)
+        bits.append(f"strike {shown}")
+    raw_symbol = row.get("raw_symbol") or row.get("symbol") or ""
+    if raw_symbol:
+        bits.append(f"symbol {raw_symbol}")
     if row.get("expiry"):
         bits.append(str(row.get("expiry"))[:10])
     bits.append(f"quantity {row.get('quantity')}")
     if row.get("avg") not in (None, ""):
         bits.append(f"avg {row.get('avg')}")
-    return " ".join(bits)
+    text = " ".join(bits)
+    fields = [str(item) for item in (row.get("fields") or [])]
+    if fields:
+        text += " [" + ", ".join(fields[:12]) + "]"
+    return text
 
 
 def _held(contract: str, holdings: list[dict]) -> Optional[object]:

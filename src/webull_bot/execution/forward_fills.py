@@ -16,6 +16,8 @@ from webull_bot.calendar import to_ny
 from webull_bot.execution.forward_vwap import _inside, max_entry_delay_minutes
 
 UNFILLED = "unfilled"
+# One position-row log per book per minute. The first call is startup.
+_HOLDING_LOG: dict = {}
 
 
 def broker_reports_detail(broker) -> bool:
@@ -79,7 +81,7 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
     """
     if not isinstance(state, dict):
         return False
-    changed = False
+    changed = adopt_held_entries(state, broker, now, lines)
     for order in list(state.get("orders") or []):
         if not isinstance(order, dict) or str(order.get("kind") or "") != "entry":
             continue
@@ -107,6 +109,9 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             changed = True
             continue
         if kind in {"cancelled", "expired", "rejected"}:
+            if _keep_because_held(state, order, broker, lines):
+                changed = True
+                continue
             order["broker_status"] = kind
             order["status"] = kind
             _release(state, signal_id, f"the entry was {kind}", lines, broker)
@@ -123,12 +128,19 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
                 )
             continue
         held, listing = _account_presence(state, order, broker)
-        if held is True or listing == "filled":
+        if held is True:
+            if _keep_because_held(state, order, broker, lines):
+                changed = True
+            continue
+        if listing == "filled":
             lines.append(
                 "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
             )
             continue
         if kind == "working" or listing == "working":
+            if _keep_because_held(state, order, broker, lines):
+                changed = True
+                continue
             if _cancel(broker, order, lines):
                 order["broker_status"] = "cancelled"
                 order["status"] = "cancelled"
@@ -138,6 +150,9 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
                 lines.append("Entry is still working. The cancel was not accepted. No exit was sent.")
             continue
         if held is False and listing == "absent":
+            if _keep_because_held(state, order, broker, lines):
+                changed = True
+                continue
             order["broker_status"] = "cancelled"
             order["status"] = "cancelled"
             _release(state, signal_id, reason, lines, broker)
@@ -359,6 +374,188 @@ def _signal_filled(state, signal_id: str) -> bool:
     return False
 
 
+def adopt_held_entries(state, broker, now, lines) -> bool:
+    """Re-open a skipped buy when the account still holds that contract.
+
+    Runs on startup and on each later exit check. The book's stop, target,
+    and flatten stay on the signal. The missed-fill shadow for that signal
+    is removed. No new buy is sent.
+    """
+    from webull_bot.execution.forward_reconcile import account_view, match_holding
+
+    if broker is None or not isinstance(state, dict):
+        return False
+    view = account_view(broker)
+    if not view.get("holdings_ok"):
+        return False
+    holdings = list(view.get("holdings") or [])
+    _log_positions(state.get("book"), holdings, lines, now)
+    changed = False
+    for signal in list(state.get("signals") or []):
+        if not isinstance(signal, dict) or not _was_unfilled(signal):
+            continue
+        signal_id = str(signal.get("id") or "")
+        order = entry_order(state, signal_id)
+        if order is None:
+            continue
+        if _price(order.get("fill")) is not None and _position(state, signal_id) is not None:
+            continue
+        held = match_holding(state, order, holdings)
+        if held is None:
+            continue
+        _reopen_from_holding(state, signal, order, held, lines)
+        changed = True
+    return changed
+
+
+def _was_unfilled(signal: dict) -> bool:
+    if str(signal.get("status") or "") == "closed":
+        return False
+    return str(signal.get("skip") or "") == UNFILLED or str(signal.get("reason") or "") == UNFILLED
+
+
+def _log_positions(book, holdings, lines, now) -> None:
+    from webull_bot.execution.forward_reconcile import _describe_holding
+
+    stamp = to_ny(now).strftime("%Y%m%d%H%M") if now is not None else ""
+    key = str(book or "")
+    if stamp and _HOLDING_LOG.get(key) == stamp:
+        return
+    if stamp:
+        _HOLDING_LOG[key] = stamp
+    if not holdings:
+        lines.append("Sandbox position list is empty.")
+        return
+    for row in holdings:
+        lines.append("Sandbox position " + _describe_holding(row))
+
+
+def _keep_because_held(state, order, broker, lines) -> bool:
+    """True when a holding matches, so this buy is not marked unfilled."""
+    from webull_bot.execution.forward_reconcile import (
+        _describe_holding,
+        account_view,
+        apply_holding_contract,
+        match_holding,
+    )
+
+    if broker is None:
+        return False
+    view = account_view(broker)
+    if not view.get("holdings_ok"):
+        return False
+    held = match_holding(state, order, view.get("holdings") or [])
+    if held is None:
+        return False
+    apply_holding_contract(state, order, held)
+    order["broker_status"] = "filled"
+    order["status"] = "filled"
+    order["fill_source"] = "position"
+    price = _price(held.get("avg"))
+    if price is not None:
+        order["fill"] = price
+    _promote(state, order, lines)
+    lines.append("Entry stays open. " + _describe_holding(held))
+    return True
+
+
+def _reopen_from_holding(state, signal, order, holding, lines) -> None:
+    from webull_bot.execution.forward_reconcile import _describe_holding, apply_holding_contract
+
+    signal_id = str(signal.get("id") or "")
+    journal_strike = signal.get("order_strike") or signal.get("strike") or order.get("strike")
+    apply_holding_contract(state, order, holding)
+    avg = _price(holding.get("avg"))
+    order["broker_status"] = "filled"
+    order["status"] = "filled"
+    order["fill_source"] = "position"
+    if avg is not None:
+        order["fill"] = avg
+    signal["status"] = "open"
+    signal["skip"] = ""
+    signal["reason"] = ""
+    signal["detail"] = "adopted from the sandbox holding"
+    position = _position(state, signal_id)
+    if position is None:
+        position = _position_from_signal(signal, order)
+        state.setdefault("positions", []).append(position)
+    position["entry_filled"] = True
+    if order.get("strike") not in (None, ""):
+        position["strike"] = order.get("strike")
+    if order.get("option_symbol"):
+        position["option_symbol"] = order.get("option_symbol")
+    if order.get("expiry"):
+        position["expiry"] = order.get("expiry")
+    if avg is not None:
+        position["fill"] = avg
+    _remember_confirmed_fill(state, order, signal_id)
+    state["missed_fills"] = [
+        row
+        for row in (state.get("missed_fills") or [])
+        if not (isinstance(row, dict) and str(row.get("id") or "") == signal_id)
+    ]
+    state["orders"] = [
+        row
+        for row in (state.get("orders") or [])
+        if not (
+            isinstance(row, dict)
+            and str(row.get("kind") or "") == "exit"
+            and _signal_id(str(row.get("key") or "")) == signal_id
+            and row.get("error") == "no entry fill"
+            and _price(row.get("fill")) is None
+        )
+    ]
+    strike_note = ""
+    row_strike = holding.get("strike")
+    if row_strike in (None, ""):
+        strike_note = f" Position row has no strike. Journal strike {journal_strike} stays."
+    else:
+        try:
+            changed_strike = journal_strike not in (None, "") and abs(float(row_strike) - float(journal_strike)) > 0.001
+        except (TypeError, ValueError):
+            changed_strike = False
+        if changed_strike:
+            strike_note = f" Position strike {row_strike} replaces journal strike {journal_strike}."
+    lines.append(
+        "Adopted "
+        + _describe_holding(holding).lstrip("- ").strip()
+        + f" for {signal_id}. Stop {signal.get('stop')} target {signal.get('target')} are back on. "
+        + "Missed-fill shadow removed. No new buy."
+        + strike_note
+    )
+
+
+def _position_from_signal(signal: dict, order: dict) -> dict:
+    raw_qty = signal.get("qty") or order.get("qty") or 1
+    try:
+        qty = int(float(raw_qty))
+    except (TypeError, ValueError):
+        qty = 1
+    option_type = signal.get("option_type") or signal.get("right") or order.get("option_type") or order.get("right")
+    return {
+        "id": signal.get("id"),
+        "direction": signal.get("direction"),
+        "right": signal.get("right") or option_type,
+        "option_type": option_type,
+        "qty": qty,
+        "strike": order.get("strike") or signal.get("order_strike") or signal.get("strike"),
+        "model_strike": signal.get("model_strike") or signal.get("strike"),
+        "expiry": order.get("expiry") or signal.get("expiry"),
+        "option_symbol": order.get("option_symbol") or signal.get("order_symbol") or signal.get("option_symbol") or "",
+        "stop": signal.get("stop"),
+        "target": signal.get("target"),
+        "entry": signal.get("entry"),
+        "entry_time": signal.get("entry_time") or order.get("submitted_at"),
+        "fill_time": signal.get("fill_time") or signal.get("entry_time"),
+        "signal_time": signal.get("signal_time"),
+        "modeled_entry": signal.get("modeled_entry"),
+        "iv": signal.get("iv"),
+        "model_debit": signal.get("model_debit"),
+        "model_ask": signal.get("model_ask"),
+        "entry_filled": True,
+    }
+
+
 def _confirm_from_account(state, order, broker) -> bool:
     """A held contract or a filled order-list row confirms the buy. The limit is not the fill."""
     from webull_bot.execution.forward_reconcile import account_view, match_holding
@@ -386,6 +583,9 @@ def _confirm_from_account(state, order, broker) -> bool:
     held = match_holding(state, order, view.get("holdings") or [])
     if held is None:
         return False
+    from webull_bot.execution.forward_reconcile import apply_holding_contract
+
+    apply_holding_contract(state, order, held)
     order["broker_status"] = "filled"
     price = _price(held.get("avg"))
     if price is not None:
