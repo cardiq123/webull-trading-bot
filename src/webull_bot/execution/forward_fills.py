@@ -387,6 +387,7 @@ def adopt_held_entries(state, broker, now, lines) -> bool:
         return False
     view = account_view(broker)
     if not view.get("holdings_ok"):
+        _log_unread(state.get("book"), lines, now)
         return False
     holdings = list(view.get("holdings") or [])
     _log_positions(state.get("book"), holdings, lines, now)
@@ -412,6 +413,17 @@ def _was_unfilled(signal: dict) -> bool:
     if str(signal.get("status") or "") == "closed":
         return False
     return str(signal.get("skip") or "") == UNFILLED or str(signal.get("reason") or "") == UNFILLED
+
+
+def _log_unread(book, lines, now) -> None:
+    """A missed position read is not an empty account."""
+    stamp = to_ny(now).strftime("%Y%m%d%H%M") if now is not None else ""
+    key = str(book or "") + "|unread"
+    if stamp and _HOLDING_LOG.get(key) == stamp:
+        return
+    if stamp:
+        _HOLDING_LOG[key] = stamp
+    lines.append("Sandbox position list was not read. It was not treated as empty.")
 
 
 def _log_positions(book, holdings, lines, now) -> None:

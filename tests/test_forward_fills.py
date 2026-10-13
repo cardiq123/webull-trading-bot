@@ -870,3 +870,168 @@ def test_a_skipped_holding_is_adopted_and_the_shadow_is_removed(tmp_path):
     assert state["orders"][0]["fill"] == pytest.approx(3.53)
     assert any("Adopted" in line and "Missed-fill shadow removed" in line for line in lines)
     assert any("745" in line and "744" in line for line in lines)
+
+
+class _ClientBody:
+    """The trade client returns this. The JSON is on ``json()``, not the object itself."""
+
+    def __init__(self, body):
+        self.status_code = 200
+        self._body = body
+
+    def json(self):
+        return self._body
+
+
+def _mark_unfilled(state) -> None:
+    state["signals"][0]["status"] = "skip"
+    state["signals"][0]["skip"] = "unfilled"
+    state["signals"][0]["reason"] = "unfilled"
+    state["positions"] = []
+    state["orders"][0]["status"] = "cancelled"
+    state["orders"][0]["broker_status"] = "cancelled"
+
+
+def test_the_watch_decodes_positions_the_same_way_reconcile_does():
+    """A raw client body is not an empty account. The option-snapshot budget does not apply."""
+    from webull_bot.execution.forward_fills import _HOLDING_LOG
+    from webull_bot.execution.forward_reconcile import _POLL, _describe_holding, account_view, read_holdings
+    from webull_bot.execution.forward_watch import BudgetExceeded, EndpointBudget, _ExitView, reset_bounded_calls
+
+    reset_order_poll()
+    reset_bounded_calls()
+    _HOLDING_LOG.clear()
+    body = {
+        "positions": [
+            {
+                "symbol": "QQQ",
+                "quantity": "3.0",
+                "cost_price": "0.77",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-13",
+            },
+            {
+                "symbol": "SPY",
+                "quantity": "1.0",
+                "cost_price": "0.50",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-13",
+            },
+            {
+                "symbol": "QQQ",
+                "quantity": "1.0",
+                "cost_price": "3.53",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-14",
+            },
+        ]
+    }
+    broker = _Broker({})
+    broker._watch_armed = True
+    broker._watch_budget = EndpointBudget(cap=1)
+    broker._watch_budget.gate("option_snapshot")
+    with pytest.raises(BudgetExceeded):
+        broker._watch_budget.gate("option_snapshot")
+    broker._trade.account_v2.get_account_position = lambda account_id: _ClientBody(body)
+    watched = _ExitView(broker, {"QQQ": 740.0, "SPY": 670.0})
+    view = account_view(watched)
+    assert view["holdings_ok"] is True
+    assert len(view["holdings"]) == 3
+    assert view["holdings"][0]["quantity"] == pytest.approx(3.0)
+    text = "\n".join(_describe_holding(row) for row in view["holdings"])
+    assert "strike missing" in text
+    assert "avg 0.77" in text and "avg 3.53" in text
+    reconcile_rows = read_holdings(broker)
+    assert len(reconcile_rows) == 3
+
+    _POLL["view_at"] = 0.0
+
+    def blocked(account_id):
+        raise BudgetExceeded("account_position")
+
+    broker._trade.account_v2.get_account_position = blocked
+    again = account_view(watched)
+    assert again["holdings_ok"] is True
+    assert len(again["holdings"]) == 3
+
+    reset_order_poll()
+    reset_bounded_calls()
+    fresh = _Broker({})
+    fresh._watch_armed = True
+    fresh._trade.account_v2.get_account_position = blocked
+    missed = account_view(_ExitView(fresh, {"QQQ": 740.0}))
+    assert missed["holdings_ok"] is False
+    assert missed["holdings"] == []
+    aggressive = _open_put("qqq-aggr", limit=0.76, qty=3, expiry=DAY13, strike=742.0)
+    _mark_unfilled(aggressive)
+    lines = []
+    sync_working_entries(aggressive, fresh, _at13("12:50"), 743.0, lines)
+    assert aggressive["signals"][0]["skip"] == "unfilled"
+    assert any("was not read" in line for line in lines)
+    assert all("list is empty" not in line for line in lines)
+    reset_bounded_calls()
+
+
+def test_a_client_body_adopts_the_held_puts_and_leaves_the_other_buys():
+    from webull_bot.execution.forward_watch import reset_bounded_calls
+
+    reset_order_poll()
+    reset_bounded_calls()
+    body = {
+        "positions": [
+            {
+                "symbol": "QQQ",
+                "quantity": "3.0",
+                "cost_price": "0.77",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-13",
+            },
+            {
+                "symbol": "SPY",
+                "quantity": "1.0",
+                "cost_price": "0.50",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-13",
+            },
+            {
+                "symbol": "QQQ",
+                "quantity": "1.0",
+                "cost_price": "3.53",
+                "option_type": "PUT",
+                "option_expire_date": "2026-10-14",
+            },
+        ]
+    }
+    broker = _Broker({})
+    broker._watch_armed = True
+    broker._trade.account_v2.get_account_position = lambda account_id: _ClientBody(body)
+    broker.placed = []
+
+    aggressive = _open_put("qqq-aggr", limit=0.76, qty=3, expiry=DAY13, strike=742.0)
+    four_hour = _open_put("qqq-4hr", limit=3.54, qty=1, expiry="2026-10-14", strike=744.0)
+    one_dte = _open_put("qqq-1dte", limit=2.81, qty=1, expiry="2026-10-14", strike=742.0)
+    compound = _open_put("qqq-compound", limit=1.26, qty=1, expiry="2026-10-14", strike=742.0)
+    for state in (aggressive, four_hour, one_dte, compound):
+        _mark_unfilled(state)
+        state["missed_fills"] = [{"id": state["signals"][0]["id"], "missed_pnl": -1.0}]
+    lines = []
+    sync_working_entries(aggressive, broker, _at13("12:50"), 743.0, lines)
+    sync_working_entries(four_hour, broker, _at13("12:50"), 746.0, lines)
+    sync_working_entries(one_dte, broker, _at13("12:50"), 743.0, lines)
+    sync_working_entries(compound, broker, _at13("12:50"), 743.0, lines)
+    assert aggressive["orders"][0]["fill"] == pytest.approx(0.77)
+    assert aggressive["positions"][0]["qty"] == 3
+    assert aggressive["positions"][0]["entry_filled"] is True
+    assert aggressive["missed_fills"] == []
+    assert four_hour["orders"][0]["fill"] == pytest.approx(3.53)
+    assert four_hour["positions"][0]["entry_filled"] is True
+    assert four_hour["positions"][0]["strike"] == pytest.approx(744.0)
+    assert four_hour["missed_fills"] == []
+    assert one_dte["signals"][0]["skip"] == "unfilled"
+    assert one_dte["positions"] == []
+    assert compound["signals"][0]["skip"] == "unfilled"
+    assert compound["positions"] == []
+    assert broker.placed == []
+    assert any("Adopted" in line for line in lines)
+    assert all("list is empty" not in line for line in lines)
+    reset_bounded_calls()

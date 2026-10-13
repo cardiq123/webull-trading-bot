@@ -204,20 +204,48 @@ def _penalize(box: dict, until_key: str, strike_key: str, now: float) -> None:
 
 
 def _trade_call(broker, method, *args, key: str = "", **kwargs):
+    """One trade call. The watch and reconcile both decode the JSON body.
+
+    ``bounded_call`` returns the client object. Reconcile's ``_call`` already
+    turns that into a dict. Leaving the watch on the raw object made
+    ``_position_rows`` see nothing and report an empty account.
+    """
     if _watch_armed(broker):
         from webull_bot.execution.forward_watch import bounded_call
 
-        return bounded_call(method, *args, key=key or getattr(method, "__name__", "trade"), **kwargs)
+        raw = bounded_call(method, *args, key=key or getattr(method, "__name__", "trade"), **kwargs)
+        return _decoded_body(raw)
     from webull_bot.execution.forward_quotes import _call
 
     return _call(method, *args, **kwargs)
 
 
+def _decoded_body(raw):
+    """The JSON body. A client object that does not decode is an error, not an empty list."""
+    from webull_bot.execution.forward_quotes import _json
+
+    if raw is None:
+        raise RuntimeError("Webull response was empty")
+    decoded = _json(raw)
+    if decoded is None:
+        raise RuntimeError("Webull response was not JSON")
+    return decoded
+
+
+def _last_holdings(cached) -> Optional[dict]:
+    """A previous read that actually listed contracts. An empty success is not reused after an error."""
+    if isinstance(cached, dict) and cached.get("holdings_ok") and cached.get("holdings"):
+        return cached
+    return None
+
+
 def account_view(broker) -> dict:
     """Positions and open orders, once each 20 seconds on the watch.
 
-    ``holdings_ok`` is false when that read did not finish, including HTTP 429.
-    An empty list with ``holdings_ok`` true means the account holds nothing.
+    ``holdings_ok`` is false when that read did not finish, including HTTP 429
+    and a local request budget. That is not an empty account. An empty list
+    with ``holdings_ok`` true means the account holds nothing.
+    A later error keeps the last list that had contracts.
     """
     empty = {"holdings_ok": False, "orders_ok": False, "holdings": [], "orders": []}
     if broker is None:
@@ -228,7 +256,7 @@ def account_view(broker) -> dict:
     if armed and isinstance(cached, dict) and cached.get("holdings_ok") and now - float(_POLL["view_at"] or 0.0) < LIST_GAP_S:
         return cached
     if armed and now < float(_POLL["list_blocked_until"] or 0.0):
-        return cached if isinstance(cached, dict) else empty
+        return _last_holdings(cached) or empty
     view = {"holdings_ok": False, "orders_ok": False, "holdings": [], "orders": []}
     try:
         view["holdings"] = _fetch_position_rows(broker)
@@ -236,7 +264,7 @@ def account_view(broker) -> dict:
     except Exception as exc:
         if _rate_limited(exc):
             _penalize(_POLL, "list_blocked_until", "list_strikes", now)
-        return view
+        return _last_holdings(cached) or view
     try:
         view["orders"] = _fetch_open_rows(broker)
         view["orders_ok"] = True
@@ -365,25 +393,27 @@ def _fetch_position_rows(broker) -> list[dict]:
     trade = _broker_trade(broker)
     account = _account_id(broker)
     method = getattr(getattr(trade, "account_v2", None), "get_account_position", None)
-    if method is None or not account:
-        positions = getattr(broker, "positions", None)
-        if not callable(positions):
-            raise RuntimeError("no positions")
-        held = positions()
-        found = []
-        for row in held or []:
-            parsed = _parse_position(
-                {
-                    "symbol": getattr(row, "symbol", None),
-                    "quantity": getattr(row, "quantity", None),
-                    "avg_price": getattr(row, "avg_price", None),
-                }
-            )
-            if parsed:
-                found.append(parsed)
-        return found
-    payload = _trade_call(broker, method, account, key="account_position")
-    return _position_rows(payload)
+    if method is not None and account:
+        payload = _trade_call(broker, method, account, key="account_position")
+        if not isinstance(payload, (dict, list)):
+            raise RuntimeError("account positions were not read")
+        return _position_rows(payload)
+    positions = getattr(broker, "positions", None)
+    if not callable(positions):
+        raise RuntimeError("no positions")
+    held = positions()
+    found = []
+    for row in held or []:
+        parsed = _parse_position(
+            {
+                "symbol": getattr(row, "symbol", None),
+                "quantity": getattr(row, "quantity", None),
+                "avg_price": getattr(row, "avg_price", None),
+            }
+        )
+        if parsed:
+            found.append(parsed)
+    return found
 
 
 def _fetch_open_rows(broker) -> list[dict]:
@@ -393,6 +423,8 @@ def _fetch_open_rows(broker) -> list[dict]:
     if method is None or not account:
         raise RuntimeError("no open orders")
     payload = _trade_call(broker, method, account_id=account, page_size=50, key="open_orders")
+    if not isinstance(payload, (dict, list)):
+        raise RuntimeError("open orders were not read")
     rows = payload if isinstance(payload, list) else []
     if isinstance(payload, dict):
         for key in ("orders", "data", "items", "result"):
