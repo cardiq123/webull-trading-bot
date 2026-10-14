@@ -231,16 +231,20 @@ def entry_order(state, signal_id) -> Optional[dict]:
 def _promote(state, order, lines) -> bool:
     signal_id = _signal_id(str(order.get("key") or ""))
     position = _position(state, signal_id)
-    if position is not None and position.get("entry_filled") is True and (_signal(state, signal_id) or {}).get("status") == "open":
+    signal = _signal(state, signal_id) or {}
+    status = str(signal.get("status") or "")
+    if _price(order.get("fill")) is not None and status in {"open", "closed"} and (
+        position is None or position.get("entry_filled") is True
+    ):
         return False
-    for signal in state.get("signals") or []:
-        if isinstance(signal, dict) and str(signal.get("id") or "") == signal_id:
-            if signal.get("status") != "closed":
-                signal["status"] = "open"
+    for row in state.get("signals") or []:
+        if isinstance(row, dict) and str(row.get("id") or "") == signal_id:
+            if row.get("status") != "closed":
+                row["status"] = "open"
     if position is not None:
         position["entry_filled"] = True
     _remember_confirmed_fill(state, order, signal_id)
-    if _price(order.get("fill")) is not None:
+    if _price(order.get("fill")) is not None and str(order.get("fill_source") or "") != "quote_touch":
         from webull_bot.execution.forward_orders import attach_slippage
 
         lines.append(

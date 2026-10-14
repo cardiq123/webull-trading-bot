@@ -7,6 +7,11 @@ sandbox has not filled is journaled at the logged bid once the exit condition
 or the sell limit is touched. The sandbox order is cancelled. A later sandbox
 fill replaces that paper fill. The two are never both booked.
 
+An exit sent on an earlier session, or on a contract that has expired, uses
+that session's bid for the contract, or the bid stored when the exit was
+sent. A later session's quote is not a fill. The signal id keeps every pipe
+in the key, so the underlying ticker is not journaled as its own exit.
+
 The mode defaults on in the sandbox. It stays off for every other
 ``WEBULL_ENV``, including when ``FORWARD_QUOTE_TOUCH`` is set.
 """
@@ -77,9 +82,14 @@ def apply_quote_touches(state, broker, now, spot, lines) -> bool:
     if not quote_touch_enabled() or not isinstance(state, dict) or now is None:
         return False
     changed = False
+    if _scrub_unmatched(state):
+        changed = True
+        lines.append("Removed a quote-touch row whose id is not a signal in this book.")
+    book = str(state.get("book") or "")
+    if _repair_past_exits(state, book, now, lines):
+        changed = True
     if _prefer_real_fills(state, broker, lines):
         changed = True
-    book = str(state.get("book") or "")
     for order in list(state.get("orders") or []):
         if not isinstance(order, dict) or str(order.get("kind") or "") != "entry":
             continue
@@ -90,6 +100,8 @@ def apply_quote_touches(state, broker, now, spot, lines) -> bool:
             continue
         if _book_exit_touch(state, order, broker, now, spot, book, lines):
             changed = True
+    if changed:
+        _settle_mirror(state, now)
     return changed
 
 
@@ -182,7 +194,7 @@ def _replay_exit(state, order, ticks, filled_at: datetime) -> Optional[datetime]
         stamp = _clock(row.get("timestamp"))
         if stamp is None or stamp < filled_at:
             continue
-        if contract and str(row.get("option_symbol") or "") not in {"", contract}:
+        if str(row.get("option_symbol") or "") != contract:
             continue
         bid = _num(row.get("bid"))
         underlying = _num(row.get("underlying"))
@@ -254,29 +266,33 @@ def _book_exit_touch(state, order, broker, now, spot, book: str, lines) -> bool:
     if str(order.get("status") or "") not in {"submitted", "intent", "partial", "working"}:
         return False
     signal_id = _signal_id(order)
+    if not _signal_id_known(state, signal_id):
+        return False
     source = _position_for(state, signal_id) or _signal_for(state, order) or {}
     contract = _contract(state, order)
-    bid, underlying, stamp = _latest_bid(_load_ticks(book, now, now), contract, now)
-    cached_bid = _cached_bid(contract)
-    if cached_bid is not None:
-        bid = cached_bid
-        stamp = to_ny(now)
+    session, past = _contract_session(state, order, now)
+    if past:
+        bid, underlying, stamp = _past_exit_quote(state, order, book, session, contract)
+        reason = str(order.get("reason") or "") or "limit"
+    else:
+        bid, underlying, stamp = _latest_bid(_load_ticks(book, now, now), contract, now)
+        if bid is None:
+            cached_bid = _cached_bid(contract)
+            if cached_bid is not None:
+                bid = cached_bid
+                stamp = to_ny(now)
+        if underlying is None and spot is not None:
+            underlying = _num(spot)
+        reason = _exit_reason(source, underlying, to_ny(now)) or ""
     if bid is None:
         return False
-    if underlying is None and spot is not None:
-        underlying = _num(spot)
     limit = _limit(order)
-    reason = _exit_reason(source, underlying, to_ny(now))
     limit_touched = limit is not None and bid + 1e-9 >= limit
-    if reason is None and not limit_touched:
+    if not past and not reason and not limit_touched:
         return False
-    order["fill"] = bid
-    order["fill_time"] = (stamp or to_ny(now)).isoformat()
-    order["fill_source"] = QUOTE_TOUCH
-    order["status"] = "filled"
-    order["broker_status"] = "filled"
-    _remember_exit_fill(state, order, signal_id)
-    _close_signal(state, signal_id, reason or "limit", underlying, stamp or to_ny(now), bid)
+    if past and not limit_touched:
+        return False
+    _store_exit_fill(state, order, signal_id, bid, stamp or to_ny(now), reason or "limit", underlying, session if past else None)
     state["positions"] = [
         row for row in (state.get("positions") or []) if not (isinstance(row, dict) and str(row.get("id") or "") == signal_id)
     ]
@@ -350,15 +366,20 @@ def _stamp_entry(state, order, when: datetime) -> None:
 
 
 def _close_signal(state, signal_id: str, reason: str, underlying, when: datetime, bid: float) -> None:
+    """Close the matching signal. A signal id that is not in this book is not an exit."""
+    if not _signal_id_known(state, signal_id):
+        return
     for signal in state.get("signals") or []:
         if not isinstance(signal, dict) or str(signal.get("id") or "") != signal_id:
             continue
         signal["status"] = "closed"
-        signal["reason"] = reason or signal.get("reason") or "quote_touch"
+        if not str(signal.get("reason") or "").startswith("unresolved:"):
+            signal["reason"] = reason or signal.get("reason") or "quote_touch"
         signal["fill_source"] = QUOTE_TOUCH
-        if underlying is not None:
+        if underlying is not None and signal.get("exit") in (None, ""):
             signal["exit"] = underlying
-        signal["exit_time"] = when.isoformat()
+        if not signal.get("exit_time"):
+            signal["exit_time"] = when.isoformat()
         if signal.get("model_pnl") is None and signal.get("pnl") is not None:
             signal["model_pnl"] = signal.get("pnl")
     found = False
@@ -383,6 +404,8 @@ def _close_signal(state, signal_id: str, reason: str, underlying, when: datetime
 
 
 def _remember_exit_fill(state, order, signal_id: str) -> None:
+    if not _signal_id_known(state, signal_id):
+        return
     price = order.get("fill")
     for row in state.get("fills") or []:
         if isinstance(row, dict) and str(row.get("id") or "") == signal_id and str(row.get("side") or "") == "SELL":
@@ -429,6 +452,277 @@ def _cancel_sandbox(broker, order, lines, side: str) -> None:
     order["sandbox_cancelled"] = True
 
 
+def _store_exit_fill(state, order, signal_id, bid, when, reason, underlying, session) -> None:
+    order["fill"] = bid
+    order["fill_time"] = when.isoformat() if hasattr(when, "isoformat") else str(when)
+    order["fill_source"] = QUOTE_TOUCH
+    order["status"] = "filled"
+    order["broker_status"] = "filled"
+    if session is not None:
+        order["quote_touch_session"] = session.isoformat()
+    _remember_exit_fill(state, order, signal_id)
+    _close_signal(state, signal_id, reason or "limit", underlying, when if isinstance(when, datetime) else to_ny(when), bid)
+    _restore_exit_session(state, order, signal_id)
+
+
+def _scrub_unmatched(state: dict) -> bool:
+    """Drop exit, fill, and quote rows whose id is not a signal in this book.
+
+    A quote-touch pass used to keep only the text before the first pipe, so
+    ``QQQ|2026-10-13T10:45...|exit`` was journaled as id ``QQQ``.
+    """
+    known = _known_signal_ids(state)
+    changed = False
+    for key in ("exits", "fills"):
+        kept = []
+        for row in state.get(key) or []:
+            if isinstance(row, dict) and _orphan_id(row.get("id"), known):
+                changed = True
+                continue
+            kept.append(row)
+        state[key] = kept
+    kept_quotes = []
+    for row in state.get("quote_log") or []:
+        if isinstance(row, dict) and str(row.get("phase") or "") == "exit" and _orphan_id(row.get("signal_id"), known):
+            changed = True
+            continue
+        kept_quotes.append(row)
+    state["quote_log"] = kept_quotes
+    return changed
+
+
+def _known_signal_ids(state: dict) -> set:
+    found = set()
+    for row in state.get("signals") or []:
+        if isinstance(row, dict) and row.get("id") not in (None, ""):
+            found.add(str(row.get("id")))
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict):
+            continue
+        sid = _signal_id(order)
+        if sid:
+            found.add(sid)
+    return found
+
+
+def _orphan_id(value, known: set) -> bool:
+    text = str(value or "")
+    return bool(text) and text not in known
+
+
+def _signal_id_known(state, signal_id: str) -> bool:
+    return bool(signal_id) and signal_id in _known_signal_ids(state)
+
+
+def _repair_past_exits(state, book: str, now, lines) -> bool:
+    """Replace a past-session quote-touch fill that used a later day's quote."""
+    changed = False
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict) or str(order.get("kind") or "") != "exit":
+            continue
+        if not is_quote_touch(order):
+            continue
+        session, past = _contract_session(state, order, now)
+        if not past:
+            continue
+        signal_id = _signal_id(order)
+        if not _signal_id_known(state, signal_id):
+            continue
+        contract = _contract(state, order)
+        bid, underlying, stamp = _past_exit_quote(state, order, book, session, contract)
+        if bid is None:
+            if _fill_from_later_session(order, session):
+                _clear_exit_fill(state, order, signal_id)
+                lines.append(
+                    f"Quote-touch exit {contract or signal_id} dropped a later-session fill. "
+                    "No bid from that contract's session. venue quote_touch."
+                )
+                changed = True
+            continue
+        current = _num(order.get("fill"))
+        if current is not None and abs(current - bid) <= 0.001 and not _fill_from_later_session(order, session):
+            if _restore_exit_session(state, order, signal_id):
+                changed = True
+            continue
+        _store_exit_fill(state, order, signal_id, bid, stamp or _sent_at(order, _signal_for(state, order)) or to_ny(now), str(order.get("reason") or "limit"), underlying, session)
+        lines.append(
+            f"Quote-touch exit {contract or signal_id} repriced at the {session.isoformat()} bid {bid:.2f}. "
+            "A later session's quote is not the fill. venue quote_touch."
+        )
+        changed = True
+    return changed
+
+
+def _clear_exit_fill(state, order, signal_id: str) -> None:
+    order["fill"] = None
+    order["fill_source"] = ""
+    order["status"] = "submitted"
+    order["broker_status"] = "working"
+    order.pop("quote_touch_session", None)
+    state["fills"] = [
+        row
+        for row in (state.get("fills") or [])
+        if not (
+            isinstance(row, dict)
+            and str(row.get("id") or "") == signal_id
+            and str(row.get("side") or "") == "SELL"
+            and str(row.get("fill_source") or "") == QUOTE_TOUCH
+        )
+    ]
+    for signal in state.get("signals") or []:
+        if isinstance(signal, dict) and str(signal.get("id") or "") == signal_id:
+            if str(signal.get("fill_source") or "") == QUOTE_TOUCH:
+                signal["fill_source"] = ""
+                signal["fill_pnl"] = None
+    for row in state.get("exits") or []:
+        if isinstance(row, dict) and str(row.get("id") or "") == signal_id and str(row.get("fill_source") or "") == QUOTE_TOUCH:
+            row.pop("fill", None)
+            row["fill_source"] = ""
+            row["fill_pnl"] = None
+
+
+def _contract_session(state, order, now) -> tuple:
+    """``(session day, past)``. Past means the exit belongs to an earlier session, or the contract has expired."""
+    today = to_ny(now).date()
+    sent = _sent_at(order, _signal_for(state, order))
+    session = to_ny(sent).date() if sent is not None else today
+    expiry = _expiry_day(state, order)
+    if expiry is not None and (sent is None or expiry < session):
+        session = expiry
+    past = session < today or (expiry is not None and expiry < today)
+    return session, past
+
+
+def _expiry_day(state, order):
+    raw = order.get("expiry")
+    found = _clock(raw)
+    if found is not None:
+        return found.date() if isinstance(raw, datetime) else _day(raw)
+    signal = _signal_for(state, order)
+    if isinstance(signal, dict):
+        day = _day(signal.get("expiry"))
+        if day is not None:
+            return day
+    contract = _contract(state, order)
+    return _expiry_from_occ(contract)
+
+
+def _expiry_from_occ(contract: str):
+    import re
+
+    match = re.search(r"(\d{6})[CP]\d{8}$", str(contract or "").upper())
+    if match is None:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%y%m%d").date()
+    except ValueError:
+        return None
+
+
+def _day(value):
+    if isinstance(value, datetime):
+        return to_ny(value).date()
+    if isinstance(value, date):
+        return value
+    text = str(value or "")[:10]
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _past_exit_quote(state, order, book: str, session, contract: str):
+    """Bid from that contract's session, else the bid stored when the exit was sent.
+
+    Today's ticks and the live cache are not used.
+    """
+    start = _sent_at(order, _signal_for(state, order)) or _session_open(session)
+    end = _session_close(session)
+    limit = _limit(order)
+    found = _first_bid(_load_day(book, session), contract, start, end, limit)
+    if found is not None:
+        return found[1], None, found[0]
+    trigger = _trigger_bid(order)
+    if trigger is None or limit is None or trigger + 1e-9 < limit:
+        return None, None, None
+    return trigger, None, start
+
+
+def _first_bid(ticks, contract: str, start: datetime, end: datetime, limit: Optional[float]):
+    if limit is None or not contract:
+        return None
+    found = None
+    for row in _sorted_ticks(ticks):
+        stamp = _clock(row.get("timestamp"))
+        if stamp is None or stamp < to_ny(start) or stamp > to_ny(end):
+            continue
+        if str(row.get("option_symbol") or row.get("contract") or "") != contract:
+            continue
+        bid = _num(row.get("bid"))
+        if bid is None or bid + 1e-9 < limit:
+            continue
+        if found is None or stamp < found[0]:
+            found = (stamp, bid)
+    return found
+
+
+def _trigger_bid(order) -> Optional[float]:
+    for key in ("quote_px", "sandbox_price"):
+        price = _num(order.get(key))
+        if price is not None and price > 0:
+            return price
+    return None
+
+
+def _fill_from_later_session(order, session) -> bool:
+    stamp = _clock(order.get("fill_time"))
+    if stamp is None:
+        return True
+    return stamp.date() > session
+
+
+def _restore_exit_session(state, order, signal_id: str) -> bool:
+    """Keep the exit on the day it was sent so the credit can settle the next session."""
+    sent = _sent_at(order, _signal_for(state, order))
+    if sent is None:
+        return False
+    changed = False
+    for signal in state.get("signals") or []:
+        if not isinstance(signal, dict) or str(signal.get("id") or "") != signal_id:
+            continue
+        current = _clock(signal.get("exit_time"))
+        if current is None or current.date() > to_ny(sent).date():
+            signal["exit_time"] = to_ny(sent).isoformat()
+            changed = True
+    return changed
+
+
+def _load_day(book: str, day) -> list:
+    from webull_bot.execution.forward_quotes import quote_dir
+
+    if not book or day is None:
+        return []
+    path = quote_dir() / f"ticks_{book}_{day.strftime('%Y%m%d')}.csv"
+    return _read_csv(path)
+
+
+def _session_open(day):
+    from zoneinfo import ZoneInfo
+
+    return datetime.combine(day, time(9, 30), tzinfo=ZoneInfo("America/New_York"))
+
+
+def _settle_mirror(state, now) -> None:
+    stake = state.get("stake")
+    if stake in (None, ""):
+        return
+    from webull_bot.execution.forward_cash import prepare_cash
+
+    prepare_cash(state, None, float(stake), to_ny(now).date())
+
+
 def _real_fill(order: dict) -> bool:
     if is_quote_touch(order):
         return False
@@ -443,7 +737,8 @@ def _first_ask(ticks, contract: str, start: datetime, end: datetime, limit: Opti
         stamp = _clock(row.get("timestamp"))
         if stamp is None or stamp < to_ny(start) or stamp > to_ny(end):
             continue
-        if contract and str(row.get("option_symbol") or row.get("contract") or "") not in {"", contract}:
+        symbol = str(row.get("option_symbol") or row.get("contract") or "")
+        if not contract or symbol != contract:
             continue
         ask = _num(row.get("ask"))
         if ask is None or ask > limit + 1e-9:
@@ -461,7 +756,8 @@ def _latest_bid(ticks, contract: str, now) -> tuple:
         mark = _clock(row.get("timestamp"))
         if mark is None or mark > to_ny(now):
             continue
-        if contract and str(row.get("option_symbol") or row.get("contract") or "") not in {"", contract}:
+        symbol = str(row.get("option_symbol") or row.get("contract") or "")
+        if not contract or symbol != contract:
             continue
         value = _num(row.get("bid"))
         if value is None:
@@ -568,9 +864,16 @@ def _copy_state(state: dict, book: str) -> dict:
 
 
 def _signal_id(order: dict) -> str:
+    """The signal id on ``key``. Signal ids themselves contain pipes.
+
+    ``QQQ|2026-10-13T10:45:00-04:00|short|extension|exit`` is that whole
+    prefix. The underlying ticker is not the id.
+    """
     key = str(order.get("key") or "")
-    if "|" in key:
-        return key.split("|", 1)[0]
+    if key.endswith("|entry"):
+        return key[: -len("|entry")]
+    if key.endswith("|exit"):
+        return key[: -len("|exit")]
     return ""
 
 

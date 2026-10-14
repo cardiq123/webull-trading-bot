@@ -353,6 +353,300 @@ def _tick(book, when, contract, underlying, bid, ask):
     }
 
 
+def test_a_pipe_signal_id_does_not_journal_an_exit_named_qqq(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    sid = "QQQ|2026-10-14T09:45:00-04:00|short|extension"
+    contract = "QQQ261014P00742000"
+    _write_ticks(
+        tmp_path,
+        [
+            {
+                "timestamp": "2026-10-14T10:05:00-04:00",
+                "book": "vwap_band_15m_qqq_aggr",
+                "symbol": "QQQ",
+                "underlying": "498.50",
+                "option_symbol": contract,
+                "bid": "1.55",
+                "ask": "1.60",
+                "bid_size": "4",
+                "ask_size": "4",
+            },
+            {
+                "timestamp": "2026-10-14T10:05:00-04:00",
+                "book": "vwap_band_15m_qqq_aggr",
+                "symbol": "QQQ",
+                "underlying": "498.50",
+                "option_symbol": "",
+                "bid": "0.60",
+                "ask": "0.65",
+                "bid_size": "1",
+                "ask_size": "1",
+            },
+        ],
+    )
+    state = _state(contract)
+    state["signals"][0]["id"] = sid
+    state["positions"][0]["id"] = sid
+    state["orders"][0]["key"] = f"{sid}|entry"
+    state["orders"][0]["fill"] = 1.0
+    state["orders"][0]["fill_source"] = "order"
+    state["orders"][0]["status"] = "filled"
+    state["positions"][0]["entry_filled"] = True
+    state["signals"][0]["status"] = "open"
+    state["orders"].append(
+        {
+            "key": f"{sid}|exit",
+            "id": "sell-1",
+            "kind": "exit",
+            "side": "SELL",
+            "qty": "3",
+            "symbol": "QQQ",
+            "right": "put",
+            "option_symbol": contract,
+            "status": "submitted",
+            "broker_status": "working",
+            "limit": "1.40",
+            "fill": None,
+            "submitted_at": "2026-10-14T10:04:00-04:00",
+        }
+    )
+    state["exits"] = [
+        {"id": sid, "time": "2026-10-13T10:45:00-04:00", "right": "put", "reason": "stop"},
+        {
+            "id": "QQQ",
+            "time": "2026-10-14T13:12:00-04:00",
+            "right": "call",
+            "fill": 0.6,
+            "fill_source": "quote_touch",
+            "market": {"right": "call", "contract": "QQQ261014C00731000", "limit": 0.6, "fill": 0.6},
+        },
+    ]
+    state["quote_log"] = [
+        {"phase": "exit", "signal_id": "QQQ", "right": "call", "contract": "QQQ261014C00731000", "limit": 0.6, "fill": 0.6}
+    ]
+    state["stake"] = 2500.0
+    apply_quote_touches(state, _Broker(), _at("10:06"), 498.5, [])
+    assert [row.get("id") for row in state["exits"]] == [sid]
+    assert all(str(row.get("signal_id") or "") != "QQQ" for row in state["quote_log"])
+    assert all(str(row.get("id") or "") != "QQQ" for row in state["fills"])
+    from webull_bot.execution.forward_quotes import _log_exit
+
+    assert _log_exit(state, {"id": "QQQ", "right": "call"}, book="vwap_band_15m_qqq_aggr", symbol="QQQ", now=_at("10:06"), underlying=498.5, client=None) is False
+
+
+def test_past_day_exit_uses_the_trigger_bid_and_settles(tmp_path, monkeypatch):
+    """The 10/13 0DTE put expired. Today's 1.17 bid is not that fill."""
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    sid = "QQQ|2026-10-13T10:45:00-04:00|short|extension"
+    contract = "QQQ261013P00742000"
+    entry = 0.7700032313333333
+    _write_ticks(
+        tmp_path,
+        [
+            {
+                "timestamp": "2026-10-14T13:12:00-04:00",
+                "book": "vwap_band_15m_qqq_aggr",
+                "symbol": "QQQ",
+                "underlying": "610.00",
+                "option_symbol": contract,
+                "bid": "1.17",
+                "ask": "1.20",
+                "bid_size": "1",
+                "ask_size": "1",
+            }
+        ],
+    )
+    state = {
+        "book": "vwap_band_15m_qqq_aggr",
+        "stake": 2500.0,
+        "settled": 2946.22,
+        "unsettled": [],
+        "signals": [
+            {
+                "id": sid,
+                "status": "closed",
+                "symbol": "QQQ",
+                "direction": "short",
+                "right": "put",
+                "option_symbol": contract,
+                "qty": 3,
+                "expiry": "2026-10-13",
+                "entry_time": "2026-10-13T09:46:00-04:00",
+                "exit_time": "2026-10-14T13:12:00-04:00",
+                "reason": "stop",
+                "model_debit": 231.12,
+                "model_credit": 40.0,
+            }
+        ],
+        "orders": [
+            {
+                "key": f"{sid}|entry",
+                "id": "buy-1013",
+                "kind": "entry",
+                "side": "BUY",
+                "qty": "3",
+                "option_symbol": contract,
+                "status": "filled",
+                "fill": entry,
+                "fill_source": "order",
+            },
+            {
+                "key": f"{sid}|exit",
+                "id": "sell-1013",
+                "kind": "exit",
+                "side": "SELL",
+                "qty": "3",
+                "symbol": "QQQ",
+                "right": "put",
+                "option_symbol": contract,
+                "expiry": "2026-10-13",
+                "status": "filled",
+                "broker_status": "filled",
+                "limit": "0.38",
+                "quote_px": "0.39",
+                "sandbox_price": "0.39",
+                "fill": 1.17,
+                "fill_source": "quote_touch",
+                "fill_time": "2026-10-14T13:12:00-04:00",
+                "submitted_at": "2026-10-13T10:45:00-04:00",
+                "reason": "stop",
+            },
+        ],
+        "positions": [],
+        "exits": [
+            {"id": sid, "time": "2026-10-13T10:45:00-04:00", "right": "put", "reason": "stop", "fill": 1.17, "fill_pnl": 119.74},
+            {"id": "QQQ", "right": "call", "fill": 0.6, "fill_source": "quote_touch"},
+        ],
+        "fills": [],
+        "quote_log": [{"phase": "exit", "signal_id": "QQQ", "right": "call", "contract": "QQQ261014C00731000", "limit": 0.6, "fill": 0.6}],
+    }
+    lines = []
+    assert apply_quote_touches(state, _Broker(), _at("13:20"), 610.0, lines) is True
+    exit_order = state["orders"][1]
+    assert exit_order["fill"] == pytest.approx(0.39)
+    assert exit_order["fill_source"] == "quote_touch"
+    assert state["signals"][0]["exit_time"].startswith("2026-10-13T10:45:00")
+    assert state["signals"][0]["fill_pnl"] == pytest.approx(-114.2551796)
+    assert round(state["signals"][0]["fill_pnl"], 2) == -114.26
+    assert round(state["settled"], 2) == 2385.74
+    assert state["settled"] != pytest.approx(2946.22)
+    assert [row.get("id") for row in state["exits"]] == [sid]
+    assert state["quote_log"] == []
+    assert any("repriced" in line for line in lines)
+
+
+def test_a_past_day_1dte_exit_does_not_use_todays_bid(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    sid = "QQQ|2026-10-13T10:45:00-04:00|short|extension"
+    contract = "QQQ261014P00743000"
+    path = tmp_path / "ticks_vwap_band_15m_qqq_aggr_1dte_20261014.csv"
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["timestamp", "book", "symbol", "underlying", "option_symbol", "bid", "ask", "bid_size", "ask_size"],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "timestamp": "2026-10-14T13:12:00-04:00",
+                "book": "vwap_band_15m_qqq_aggr_1dte",
+                "symbol": "QQQ",
+                "underlying": "610.00",
+                "option_symbol": contract,
+                "bid": "3.53",
+                "ask": "3.60",
+                "bid_size": "1",
+                "ask_size": "1",
+            }
+        )
+    state = {
+        "book": "vwap_band_15m_qqq_aggr_1dte",
+        "stake": 2500.0,
+        "settled": 2674.71,
+        "signals": [
+            {
+                "id": sid,
+                "status": "closed",
+                "symbol": "QQQ",
+                "right": "put",
+                "option_symbol": contract,
+                "qty": 1,
+                "expiry": "2026-10-14",
+                "entry_time": "2026-10-13T09:46:00-04:00",
+                "exit_time": "2026-10-13T10:45:00-04:00",
+                "model_debit": 282.04,
+            }
+        ],
+        "orders": [
+            {
+                "key": f"{sid}|entry",
+                "id": "buy-1dte",
+                "kind": "entry",
+                "qty": "1",
+                "option_symbol": contract,
+                "status": "filled",
+                "fill": 2.820021282,
+                "fill_source": "order",
+            },
+            {
+                "key": f"{sid}|exit",
+                "id": "sell-1dte",
+                "kind": "exit",
+                "side": "SELL",
+                "qty": "1",
+                "option_symbol": contract,
+                "expiry": "2026-10-14",
+                "status": "filled",
+                "limit": "2.00",
+                "quote_px": "2.10",
+                "fill": 3.53,
+                "fill_source": "quote_touch",
+                "fill_time": "2026-10-14T13:12:00-04:00",
+                "submitted_at": "2026-10-13T10:45:00-04:00",
+                "reason": "stop",
+            },
+        ],
+        "positions": [],
+        "exits": [{"id": sid, "time": "2026-10-13T10:45:00-04:00", "reason": "stop", "fill_pnl": 70.90}],
+        "fills": [],
+    }
+    apply_quote_touches(state, _Broker(), _at("13:20"), 610.0, [])
+    assert state["orders"][1]["fill"] == pytest.approx(2.10)
+    assert state["orders"][1]["fill"] != pytest.approx(3.53)
+    assert round(state["signals"][0]["fill_pnl"], 2) != 70.90
+    assert state["settled"] != pytest.approx(2674.71)
+
+
+def test_a_closed_entry_does_not_repeat_the_fill_line():
+    from webull_bot.execution.forward_fills import _promote
+
+    state = _state()
+    state["orders"][0]["fill"] = 0.94
+    state["orders"][0]["fill_source"] = "order"
+    state["orders"][0]["status"] = "filled"
+    state["signals"][0]["status"] = "closed"
+    state["positions"] = []
+    lines = []
+    assert _promote(state, state["orders"][0], lines) is False
+    assert _promote(state, state["orders"][0], lines) is False
+    assert lines == []
+
+    fresh = _state()
+    fresh["orders"][0]["fill"] = 0.94
+    fresh["orders"][0]["fill_source"] = "order"
+    fresh["signals"][0]["status"] = "working"
+    fresh["positions"][0]["entry_filled"] = False
+    first = []
+    assert _promote(fresh, fresh["orders"][0], first) is True
+    assert any("Entry filled 0.94" in line for line in first)
+    second = []
+    assert _promote(fresh, fresh["orders"][0], second) is False
+    assert second == []
+
+
 def test_replay_20261014_books_the_ten_entries_without_double_counting():
     """The runner's ticks_*.csv are not in this environment.
 

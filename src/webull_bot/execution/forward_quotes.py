@@ -366,7 +366,9 @@ def _log_open(state, position, *, book, symbol, now, underlying, client) -> bool
 
 def _log_exit(state, exit_row, *, book, symbol, now, underlying, client) -> bool:
     signal = next((row for row in state.get("signals") or [] if row.get("id") == exit_row.get("id")), None)
-    position_like = signal if isinstance(signal, dict) else {}
+    if not isinstance(signal, dict):
+        return False
+    position_like = signal
     right = str(exit_row.get("right") or position_like.get("right") or "call")
     contract = _contract_for_row(symbol, position_like)
     spot = _float(exit_row.get("underlying")) or underlying
@@ -1212,7 +1214,7 @@ def _order_limit(state, signal_id, kind: str) -> Optional[float]:
     for order in state.get("orders") or []:
         if not isinstance(order, dict):
             continue
-        if str(order.get("key") or "").startswith(f"{signal_id}|") and order.get("kind") == kind:
+        if str(order.get("key") or "") == f"{signal_id}|{kind}":
             return _float(order.get("limit"))
     return None
 
@@ -1221,7 +1223,7 @@ def _fill_for(state, signal_id, kind: str) -> tuple[Optional[float], Optional[st
     for order in state.get("orders") or []:
         if not isinstance(order, dict):
             continue
-        if str(order.get("key") or "").startswith(f"{signal_id}|") and order.get("kind") == kind:
+        if str(order.get("key") or "") == f"{signal_id}|{kind}":
             return _float(order.get("fill")), order.get("fill_time")
     return None, None
 
