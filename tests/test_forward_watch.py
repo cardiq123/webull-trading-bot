@@ -364,6 +364,99 @@ def test_books_share_one_tail_fetch(tmp_path, monkeypatch):
     assert any("share this cache" in line for line in lines)
 
 
+def test_a_short_tail_keeps_the_4hr_signal(tmp_path, monkeypatch):
+    """The 11:00 4hr put needs the loaded history. A 3-day tail has no 4-hour EMA."""
+    import numpy as np
+    import pandas as pd
+
+    from webull_bot.chart_reads.four_hour import Book
+    from webull_bot.execution import forward_watch as watch
+    from webull_bot.execution.forward_four_hour import signals_through
+
+    frames = []
+    price = 500.0
+    for day in pd.bdate_range("2026-09-08", "2026-10-14"):
+        index = pd.date_range(f"{day.date()} 09:30", f"{day.date()} 15:55", freq="5min", tz=NY)
+        close = price - np.linspace(0, 1.5, len(index))
+        price = float(close[-1]) - 0.2
+        frames.append(
+            pd.DataFrame(
+                {
+                    "open": close + 0.2,
+                    "high": close + 0.4,
+                    "low": close - 0.15,
+                    "close": close,
+                    "volume": 1000.0,
+                },
+                index=index,
+            )
+        )
+    full = pd.concat(frames)
+    short = full[full.index >= pd.Timestamp("2026-10-11", tz=NY)]
+    now = pd.Timestamp("2026-10-14 11:06", tz=NY)
+    assert Book(short, "QQQ").h4_bars < 20
+    assert signals_through(short, now) == []
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(full, now)
+    )
+
+    class Tail:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def append_recent(self, symbols, interval, now, days=3):
+            if interval == "5m":
+                return {"QQQ": full}
+            return {}
+
+    class WebullTail:
+        def __init__(self, broker):
+            pass
+
+        def history(self, symbols, start, end, interval="1d"):
+            if interval == "5m":
+                return {"QQQ": short.copy()}
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", Tail)
+    monkeypatch.setattr("webull_bot.data.webull_provider.WebullDataProvider", WebullTail)
+    watch.LATEST.clear()
+    watch.LATEST["bars5"] = {"QQQ": full}
+    watch.LATEST["bars15"] = {}
+    watch._REFRESH_THREAD = None
+
+    class DataBroker:
+        _data = object()
+
+    moment = datetime(2026, 10, 14, 11, 6, tzinfo=NY)
+    lines = watch.refresh_closed_bars(_cfg(tmp_path), moment, ["four_hour_qqq_1dte"], DataBroker())
+    kept = watch.LATEST["bars5"]["QQQ"]
+    assert kept.index[0] == full.index[0]
+    assert kept.index[-1] == full.index[-1]
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(kept, now)
+    )
+    assert any("QQQ 5-minute history starts 2026-09-08" in line for line in lines)
+
+    class ShortTail(Tail):
+        def append_recent(self, symbols, interval, now, days=3):
+            if interval == "5m":
+                return {"QQQ": short.copy()}
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", ShortTail)
+    watch._REFRESH_THREAD = None
+    watch.refresh_closed_bars(_cfg(tmp_path), moment, ["four_hour_qqq_1dte"], DataBroker())
+    kept = watch.LATEST["bars5"]["QQQ"]
+    assert kept.index[0] == full.index[0]
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(kept, now)
+    )
+
+
 def test_the_watch_does_not_call_the_full_history_cycle(tmp_path, monkeypatch, capsys):
     from webull_bot.execution import forward_watch as watch
 

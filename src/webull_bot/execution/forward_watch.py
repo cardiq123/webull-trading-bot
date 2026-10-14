@@ -1002,7 +1002,12 @@ def _num(row: dict, *keys: str) -> Optional[float]:
 
 
 def overlay_webull_bars(broker, bars15, bars5, symbols: list[str], five_symbols: list[str], start: str, end: str):
-    """Use Webull bars when the call returns a frame. Keep Yahoo where it does not."""
+    """Use Webull for the bars it returns. Older bars stay.
+
+    A tail request is a few days. Replacing the whole symbol with that
+    window drops the history the 4-hour EMA needs, so the 4hr book only
+    sees a signal on the startup load.
+    """
     from webull_bot.data.webull_provider import WebullDataProvider
 
     if broker is None or getattr(broker, "_data", None) is None:
@@ -1017,11 +1022,29 @@ def overlay_webull_bars(broker, bars15, bars5, symbols: list[str], five_symbols:
 
 
 def _prefer(fallback, fresh) -> dict:
-    base = dict(fallback or {})
+    """Keep the longer history. The fresh print replaces the same timestamp."""
+    return _merge_symbol_frames(fallback, fresh)
+
+
+def _merge_symbol_frames(existing, fresh) -> dict:
+    from webull_bot.data.yfinance_provider import merge_frames
+
+    base = dict(existing or {})
     for symbol, frame in (fresh or {}).items():
-        if frame is not None and len(frame) > 0:
-            base[symbol] = frame
+        merged = merge_frames(base.get(symbol), frame)
+        if merged is not None and len(merged) > 0:
+            base[symbol] = merged
     return base
+
+
+def _qqq_history_note() -> str:
+    frame = (LATEST.get("bars5") or {}).get("QQQ")
+    if frame is None or len(frame) == 0:
+        return ""
+    first = pd.Timestamp(frame.index[0])
+    if first.tzinfo is not None:
+        first = first.tz_convert(NY)
+    return f" QQQ 5-minute history starts {first.date().isoformat()}."
 
 
 def _cell(value) -> str:
@@ -1289,7 +1312,10 @@ def refresh_closed_bars(config, now: datetime, names: list[str], broker=None) ->
         ]
     kind = box.get("kind")
     if kind == "appended":
-        return ["Bar cache updated from the new 5-minute bars. Books share this cache."]
+        return [
+            "Bar cache updated from the new 5-minute bars. Books share this cache."
+            + _qqq_history_note()
+        ]
     if kind == "loaded":
         return ["Bar cache loaded. Later cycles append the new bars."]
     return ["Bar refresh failed. Entries use the cached bars."]
@@ -1323,14 +1349,11 @@ def _append_tail(config, now: datetime, names: list[str], broker) -> None:
             )
         except Exception:
             pass
-    bars15 = dict(LATEST.get("bars15") or {})
-    bars5 = dict(LATEST.get("bars5") or {})
-    for symbol, frame in (fresh5 or {}).items():
-        if frame is not None and len(frame) > 0:
-            bars5[symbol] = frame
-    for symbol, frame in (fresh15 or {}).items():
-        if frame is not None and len(frame) > 0:
-            bars15[symbol] = frame
+    # The startup load is the long file. A later tail is a few days, and the
+    # Webull call is capped, so either one would erase the 4-hour EMA if it
+    # replaced the cache. Merge instead. The new print wins on a shared bar.
+    bars15 = _merge_symbol_frames(LATEST.get("bars15"), fresh15)
+    bars5 = _merge_symbol_frames(LATEST.get("bars5"), fresh5)
     remember_frames(bars15, bars5, LATEST.get("points"), LATEST.get("closes"))
 
 
