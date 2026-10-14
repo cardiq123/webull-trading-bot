@@ -151,6 +151,15 @@ def build_parser() -> argparse.ArgumentParser:
             "four_hour_qqq_1dte",
         ],
     )
+    forward_replay = sub.add_parser(
+        "forward-replay",
+        help=(
+            "Replay quote-touch paper fills from the journal and tick logs. "
+            "Read only. Does not place an order. Live trading stays off."
+        ),
+    )
+    _add_config(forward_replay)
+    forward_replay.add_argument("day", help="Session date YYYY-MM-DD")
     forward_nightly = sub.add_parser(
         "forward-nightly",
         help=(
@@ -227,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         return _forward_reconcile(config, args)
     if args.command == "forward-nightly":
         return _forward_nightly(config, args)
+    if args.command == "forward-replay":
+        return _forward_replay(config, args)
     parser.error(args.command)
     return 2
 
@@ -945,6 +956,63 @@ def _forward_reconcile(config, args) -> int:
     except Exception:
         raise SystemExit("Reconcile failed. The reason was not printed. No order was sent.")
     print("\n".join(lines))
+    return 0
+
+
+def _forward_replay(config, args) -> int:
+    """Print quote-touch P&L for one session. Does not connect or write the journal."""
+    from datetime import date
+
+    from webull_bot.execution.forward_quote_touch import replay_day
+    from webull_bot.execution.forward_quotes import quote_dir
+    from webull_bot.execution.forward_reconcile import require_sandbox
+    from webull_bot.journal.store import Journal
+
+    require_sandbox()
+    try:
+        day = date.fromisoformat(str(args.day))
+    except ValueError:
+        raise SystemExit("The replay date has to be YYYY-MM-DD. No order was sent.")
+    journal = Journal(config.get("journal", "path", default="data/journal.sqlite"))
+    books = (
+        "vwap_band_15m",
+        "vwap_band_15m_qqq_aggr",
+        "vwap_band_15m_qqq_aggr_1dte",
+        "vwap_band_15m_qqq_compound",
+        "neckline_trapdoor_qqq",
+        "four_hour_qqq_1dte",
+    )
+    states = {}
+    for book in books:
+        try:
+            loaded = journal.forward_load(book)
+        except Exception:
+            loaded = None
+        if isinstance(loaded, dict):
+            states[book] = loaded
+    ticks = []
+    token = day.strftime("%Y%m%d")
+    folder = quote_dir()
+    if folder.exists():
+        for path in sorted(folder.glob(f"ticks_*_{token}.csv")):
+            book = path.name[len("ticks_") : -len(f"_{token}.csv")]
+            try:
+                import csv
+
+                with path.open(newline="") as handle:
+                    for row in csv.DictReader(handle):
+                        if isinstance(row, dict):
+                            row["book"] = row.get("book") or book
+                            ticks.append(row)
+            except OSError:
+                continue
+    if not states:
+        print("No forward journal for that day. No order was sent.")
+        return 0
+    if not ticks:
+        print(f"No ticks_*_{token}.csv under {folder}. No order was sent.")
+        return 0
+    print("\n".join(replay_day(states, ticks, day)))
     return 0
 
 

@@ -806,6 +806,10 @@ def _book_mismatches(book: str, state: dict, broker, holdings: list, holdings_ok
     for position in state.get("positions") or []:
         if not isinstance(position, dict) or not position_is_filled(state, position):
             continue
+        from webull_bot.execution.forward_quote_touch import position_is_quote_touch
+
+        if position_is_quote_touch(state, position):
+            continue
         if not holdings_ok:
             continue
         probe = _position_probe(position)
@@ -841,6 +845,8 @@ def _book_mismatches(book: str, state: dict, broker, holdings: list, holdings_ok
         if not isinstance(order, dict) or str(order.get("kind") or "") != "entry":
             continue
         if _known(order.get("fill")) is None or not holdings_ok:
+            continue
+        if str(order.get("fill_source") or "") == "quote_touch":
             continue
         signal_id = ""
         key = str(order.get("key") or "")
@@ -944,8 +950,12 @@ def _unheld_ids(state: dict) -> list[str]:
 
     found: list[str] = []
     seen: set[str] = set()
+    from webull_bot.execution.forward_quote_touch import position_is_quote_touch
+
     for position in state.get("positions") or []:
         if not isinstance(position, dict) or not position_is_filled(state, position):
+            continue
+        if position_is_quote_touch(state, position):
             continue
         sid = str(position.get("id") or "")
         if sid and sid not in seen:
@@ -958,6 +968,8 @@ def _unheld_ids(state: dict) -> list[str]:
             continue
         sid = _signal_id(str(order.get("key") or ""))
         if sid and sid not in seen and _signal_filled(state, sid):
+            if position_is_quote_touch(state, {"id": sid}):
+                continue
             seen.add(sid)
             found.append(sid)
     return found
@@ -1211,7 +1223,9 @@ def chase_exit_orders(state: dict, broker, now: datetime, lines: list[str]) -> b
     """
     if broker is None or not isinstance(state, dict):
         return False
-    changed = False
+    from webull_bot.execution.forward_quote_touch import apply_quote_touches
+
+    changed = apply_quote_touches(state, broker, now, None, lines)
     for order in list(state.get("orders") or []):
         if not isinstance(order, dict) or order.get("kind") != "exit":
             continue

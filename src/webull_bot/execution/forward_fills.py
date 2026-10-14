@@ -191,6 +191,10 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
         )
     _drop_rejected_exits(state, lines)
+    from webull_bot.execution.forward_quote_touch import apply_quote_touches
+
+    if apply_quote_touches(state, broker, now, spot, lines):
+        changed = True
     from webull_bot.execution.forward_reconcile import release_unheld_positions
 
     if release_unheld_positions(state, broker, lines, now):

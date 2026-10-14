@@ -134,7 +134,12 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
             signal["fill_exit"] = exit_px
             signal["fill_credit"] = credit
             if entry_src:
-                signal["fill_source"] = entry_src if entry_src == exit_src else "order"
+                if entry_src == exit_src:
+                    signal["fill_source"] = entry_src
+                elif "quote_touch" in {entry_src, exit_src}:
+                    signal["fill_source"] = "mixed"
+                else:
+                    signal["fill_source"] = "order"
         due = next_trading_day(_day(signal.get("exit_time")) or session_day(state))
         unsettled.append({"date": due.isoformat(), "amount": credit, "id": signal.get("id")})
         has_premium = entry_px is not None or _number(signal.get("model_debit")) is not None
@@ -239,8 +244,10 @@ def _leg_price(state: dict, signal: dict, kind: str) -> tuple[Optional[float], s
     order = _order_for(state, str(signal.get("id") or ""), kind)
     if order is not None:
         expiry = str(order.get("settlement") or "") == "expiry"
-        price = _known_fill(order.get("fill"), allow_zero=expiry)
+        price = _known_fill(order.get("fill"), allow_zero=expiry or str(order.get("fill_source") or "") == "quote_touch")
         if price is not None:
+            if str(order.get("fill_source") or "") == "quote_touch":
+                return price, "quote_touch"
             return price, "expiry" if expiry else "order"
     side = "BUY" if kind == "entry" else "SELL"
     for row in state.get("fills") or []:
@@ -293,7 +300,7 @@ def _stamp_fill_row(state: dict, order: dict) -> None:
             row["fill"] = price
             if order.get("fill_time"):
                 row["fill_time"] = order.get("fill_time")
-            row["fill_source"] = "order"
+            row["fill_source"] = order.get("fill_source") or "order"
 
 
 def _stamp_exit(exits: list[dict], signal: dict) -> None:

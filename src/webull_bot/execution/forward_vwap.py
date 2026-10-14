@@ -857,6 +857,8 @@ def _report_text(journal: Journal) -> str:
         lines.append("(none)")
     for row in signals:
         lines.append("- " + _event_line(row))
+    from webull_bot.execution.forward_quote_touch import venue_suffix
+
     lines.append("Orders")
     orders = state.get("orders") or []
     if not orders:
@@ -869,7 +871,7 @@ def _report_text(journal: Journal) -> str:
             f"{limit_fill_text(row.get('limit'), row.get('fill'))} "
             f"status {row.get('broker_status') or row.get('status')} "
             f"model {row.get('model_price')} sandbox {row.get('sandbox_price')} "
-            f"{row.get('price_source')}"
+            f"{row.get('price_source')}{venue_suffix(row)}"
         )
     lines.append("Fills")
     fills = state.get("fills") or []
@@ -881,7 +883,7 @@ def _report_text(journal: Journal) -> str:
         lines.append(
             f"- {row.get('time')} {row.get('side')} {row.get('qty')} {row.get('right')} "
             f"{limit_fill_text(row.get('price'), row.get('fill'))} "
-            f"underlying {row.get('underlying')} {row.get('price_source')}"
+            f"underlying {row.get('underlying')} {row.get('price_source')}{venue_suffix(row)}"
         )
     lines.append("Exits")
     realized = 0.0
@@ -900,7 +902,7 @@ def _report_text(journal: Journal) -> str:
             fill_realized += float(fill)
         lines.append(
             f"- {row.get('time')} {row.get('right')} reason {row.get('reason')} "
-            f"underlying {row.get('underlying')} {pnl_phrase(row)}"
+            f"underlying {row.get('underlying')} {pnl_phrase(row)}{venue_suffix(row)}"
         )
     lines.append("Open position")
     positions = state.get("positions") or []
