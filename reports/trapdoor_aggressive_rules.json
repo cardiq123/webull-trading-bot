@@ -1,0 +1,79 @@
+{
+  "study": "trapdoor_aggressive",
+  "registered_before_score": true,
+  "question": "Which pre-registered put and size, on the unchanged QQQ Trapdoor signal, most often turns a fresh $2,500 into $10,000 inside a year, and how often that path falls under $500.",
+  "signal": "QQQ confirmed short only. Double top as frozen in the neckline study, including the six-bar minimum separation. Trigger is a 5-minute close below the neckline and below both the 9 and 20 EMA. Entries are not retuned.",
+  "signal_cell": "QQQ_confirmed_short_r1_0dte",
+  "comparison": "vwap_band_15m_qqq is the frozen 15-minute 2 SD continuation, both directions, 1R, one position, flat at 15:45. The size grid is the same. The strike stays at the money. Its daily cap in this study is 5 fills. The scored VWAP book had no daily count cap.",
+  "train": [
+    "2017-02-16",
+    "2023-12-31"
+  ],
+  "holdout": [
+    "2024-01-01",
+    "2026-10-06"
+  ],
+  "stake": 2500.0,
+  "goal": 10000.0,
+  "ruin": 500.0,
+  "horizons_months": [
+    4,
+    8,
+    12
+  ],
+  "rolling": "Every session start with a full 12 months still inside that window gets a fresh $2,500. Train starts cannot use 2024. Holdout starts cannot use prices after 2026-10-06. The 4-month and 8-month chances use those same 12-month starts, so a start that gets to $10,000 in month 5 counts for 8 and 12 months and not for 4.",
+  "daily_cap": {
+    "trapdoor": 3,
+    "vwap": 5
+  },
+  "flat": "15:45 ET open. No overnight hold.",
+  "one_position": "A new signal while a trade is open is skipped. A skipped trade does not block the next one.",
+  "sizing": {
+    "fixed_contracts": [
+      1,
+      3,
+      5,
+      7,
+      10
+    ],
+    "fixed_fraction_of_equity": [
+      0.1,
+      0.2,
+      0.3,
+      0.5
+    ],
+    "unaffordable": "If the whole ticket costs more than settled cash, the trade is skipped. A 10-lot is not cut down to whatever fits.",
+    "settlement": "The sale is spendable the next session. It still counts in equity the same day."
+  },
+  "strikes": {
+    "atm": "Listed strike nearest the fill.",
+    "otm1": "One listed strike below that, a put further out of the money.",
+    "otm2": "Two listed strikes below.",
+    "otm3": "Three listed strikes below.",
+    "d40": "Listed strike whose Black-Scholes put delta is nearest -0.40, at or below the at-the-money strike.",
+    "d30": "Same for -0.30.",
+    "d20": "Same for -0.20.",
+    "exits": "At the money is 1R only. Every out-of-the-money put is scored at 1R and at 2R. The stop stays one cent beyond the second high."
+  },
+  "pricing": {
+    "model": "Black-Scholes, rate 2%, dividend 0, same 0 DTE clock as the neckline study.",
+    "iv": "Prior VIX1D close when that print exists, otherwise the prior VIX close. Clipped to 5%\u2013150%.",
+    "skew": "Off uses that IV for every strike. On adds 1.5 volatility points per 0.10 of absolute delta below 0.50, measured at the base IV: bump = 0.015 * max(0, 0.50 - abs(delta)) / 0.10. The bump is frozen at entry and used for the exit mark too. At-the-money delta is about 0.50, so the bump is zero and that cell is not doubled.",
+    "spread_atm": "Half-spread max($0.01, 1.5% of the mid), the neckline book's spread.",
+    "spread_otm": "Half-spread max($0.02, 8% of the mid) on each side when the listed put strike is below the at-the-money strike. A delta target that the $1 board rounds back to at the money keeps the at-the-money spread. Both skew settings use this.",
+    "trust": "A cheap 0 DTE out-of-the-money put is where this model is least trustworthy. Two and three strikes out, and deltas 0.30 and 0.20, are flagged, as is a median ask under $0.50."
+  },
+  "gate": {
+    "holdout_only": true,
+    "profit_factor": 1.1,
+    "sharpe": 0.4,
+    "max_drawdown": -0.3,
+    "trades": 300,
+    "q": 0.1,
+    "dsr": 0.95,
+    "null": "The average holdout trade does not make money. One-sided t test, then Benjamini-Hochberg across the whole grid.",
+    "note": "Reaching $10,000 is the report sort. It is not a second gate and it does not retune the entry."
+  },
+  "family": 234,
+  "live_trading": false
+}
