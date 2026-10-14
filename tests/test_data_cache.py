@@ -11,6 +11,40 @@ from webull_bot.data.yfinance_provider import YFinanceProvider, _closed_hourly
 NY = ZoneInfo("America/New_York")
 
 
+def test_append_recent_keeps_the_older_bars(tmp_path: Path, monkeypatch):
+    from webull_bot.data.base import normalize_frame
+    from webull_bot.data.yfinance_provider import merge_frames
+
+    old = normalize_frame(
+        pd.DataFrame(
+            [(100.0, 101.0, 99.0, 100.5, 10.0)],
+            columns=["open", "high", "low", "close", "volume"],
+            index=pd.DatetimeIndex([pd.Timestamp("2026-10-12 09:30", tz=NY)]),
+        ),
+        "5m",
+    )
+    new = normalize_frame(
+        pd.DataFrame(
+            [(110.0, 111.0, 109.0, 110.5, 12.0)],
+            columns=["open", "high", "low", "close", "volume"],
+            index=pd.DatetimeIndex([pd.Timestamp("2026-10-12 13:30", tz=NY)]),
+        ),
+        "5m",
+    )
+    merged = merge_frames(old, new)
+    assert list(merged.index.strftime("%H:%M")) == ["09:30", "13:30"]
+    provider = YFinanceProvider(tmp_path)
+    old.to_csv(provider._cache_path("QQQ", "5m"))
+
+    def fake_history(self, symbols, start, end, interval="1d"):
+        return {"QQQ": new}
+
+    monkeypatch.setattr(YFinanceProvider, "history", fake_history)
+    frames = provider.append_recent(["QQQ"], "5m", datetime(2026, 10, 12, 13, 35, tzinfo=NY))
+    assert list(frames["QQQ"].index.strftime("%H:%M")) == ["09:30", "13:30"]
+    assert float(frames["QQQ"].iloc[-1]["close"]) == 110.5
+
+
 def test_hourly_cache_accepts_mixed_est_and_edt_offsets(tmp_path: Path):
     path = tmp_path / "SPY_60m.csv"
     path.write_text(

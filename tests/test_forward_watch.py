@@ -1,0 +1,819 @@
+"""The 5-second watch. No network and no orders leave this file."""
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from webull_bot.cli import build_parser
+from webull_bot.execution.forward_vwap import NAME, _manage_open, empty_state
+from webull_bot.execution.forward_watch import (
+    LATEST,
+    EndpointBudget,
+    BudgetExceeded,
+    boundary_of,
+    cycle_lock,
+    full_cycle_due,
+    rate_limited,
+    run_watch,
+)
+from webull_bot.journal.store import Journal
+
+NY = ZoneInfo("America/New_York")
+DAY = "2024-01-03"
+
+
+def _at(hhmm: str) -> datetime:
+    return datetime.fromisoformat(f"{DAY}T{hhmm}:00").replace(tzinfo=NY)
+
+
+class Broker:
+    def __init__(self, fail_quote: bool = False):
+        self.orders = []
+        self.fail_quote = fail_quote
+
+    def underlying_quote(self, symbol):
+        if self.fail_quote:
+            raise RuntimeError("snapshot down")
+        return None
+
+    def option_contract_quote(self, option_symbol):
+        return {"bid": 1.0, "ask": 1.1}
+
+    def place_option_order(self, payload):
+        self.orders.append(payload)
+        return {"client_order_id": payload["client_order_id"]}
+
+
+def _position():
+    return {
+        "id": "sig-1",
+        "direction": "long",
+        "right": "call",
+        "option_type": "CALL",
+        "strike": 100.0,
+        "model_strike": 100.0,
+        "expiry": DAY,
+        "option_symbol": "SPY240103C00100000",
+        "signal_time": f"{DAY}T11:45:00-05:00",
+        "fill_time": f"{DAY}T12:00:00-05:00",
+        "entry_time": f"{DAY}T12:00:30-05:00",
+        "entry": 100.0,
+        "stop": 90.0,
+        "target": 110.0,
+        "iv": 0.20,
+        "model_debit": 100.0,
+        "qty": 1,
+    }
+
+
+def test_bar_close_is_three_seconds_past_the_boundary():
+    assert full_cycle_due(_at("11:00").replace(second=3), None)
+    assert not full_cycle_due(_at("11:00").replace(second=2), None)
+    assert not full_cycle_due(_at("11:02"), boundary_of(_at("11:00")))
+    assert full_cycle_due(_at("11:05").replace(second=3), boundary_of(_at("11:00")))
+
+
+def test_budget_stays_under_the_sandbox_snapshot_cap_and_backs_off():
+    from webull_bot.execution.forward_watch import REQUESTS_PER_MINUTE, snapshot_prices
+
+    assert REQUESTS_PER_MINUTE == 15
+    budget = EndpointBudget()
+    for _ in range(15):
+        budget.gate("option_snapshot")
+    with pytest.raises(BudgetExceeded):
+        budget.gate("option_snapshot")
+    budget.gate("stock_snapshot")
+
+    tight = EndpointBudget(cap=10)
+    for _ in range(10):
+        tight.gate("stock_snapshot")
+    with pytest.raises(BudgetExceeded):
+        tight.gate("stock_snapshot")
+    delay = tight.penalize("option_snapshot")
+    assert 15.0 <= delay <= 15.0 * 1.25
+    assert tight.cooling("option_snapshot")
+    assert rate_limited(RuntimeError("HTTP 429 Too Many Requests"))
+    assert not rate_limited(RuntimeError("timeout"))
+
+    class Market:
+        def __init__(self):
+            self.calls = []
+
+        def get_snapshot(self, symbols, category):
+            self.calls.append((list(symbols), category))
+            return {"data": [{"symbol": item, "price": 500.0 + index} for index, item in enumerate(symbols)]}
+
+    class Data:
+        def __init__(self):
+            self.market_data = Market()
+
+    class QuoteBroker:
+        def __init__(self):
+            self._data = Data()
+
+    broker = QuoteBroker()
+    prices = snapshot_prices(broker, ["SPY", "QQQ"], EndpointBudget())
+    assert broker._data.market_data.calls == [(["SPY", "QQQ"], "US_ETF")]
+    assert prices == {"SPY": 500.0, "QQQ": 501.0}
+
+
+def test_sdk_errors_are_one_line_and_do_not_repeat():
+    import logging
+
+    from webull_bot.execution.forward_watch import _SdkOneLine, quiet_sdk_errors
+
+    log = logging.getLogger("webull.core.client")
+    log.setLevel(logging.ERROR)
+    log.filters[:] = [item for item in log.filters if not isinstance(item, _SdkOneLine)]
+    quiet_sdk_errors()
+    quiet_sdk_errors()
+    seen = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            seen.append(record.getMessage())
+
+    handler = Capture(level=logging.ERROR)
+    log.addHandler(handler)
+    try:
+        dump = (
+            "ServerException occurred. Request:"
+            "{'path': '/market-data/stocks/depths/list', 'category': 'US_OPTION'} "
+            "HTTP 417 UNSUPPORTED_CATEGORY"
+        )
+        log.error(dump)
+        log.error(dump)
+        assert seen == ["Webull market data rejected the category (HTTP 417). The request was not logged."]
+        assert "Request" not in seen[0]
+        assert "depths" not in seen[0]
+    finally:
+        log.removeHandler(handler)
+
+
+def test_the_cycle_lock_does_not_overlap(tmp_path):
+    path = tmp_path / "cycle.lock"
+    with cycle_lock(0, path) as outer:
+        assert outer
+        with cycle_lock(0, path) as inner:
+            assert inner is False
+
+
+def test_a_live_target_exits_and_a_quote_failure_does_not(tmp_path):
+    from webull_bot.execution.forward_vwap import _activate, _ACTIVE
+
+    journal = Journal(tmp_path / "watch.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+    broker.underlying_quote = lambda symbol: 120.0
+    token = _activate(NAME)
+    try:
+        lines = []
+        loaded = journal.forward_load(NAME)
+        _manage_open(loaded, None, _at("12:05"), broker, lines, journal)
+    finally:
+        _ACTIVE.reset(token)
+    assert any("reason target" in line for line in lines)
+    assert journal.forward_load(NAME)["positions"] == []
+
+    journal2 = Journal(tmp_path / "fail.sqlite")
+    state["positions"] = [_position()]
+    journal2.forward_save(NAME, state)
+    broken = Broker(fail_quote=True)
+    token = _activate(NAME)
+    try:
+        lines = []
+        loaded = journal2.forward_load(NAME)
+        _manage_open(loaded, None, _at("12:05"), broken, lines, journal2)
+    finally:
+        _ACTIVE.reset(token)
+    assert journal2.forward_load(NAME)["positions"]
+    assert broken.orders == []
+
+
+def test_dry_run_fast_tick_does_not_connect(capsys):
+    LATEST.clear()
+    LATEST["full"] = boundary_of(_at("11:00"))
+    parser = build_parser()
+    args = parser.parse_args(
+        ["forward-watch", NAME, "--dry-run", "--once", "--now", f"{DAY}T11:02:00"]
+    )
+    from webull_bot.config import load_config
+
+    code = run_watch(load_config(args.config), args, [NAME])
+    assert code == 0
+    assert "Dry run: no snapshots, no orders" in capsys.readouterr().out
+
+
+def test_a_rate_limit_still_checks_the_stop_before_new_quotes(tmp_path, monkeypatch):
+    from webull_bot.execution.forward_vwap import empty_state
+    from webull_bot.execution.forward_watch import fast_tick
+
+    journal = Journal(tmp_path / "cool.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+    budget = EndpointBudget()
+    budget.penalize("stock_snapshot")
+    budget.penalize("option_snapshot")
+    budget.penalize("option_chain")
+    broker._watch_budget = budget
+
+    def boom(*args, **kwargs):
+        raise AssertionError("new quotes waited")
+
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", boom)
+    LATEST.clear()
+    lines = fast_tick(journal, broker, _at("12:05"), {"SPY": 120.0}, [NAME])
+    text = "\n".join(lines)
+    assert "Rate limit backoff" in text
+    assert "reason target" in text
+    assert broker.orders[-1]["side"] == "SELL"
+
+
+def test_four_hour_qqq_1dte_is_loaded_and_evaluated(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from webull_bot.execution.forward_watch import fast_tick
+
+    script = Path(__file__).resolve().parents[1].joinpath("scripts", "vwap-watch.sh").read_text()
+    assert "four_hour_qqq_1dte" in script
+    assert "PYTHONUNBUFFERED=1" in script
+    assert "-u -m webull_bot forward-watch" in script
+    watch_source = Path(__file__).resolve().parents[1].joinpath("src/webull_bot/execution/forward_watch.py").read_text()
+    assert "flush=True" in watch_source
+    seen = []
+    monkeypatch.setattr(
+        "webull_bot.execution.forward_four_hour._manage_open",
+        lambda *args, **kwargs: seen.append("manage"),
+    )
+    monkeypatch.setattr(
+        "webull_bot.execution.forward_four_hour._take_signals",
+        lambda *args, **kwargs: seen.append("take"),
+    )
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", lambda *args, **kwargs: None)
+    journal = Journal(tmp_path / "hour.sqlite")
+    LATEST.clear()
+    lines = fast_tick(journal, Broker(), _at("12:05"), {"QQQ": 500.0}, ["four_hour_qqq_1dte"])
+    assert seen == ["manage", "take"]
+    assert any("Watching four_hour_qqq_1dte." in line for line in lines)
+
+
+def test_the_trapdoor_entry_pass_books_the_15_05_quote_touch(tmp_path, monkeypatch):
+    """The 5-second entry path fills the trapdoor buy. It is not replay-only."""
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_watch import fast_tick
+
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    monkeypatch.setattr("webull_bot.execution.forward_trapdoor._take_signals", lambda *args, **kwargs: None)
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", lambda *args, **kwargs: None)
+    sid = "QQQ|2026-10-14T15:00:00-04:00|short|trapdoor"
+    contract = "QQQ261014P00727000"
+    journal = Journal(tmp_path / "trap.sqlite")
+    journal.forward_save(
+        TRAP_NAME,
+        {
+            "book": TRAP_NAME,
+            "stake": 2500.0,
+            "settled": 2500.0,
+            "unsettled": [],
+            "signals": [
+                {
+                    "id": sid,
+                    "status": "working",
+                    "direction": "short",
+                    "right": "put",
+                    "order_symbol": contract,
+                    "entry_time": "2026-10-14T15:05:10-04:00",
+                    "stop": 730.0,
+                    "target": 720.0,
+                }
+            ],
+            "orders": [
+                {
+                    "key": f"{sid}|entry",
+                    "id": "buy-1500",
+                    "kind": "entry",
+                    "side": "BUY",
+                    "qty": "1",
+                    "status": "submitted",
+                    "broker_status": "working",
+                    "limit": "0.67",
+                    "sandbox_price": "0.66",
+                    "price_source": "webull",
+                    "submitted_at": "2026-10-14T15:05:10-04:00",
+                }
+            ],
+            "positions": [
+                {
+                    "id": sid,
+                    "option_symbol": contract,
+                    "entry_filled": False,
+                    "direction": "short",
+                    "right": "put",
+                    "stop": 730.0,
+                    "target": 720.0,
+                }
+            ],
+            "fills": [],
+            "exits": [],
+        },
+    )
+    LATEST.clear()
+    moment = datetime(2026, 10, 14, 15, 8, tzinfo=NY)
+    fast_tick(journal, Broker(), moment, {"QQQ": 726.5}, [TRAP_NAME], do_exits=False, do_entries=True)
+    saved = journal.forward_load(TRAP_NAME)
+    order = saved["orders"][0]
+    assert order["fill"] == pytest.approx(0.67)
+    assert order["fill_source"] == "quote_touch"
+    assert saved["signals"][0]["status"] == "open"
+
+
+def test_cycle_timing_alerts_when_the_cycle_exceeds_a_minute():
+    from webull_bot.execution.forward_watch import entry_lag_line, timing_lines
+
+    quiet = timing_lines(0.01, 0.20, 0.05)
+    assert quiet == ["Cycle timing: exits 0.01s, bars 0.20s, entries 0.05s, total 0.26s."]
+    slow = timing_lines(1.0, 70.0, 1.0)
+    assert any("Cycle alert" in line and "over 60s" in line for line in slow)
+    lag = entry_lag_line(12.4, _at("13:35"))
+    assert any("12.4s after the 13:35 ET bar close" in line for line in lag)
+    assert any("share one bar cache" in line for line in lag)
+    late = entry_lag_line(47.0, _at("13:35"))
+    assert any("past 30s" in line for line in late)
+
+
+def test_a_bar_close_checks_entries_after_exits_without_the_full_reload(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    seen = []
+
+    def refresh(config, now, names, broker=None):
+        seen.append("bars")
+        return ["Bar cache updated from the new 5-minute bars. Books share this cache."]
+
+    def entries(config, names, now):
+        seen.append(tuple(names))
+        return ["Entry checks for 2 books share one bar cache and run together.", "QQQ Trapdoor"]
+
+    monkeypatch.setattr(watch, "refresh_closed_bars", refresh)
+    monkeypatch.setattr(watch, "dry_entry_checks", entries)
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    lines = watch.watch_cycle(_cfg(tmp_path), None, ["vwap_band_15m", "neckline_trapdoor_qqq"], _at("13:35").replace(second=5), True)
+    assert seen[0] == "bars"
+    assert seen[1] == ("vwap_band_15m", "neckline_trapdoor_qqq")
+    text = "\n".join(lines)
+    assert "Cycle timing:" in text
+    assert "13:35 ET bar close" in text
+    assert "QQQ Trapdoor" in text
+
+
+def test_a_slow_download_still_runs_the_entry_check(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    def slow(*args, **kwargs):
+        import time
+
+        time.sleep(1.0)
+
+    seen = []
+    monkeypatch.setattr(watch, "BAR_REFRESH_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(watch, "_prime", slow)
+    monkeypatch.setattr(watch, "dry_entry_checks", lambda *args, **kwargs: seen.append("entries") or ["entries"])
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    lines = watch.watch_cycle(_cfg(tmp_path), None, ["neckline_trapdoor_qqq"], _at("13:35").replace(second=5), True)
+    assert seen == ["entries"]
+    assert any("timed out" in line for line in lines)
+    assert any("Cycle timing:" in line for line in lines)
+    thread = watch._REFRESH_THREAD
+    if thread is not None:
+        thread.join(2)
+
+
+def test_books_share_one_tail_fetch(tmp_path, monkeypatch):
+    from webull_bot.execution import forward_watch as watch
+
+    calls = []
+
+    class Provider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def append_recent(self, symbols, interval, now, days=3):
+            calls.append((list(symbols), interval))
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", Provider)
+    frame = _tiny()
+    watch.LATEST.clear()
+    watch.LATEST["bars5"] = {"SPY": frame, "QQQ": frame}
+    watch.LATEST["bars15"] = {"SPY": frame, "QQQ": frame}
+    watch._REFRESH_THREAD = None
+    names = [
+        "vwap_band_15m",
+        "vwap_band_15m_qqq_aggr",
+        "vwap_band_15m_qqq_aggr_1dte",
+        "vwap_band_15m_qqq_compound",
+        "neckline_trapdoor_qqq",
+        "four_hour_qqq_1dte",
+    ]
+    lines = watch.refresh_closed_bars(_cfg(tmp_path), _at("13:35").replace(second=5), names, None)
+    five = [item for item in calls if item[1] == "5m"]
+    fifteen = [item for item in calls if item[1] == "15m"]
+    assert len(five) == 1
+    assert five[0][0] == ["SPY", "QQQ"]
+    assert len(fifteen) == 1
+    assert fifteen[0][0] == ["SPY", "QQQ"]
+    assert any("share this cache" in line for line in lines)
+
+
+def test_a_short_tail_keeps_the_4hr_signal(tmp_path, monkeypatch):
+    """The 11:00 4hr put needs the loaded history. A 3-day tail has no 4-hour EMA."""
+    import numpy as np
+    import pandas as pd
+
+    from webull_bot.chart_reads.four_hour import Book
+    from webull_bot.execution import forward_watch as watch
+    from webull_bot.execution.forward_four_hour import signals_through
+
+    frames = []
+    price = 500.0
+    for day in pd.bdate_range("2026-09-08", "2026-10-14"):
+        index = pd.date_range(f"{day.date()} 09:30", f"{day.date()} 15:55", freq="5min", tz=NY)
+        close = price - np.linspace(0, 1.5, len(index))
+        price = float(close[-1]) - 0.2
+        frames.append(
+            pd.DataFrame(
+                {
+                    "open": close + 0.2,
+                    "high": close + 0.4,
+                    "low": close - 0.15,
+                    "close": close,
+                    "volume": 1000.0,
+                },
+                index=index,
+            )
+        )
+    full = pd.concat(frames)
+    short = full[full.index >= pd.Timestamp("2026-10-11", tz=NY)]
+    now = pd.Timestamp("2026-10-14 11:06", tz=NY)
+    assert Book(short, "QQQ").h4_bars < 20
+    assert signals_through(short, now) == []
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(full, now)
+    )
+
+    class Tail:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def append_recent(self, symbols, interval, now, days=3):
+            if interval == "5m":
+                return {"QQQ": full}
+            return {}
+
+    class WebullTail:
+        def __init__(self, broker):
+            pass
+
+        def history(self, symbols, start, end, interval="1d"):
+            if interval == "5m":
+                return {"QQQ": short.copy()}
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", Tail)
+    monkeypatch.setattr("webull_bot.data.webull_provider.WebullDataProvider", WebullTail)
+    watch.LATEST.clear()
+    watch.LATEST["bars5"] = {"QQQ": full}
+    watch.LATEST["bars15"] = {}
+    watch._REFRESH_THREAD = None
+
+    class DataBroker:
+        _data = object()
+
+    moment = datetime(2026, 10, 14, 11, 6, tzinfo=NY)
+    lines = watch.refresh_closed_bars(_cfg(tmp_path), moment, ["four_hour_qqq_1dte"], DataBroker())
+    kept = watch.LATEST["bars5"]["QQQ"]
+    assert kept.index[0] == full.index[0]
+    assert kept.index[-1] == full.index[-1]
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(kept, now)
+    )
+    assert any("QQQ 5-minute history starts 2026-09-08" in line for line in lines)
+
+    class ShortTail(Tail):
+        def append_recent(self, symbols, interval, now, days=3):
+            if interval == "5m":
+                return {"QQQ": short.copy()}
+            return {}
+
+    monkeypatch.setattr("webull_bot.data.yfinance_provider.YFinanceProvider", ShortTail)
+    watch._REFRESH_THREAD = None
+    watch.refresh_closed_bars(_cfg(tmp_path), moment, ["four_hour_qqq_1dte"], DataBroker())
+    kept = watch.LATEST["bars5"]["QQQ"]
+    assert kept.index[0] == full.index[0]
+    assert any(
+        row.direction == "short" and str(row.signal_time).startswith("2026-10-14 11:00")
+        for row in signals_through(kept, now)
+    )
+
+
+def test_the_watch_does_not_call_the_full_history_cycle(tmp_path, monkeypatch, capsys):
+    from webull_bot.execution import forward_watch as watch
+
+    def boom(*args, **kwargs):
+        raise AssertionError("full history cycle")
+
+    monkeypatch.setattr("webull_bot.cli._forward_vwap", boom)
+    monkeypatch.setattr(watch, "refresh_closed_bars", lambda *args, **kwargs: ["bars"])
+    monkeypatch.setattr(
+        watch,
+        "dry_entry_checks",
+        lambda *args, **kwargs: ["Entry checks for 6 books share one bar cache and run together."],
+    )
+    watch.LATEST.clear()
+    watch._REFRESH_THREAD = None
+    code = watch.run_watch(
+        _cfg(tmp_path),
+        build_parser().parse_args(
+            ["forward-watch", "neckline_trapdoor_qqq", "--dry-run", "--once", "--now", f"{DAY}T13:35:05"]
+        ),
+        ["neckline_trapdoor_qqq"],
+    )
+    assert code == 0
+    assert "Cycle timing:" in capsys.readouterr().out
+
+
+def _cfg(root):
+    class Config:
+        def get(self, *keys, default=None):
+            if keys == ("journal", "path"):
+                return str(root / "journal.sqlite")
+            if keys == ("data", "cache_dir"):
+                return str(root / "cache")
+            return default
+
+    return Config()
+
+
+def _tiny():
+    import pandas as pd
+
+    stamp = pd.Timestamp("2026-10-12 13:30", tz="America/New_York")
+    return pd.DataFrame(
+        [(100.0, 101.0, 99.0, 100.5, 1000.0)],
+        columns=["open", "high", "low", "close", "volume"],
+        index=pd.DatetimeIndex([stamp]),
+    )
+
+
+def test_option_chain_shares_one_fetch_and_backs_off(monkeypatch):
+    from datetime import date
+
+    from webull_bot.execution.forward_quotes import _list_contracts
+    from webull_bot.execution.forward_watch import BudgetExceeded, guard_market_data
+
+    calls = []
+
+    class Client:
+        def __init__(self):
+            self.instrument = self
+
+        def list_option_contracts(self, **kwargs):
+            calls.append(kwargs["underlying_symbols"])
+            return {"contracts": [{"option_symbol": "QQQ", "option_type": "PUT", "expiration_date": "2026-10-13"}]}
+
+    client = Client()
+    day = date(2026, 10, 12)
+    _list_contracts(client, "QQQ", "PUT", 500.0, day)
+    _list_contracts(client, "QQQ", "PUT", 501.0, day)
+    assert calls == ["QQQ"]
+
+    class Instrument:
+        def __init__(self):
+            self.calls = 0
+
+        def list_option_contracts(self, **kwargs):
+            self.calls += 1
+            raise RuntimeError("HTTP 429 Too Many Requests")
+
+    class Data:
+        def __init__(self):
+            self.instrument = Instrument()
+
+    broker = type("Broker", (), {})()
+    broker._data = Data()
+    budget = guard_market_data(broker)
+    with pytest.raises(RuntimeError):
+        broker._data.instrument.list_option_contracts()
+    assert budget.cooling("option_chain")
+    with pytest.raises(BudgetExceeded):
+        broker._data.instrument.list_option_contracts()
+    assert broker._data.instrument.calls == 1
+
+
+def test_sdk_timeouts_are_five_seconds_with_one_retry():
+    from webull_bot.execution.forward_watch import (
+        CONNECT_TIMEOUT_S,
+        HTTP_RETRIES,
+        READ_TIMEOUT_S,
+        apply_sdk_timeouts,
+    )
+
+    assert CONNECT_TIMEOUT_S == 5.0
+    assert READ_TIMEOUT_S == 5.0
+    assert HTTP_RETRIES == 1
+
+    class Api:
+        pass
+
+    api = Api()
+    apply_sdk_timeouts(api)
+    assert api._connect_timeout == 5.0
+    assert api._read_timeout == 5.0
+    assert api._auto_retry is False
+    assert api._max_retry_num == 1
+
+
+def test_a_finished_timeout_is_retried_once_and_a_hang_is_not():
+    import time
+
+    from webull_bot.execution.forward_watch import bounded_call, reset_bounded_calls
+
+    reset_bounded_calls()
+    finished = []
+
+    def boom():
+        finished.append(1)
+        raise TimeoutError("read timed out")
+
+    with pytest.raises(TimeoutError):
+        bounded_call(boom, key="finished-timeout", timeout=1, retries=1)
+    assert finished == [1, 1]
+
+    hung = []
+
+    def slow():
+        hung.append(1)
+        time.sleep(3)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        bounded_call(slow, key="hung-read", timeout=0.15, retries=1)
+    assert time.monotonic() - started < 0.8
+    assert hung == [1]
+    with pytest.raises(TimeoutError):
+        bounded_call(slow, key="hung-read", timeout=0.15, retries=1)
+    assert hung == [1]
+
+
+def test_the_stop_uses_a_local_price_while_webull_reads_hang(tmp_path):
+    import time
+
+    import pandas as pd
+
+    from webull_bot.execution.forward_watch import (
+        LATEST,
+        _ExitView,
+        fast_tick,
+        local_exit_prices,
+        open_tick_alert,
+        reset_bounded_calls,
+    )
+
+    reset_bounded_calls()
+    LATEST.clear()
+    index = pd.date_range(f"{DAY} 12:00", periods=1, freq="5min", tz=NY)
+    LATEST["bars5"] = {
+        "SPY": pd.DataFrame(
+            {"open": [120.0], "high": [121.0], "low": [119.0], "close": [120.0], "volume": [1.0]},
+            index=index,
+        )
+    }
+    assert local_exit_prices([NAME])["SPY"] == 120.0
+
+    journal = Journal(tmp_path / "stop.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+    broker = Broker()
+
+    def hang(symbol):
+        time.sleep(30)
+        return 1.0
+
+    broker.underlying_quote = hang
+    broker.option_contract_quote = hang
+    started = time.monotonic()
+    lines = fast_tick(
+        journal,
+        _ExitView(broker, {"SPY": 120.0}),
+        _at("12:05"),
+        {"SPY": 120.0},
+        [NAME],
+        do_exits=True,
+        do_entries=False,
+    )
+    assert time.monotonic() - started < 2
+    assert any("reason target" in line for line in lines)
+    assert broker.orders
+    assert open_tick_alert(31.2, True)[0].startswith("Cycle alert:")
+    assert "open position" in open_tick_alert(31.2, True)[0]
+    assert open_tick_alert(29.0, True) == []
+    assert open_tick_alert(90.0, False) == []
+    from webull_bot.execution.forward_watch import position_still_held, still_held_alert
+
+    assert still_held_alert(_at("15:49"), True) == []
+    loud = still_held_alert(_at("15:50"), True)[0]
+    assert loud.startswith("Cycle alert:")
+    assert "15:50" in loud
+    assert "flatten did not close" in loud
+    assert still_held_alert(_at("15:50"), False) == []
+    held = Journal(tmp_path / "held.sqlite")
+    pending = empty_state()
+    pending["positions"] = []
+    pending["orders"] = [
+        {
+            "key": "sig-1|exit",
+            "kind": "exit",
+            "status": "cancelled",
+            "limit": "0.25",
+            "fill": None,
+        }
+    ]
+    held.forward_save(NAME, pending)
+    assert position_still_held(held, [NAME]) is True
+
+
+def test_a_hung_snapshot_is_abandoned_and_a_hung_sell_is_not_repeated(tmp_path, monkeypatch):
+    import time
+
+    from webull_bot.execution import forward_watch as watch
+
+    monkeypatch.setattr(watch, "READ_TIMEOUT_S", 0.2)
+    watch.reset_bounded_calls()
+
+    class Market:
+        def __init__(self):
+            self.calls = 0
+
+        def get_snapshot(self, symbols, category):
+            self.calls += 1
+            time.sleep(5)
+            return {"data": [{"symbol": "SPY", "price": 10.0}]}
+
+    class Data:
+        def __init__(self):
+            self.market_data = Market()
+
+    quote_broker = type("QuoteBroker", (), {})()
+    quote_broker._data = Data()
+    started = time.monotonic()
+    assert watch.snapshot_prices(quote_broker, ["SPY"], watch.EndpointBudget()) == {}
+    assert time.monotonic() - started < 1
+    assert quote_broker._data.market_data.calls == 1
+    assert watch.snapshot_prices(quote_broker, ["SPY"], watch.EndpointBudget()) == {}
+    assert quote_broker._data.market_data.calls == 1
+
+    journal = Journal(tmp_path / "sell.sqlite")
+    state = empty_state()
+    state["positions"] = [_position()]
+    state["signals"] = [{"id": "sig-1", "status": "open"}]
+    journal.forward_save(NAME, state)
+
+    class Slow(Broker):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def place_option_order(self, payload):
+            self.calls += 1
+            time.sleep(5)
+            self.orders.append(payload)
+            return {"client_order_id": payload["client_order_id"]}
+
+    broker = Slow()
+    view = watch._ExitView(broker, {"SPY": 120.0})
+    started = time.monotonic()
+    lines = watch.fast_tick(
+        journal, view, _at("12:05"), {"SPY": 120.0}, [NAME], do_exits=True, do_entries=False
+    )
+    assert time.monotonic() - started < 1
+    assert any("timed out" in line for line in lines)
+    assert broker.calls == 1
+    lines = watch.fast_tick(
+        journal, view, _at("12:05").replace(second=5), {"SPY": 120.0}, [NAME], do_exits=True, do_entries=False
+    )
+    assert any("timed out" in line for line in lines)
+    assert broker.calls == 1

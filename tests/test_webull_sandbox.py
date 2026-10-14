@@ -626,3 +626,54 @@ def test_replace_order_sends_the_trailed_stop_price():
     assert broker._trade.order_v3.replaced == [
         [{"client_order_id": "c" * 32, "quantity": "12", "stop_price": "91.20"}]
     ]
+
+
+def test_an_option_replace_names_the_contract_and_a_blank_order_is_refused():
+    class Orders:
+        def __init__(self):
+            self.replaced = []
+            self.placed = []
+
+        def replace_order(self, account_id, payload):
+            self.replaced.append(payload)
+            return {"status": "ok"}
+
+        def place_order(self, account_id, payload):
+            self.placed.append(payload)
+            return {"status": "ok"}
+
+    broker = _broker(environment="sandbox")
+    broker.sandbox_only = True
+    broker.hosts = list(sandbox_hosts().values())
+    broker.account_id = MARGIN_ID
+    broker._trade.order_v3 = Orders()
+    broker.replace_option_order(
+        "d" * 32,
+        1,
+        limit_price=2.55,
+        symbol="QQQ",
+        side="SELL",
+        strike_price=742,
+        option_expire_date="2026-10-14",
+        option_type="PUT",
+    )
+    sent = broker._trade.order_v3.replaced[0][0]
+    assert sent["instrument_type"] == "OPTION"
+    assert sent["order_type"] == "LIMIT"
+    assert sent["symbol"] == "QQQ"
+    assert sent["side"] == "SELL"
+    assert sent["quantity"] == "1"
+    assert sent["legs"][0]["strike_price"] == "742.00"
+    assert sent["legs"][0]["option_expire_date"] == "2026-10-14"
+    with pytest.raises(WebullError, match="quantity of 0"):
+        broker.replace_option_order("e" * 32, 0, limit_price=1, symbol="", side="BUY")
+    blank = Order(
+        client_order_id="f" * 32,
+        symbol="",
+        side=Side.BUY,
+        quantity=0,
+        order_type=OrderType.MARKET,
+    )
+    with pytest.raises(WebullError, match="quantity of 0"):
+        broker.place_order(blank)
+    assert broker._trade.order_v3.placed == []

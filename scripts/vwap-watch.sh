@@ -1,0 +1,22 @@
+#!/bin/sh
+# Long-running sandbox watch. Replaces the once-a-minute forward-test cron.
+# Do not run this and the minute cycle together. A leftover minute cycle
+# takes the same lock and skips while this process is in a tick.
+#
+# On the box, stop the per-minute line in /workspace/vwap-runner/loop.sh
+# and start this once:
+#
+#   cd /workspace/vwap-runner   # or the repo the runner pulls
+#   WEBULL_ENV=sandbox nohup ./scripts/vwap-watch.sh >> logs/forward-watch.log 2>&1 &
+#
+# systemd is the same command, Restart=always, WorkingDirectory=the repo.
+# The process checks exits every 5 seconds. Three seconds after each
+# 5-minute close it appends the new bars once and checks every book's
+# entries on that shared cache. America/New_York.
+set -eu
+cd "$(dirname "$0")/.."
+export WEBULL_ENV="${WEBULL_ENV:-sandbox}"
+export PYTHONUNBUFFERED=1
+PY="${PYTHON:-python3}"
+exec "$PY" -u -m webull_bot forward-watch \
+  vwap_band_15m vwap_band_15m_qqq_aggr vwap_band_15m_qqq_aggr_1dte vwap_band_15m_qqq_compound neckline_trapdoor_qqq four_hour_qqq_1dte "$@"
