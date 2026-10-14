@@ -691,3 +691,147 @@ def test_replay_20261014_books_the_ten_entries_without_double_counting():
     assert "No order was sent" in text
     summary = [line for line in lines if "quote-touch fill P&L" in line]
     assert len(summary) == 4
+
+
+def _trapdoor_1505(contract="QQQ261014P00727000"):
+    """The 15:00 trapdoor buy as the runner journaled it: symbol on the position, not the order."""
+    sid = "QQQ|2026-10-14T15:00:00-04:00|short|trapdoor"
+    return {
+        "book": "neckline_trapdoor_qqq",
+        "stake": 2500.0,
+        "settled": 2500.0,
+        "unsettled": [],
+        "signals": [
+            {
+                "id": sid,
+                "status": "working",
+                "symbol": "QQQ",
+                "direction": "short",
+                "right": "put",
+                "order_symbol": contract,
+                "entry_time": "2026-10-14T15:05:10-04:00",
+                "stop": 730.0,
+                "target": 720.0,
+                "entry": 727.0,
+            }
+        ],
+        "orders": [
+            {
+                "key": f"{sid}|entry",
+                "id": "buy-1500",
+                "kind": "entry",
+                "side": "BUY",
+                "qty": "1",
+                "symbol": "QQQ",
+                "right": "PUT",
+                "status": "submitted",
+                "broker_status": "working",
+                "limit": "0.67",
+                "sandbox_price": "0.66",
+                "price_source": "webull",
+                "submitted_at": "2026-10-14T15:05:10-04:00",
+                "fill": None,
+            }
+        ],
+        "positions": [
+            {
+                "id": sid,
+                "symbol": "QQQ",
+                "right": "put",
+                "option_symbol": contract,
+                "entry_filled": False,
+                "direction": "short",
+                "stop": 730.0,
+                "target": 720.0,
+                "entry_time": "2026-10-14T15:05:10-04:00",
+            }
+        ],
+        "exits": [],
+        "fills": [],
+    }
+
+
+def _trapdoor_ticks(folder, rows):
+    path = folder / "ticks_neckline_trapdoor_qqq_20261014.csv"
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["timestamp", "book", "symbol", "underlying", "option_symbol", "bid", "ask", "bid_size", "ask_size"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+    return path
+
+
+def test_trapdoor_15_05_buy_uses_the_tick_and_the_ask_at_send(tmp_path, monkeypatch):
+    """QQQ261014P00727000 limit 0.67, ask 0.66 at 15:05. The order does not name the contract."""
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    contract = "QQQ261014P00727000"
+    _trapdoor_ticks(
+        tmp_path,
+        [
+            {
+                "timestamp": "2026-10-14T15:05:30-04:00",
+                "book": "neckline_trapdoor_qqq",
+                "symbol": "QQQ",
+                "underlying": "726.50",
+                "option_symbol": contract,
+                "bid": "0.60",
+                "ask": "0.66",
+                "bid_size": "1",
+                "ask_size": "1",
+            }
+        ],
+    )
+    from_ticks = _trapdoor_1505()
+    from_ticks["orders"][0]["sandbox_price"] = None
+    lines = []
+    assert apply_quote_touches(from_ticks, _Broker(), _at("15:08"), 726.5, lines) is True
+    assert from_ticks["orders"][0]["fill"] == pytest.approx(0.67)
+    assert from_ticks["orders"][0]["fill_source"] == "quote_touch"
+    assert from_ticks["signals"][0]["status"] == "open"
+    assert from_ticks["signals"][0].get("skip") is None
+    assert from_ticks["positions"][0]["entry_filled"] is True
+
+    _trapdoor_ticks(
+        tmp_path,
+        [
+            {
+                "timestamp": "2026-10-14T15:06:00-04:00",
+                "book": "neckline_trapdoor_qqq",
+                "symbol": "QQQ",
+                "underlying": "726.80",
+                "option_symbol": contract,
+                "bid": "0.70",
+                "ask": "0.90",
+                "bid_size": "1",
+                "ask_size": "1",
+            }
+        ],
+    )
+    from_send = _trapdoor_1505()
+    assert apply_quote_touches(from_send, _Broker(), _at("15:08"), 726.8, []) is True
+    assert from_send["orders"][0]["fill"] == pytest.approx(0.67)
+    assert from_send["orders"][0]["quote_touch_ask"] == pytest.approx(0.66)
+
+    model = _trapdoor_1505()
+    model["orders"][0]["price_source"] = "model"
+    model["orders"][0]["sandbox_price"] = "0.66"
+    assert apply_quote_touches(model, _Broker(), _at("15:08"), 726.8, []) is False
+    assert model["orders"][0]["fill"] is None
+
+
+def test_the_window_does_not_skip_a_trapdoor_buy_the_ask_already_touched(tmp_path, monkeypatch):
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    from webull_bot.execution.forward_fills import sync_working_entries
+
+    _trapdoor_ticks(tmp_path, [])
+    state = _trapdoor_1505()
+    lines = []
+    assert sync_working_entries(state, _Broker(), _at("15:08"), 726.5, lines) is True
+    assert state["orders"][0]["fill_source"] == "quote_touch"
+    assert state["signals"][0]["status"] == "open"
+    assert state["signals"][0].get("skip") is None
+    assert state["positions"]

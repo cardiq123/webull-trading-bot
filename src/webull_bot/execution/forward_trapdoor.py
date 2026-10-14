@@ -700,6 +700,9 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
             "sandbox_price": None if sandbox_ask is None else f"{sandbox_ask:.4f}",
             "price_source": source,
             "kind": "entry",
+            "option_symbol": option_symbol,
+            "strike": strike,
+            "expiry": expiry,
         }
         state["orders"].append(order)
     else:
@@ -709,6 +712,9 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
         order["model_price"] = f"{model_ask:.4f}"
         order["sandbox_price"] = None if sandbox_ask is None else f"{sandbox_ask:.4f}"
         order["price_source"] = source
+        order["option_symbol"] = option_symbol or order.get("option_symbol") or ""
+        order["strike"] = strike
+        order["expiry"] = expiry
     journal.forward_save(NAME, state)
     payload = build_single_option_order(
         client_order_id=order["id"],
@@ -753,6 +759,7 @@ def _send_open(state, built, now, broker, lines, journal) -> None:
     }
     built["price_source"] = source
     built["sandbox_ask"] = sandbox_ask
+    built["option_symbol"] = option_symbol
     built["order_symbol"] = option_symbol
     built["order_strike"] = strike
     from webull_bot.execution.forward_fills import note_entry_submission

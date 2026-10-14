@@ -795,6 +795,7 @@ def _visit_books(
                     )
                 except Exception:
                     lines.append(f"{name} entry check failed. No order was sent for that failure.")
+                _quote_touch_book(state, broker, now, prices.get(symbol), lines, journal, name)
                 if log_minute:
                     try:
                         _log_market(state, _frame(bars5, symbol), now, broker, lines, journal, save=True)
@@ -824,6 +825,7 @@ def _visit_books(
                 trap_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
             except Exception:
                 lines.append("QQQ Trapdoor entry check failed. No order was sent for that failure.")
+            _quote_touch_book(state, broker, now, prices.get("QQQ"), lines, journal, TRAP_NAME)
             if log_minute:
                 try:
                     trap_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
@@ -851,6 +853,7 @@ def _visit_books(
                 hour_take(state, _frame(bars5, "QQQ"), now, points, closes, view, lines, journal)
             except Exception:
                 lines.append("4hr entry check failed. No order was sent for that failure.")
+            _quote_touch_book(state, broker, now, prices.get("QQQ"), lines, journal, HOUR_NAME)
             if log_minute:
                 try:
                     hour_log(state, _frame(bars5, "QQQ"), now, broker, lines, journal, save=True)
@@ -858,6 +861,14 @@ def _visit_books(
                     lines.append("4hr minute quote log failed. Entry and exit were not changed.")
         if prepare_cash(state, broker, HOUR_STAKE, local.date()):
             journal.forward_save(HOUR_NAME, state)
+
+
+def _quote_touch_book(state, broker, now, spot, lines, journal, name: str) -> None:
+    """Book a quote-touch fill on the entry pass, the same cycle the buy is sent."""
+    from webull_bot.execution.forward_quote_touch import apply_quote_touches
+
+    if apply_quote_touches(state, broker, now, spot, lines):
+        journal.forward_save(name, state)
 
 
 def _frame(book, symbol: str) -> pd.DataFrame:

@@ -264,6 +264,77 @@ def test_four_hour_qqq_1dte_is_loaded_and_evaluated(tmp_path, monkeypatch):
     assert any("Watching four_hour_qqq_1dte." in line for line in lines)
 
 
+def test_the_trapdoor_entry_pass_books_the_15_05_quote_touch(tmp_path, monkeypatch):
+    """The 5-second entry path fills the trapdoor buy. It is not replay-only."""
+    from webull_bot.execution.forward_trapdoor import NAME as TRAP_NAME
+    from webull_bot.execution.forward_watch import fast_tick
+
+    monkeypatch.setenv("WEBULL_ENV", "sandbox")
+    monkeypatch.setenv("FORWARD_QUOTE_DIR", str(tmp_path))
+    monkeypatch.setattr("webull_bot.execution.forward_trapdoor._take_signals", lambda *args, **kwargs: None)
+    monkeypatch.setattr("webull_bot.execution.forward_quotes.prime_forward_quotes", lambda *args, **kwargs: None)
+    sid = "QQQ|2026-10-14T15:00:00-04:00|short|trapdoor"
+    contract = "QQQ261014P00727000"
+    journal = Journal(tmp_path / "trap.sqlite")
+    journal.forward_save(
+        TRAP_NAME,
+        {
+            "book": TRAP_NAME,
+            "stake": 2500.0,
+            "settled": 2500.0,
+            "unsettled": [],
+            "signals": [
+                {
+                    "id": sid,
+                    "status": "working",
+                    "direction": "short",
+                    "right": "put",
+                    "order_symbol": contract,
+                    "entry_time": "2026-10-14T15:05:10-04:00",
+                    "stop": 730.0,
+                    "target": 720.0,
+                }
+            ],
+            "orders": [
+                {
+                    "key": f"{sid}|entry",
+                    "id": "buy-1500",
+                    "kind": "entry",
+                    "side": "BUY",
+                    "qty": "1",
+                    "status": "submitted",
+                    "broker_status": "working",
+                    "limit": "0.67",
+                    "sandbox_price": "0.66",
+                    "price_source": "webull",
+                    "submitted_at": "2026-10-14T15:05:10-04:00",
+                }
+            ],
+            "positions": [
+                {
+                    "id": sid,
+                    "option_symbol": contract,
+                    "entry_filled": False,
+                    "direction": "short",
+                    "right": "put",
+                    "stop": 730.0,
+                    "target": 720.0,
+                }
+            ],
+            "fills": [],
+            "exits": [],
+        },
+    )
+    LATEST.clear()
+    moment = datetime(2026, 10, 14, 15, 8, tzinfo=NY)
+    fast_tick(journal, Broker(), moment, {"QQQ": 726.5}, [TRAP_NAME], do_exits=False, do_entries=True)
+    saved = journal.forward_load(TRAP_NAME)
+    order = saved["orders"][0]
+    assert order["fill"] == pytest.approx(0.67)
+    assert order["fill_source"] == "quote_touch"
+    assert saved["signals"][0]["status"] == "open"
+
+
 def test_cycle_timing_alerts_when_the_cycle_exceeds_a_minute():
     from webull_bot.execution.forward_watch import entry_lag_line, timing_lines
 

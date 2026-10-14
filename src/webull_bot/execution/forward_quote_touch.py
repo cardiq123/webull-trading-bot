@@ -2,7 +2,10 @@
 
 The real sandbox order is still sent. When ``WEBULL_ENV`` is sandbox and the
 mode is on, a buy the sandbox has not filled is journaled at our limit once
-the logged ask is at or below that limit inside the entry window. A sell the
+the logged ask is at or below that limit inside the entry window. That ask
+is a tick for the contract, the live cache, or the ask stored on the buy
+when it was sent. The contract is read from the order, the signal, or the
+position, so a trapdoor buy still matches its tick file. A sell the
 sandbox has not filled is journaled at the logged bid once the exit condition
 or the sell limit is touched. The sandbox order is cancelled. A later sandbox
 fill replaces that paper fill. The two are never both booked.
@@ -241,10 +244,14 @@ def _book_entry_touch(state, order, broker, now, book: str, lines) -> bool:
     limit = _limit(order)
     if limit is None:
         return False
-    touch = _first_ask(_load_ticks(book, sent, now), _contract(state, order), sent, to_ny(now), limit)
-    cached = _cached_ask(_contract(state, order))
+    contract = _contract(state, order)
+    touch = _first_ask(_load_ticks(book, sent, now), contract, sent, to_ny(now), limit)
+    cached = _cached_ask(contract)
     if touch is None and cached is not None and cached <= limit + 1e-9:
         touch = (to_ny(now), cached)
+    sent_ask = _logged_entry_ask(order)
+    if touch is None and sent_ask is not None and sent_ask <= limit + 1e-9:
+        touch = (to_ny(sent), sent_ask)
     if touch is None:
         return False
     _stamp_entry(state, order, touch[0])
@@ -900,13 +907,33 @@ def _exit_for(state, signal_id: str):
 
 
 def _contract(state, order) -> str:
+    """OCC symbol for this order. Trapdoor stores it on the position."""
     explicit = str(order.get("option_symbol") or "")
     if explicit:
         return explicit
     signal = _signal_for(state, order)
     if isinstance(signal, dict):
-        return str(signal.get("option_symbol") or "")
+        for key in ("option_symbol", "order_symbol"):
+            text = str(signal.get(key) or "")
+            if text:
+                return text
+    position = _position_for(state, _signal_id(order))
+    if isinstance(position, dict):
+        text = str(position.get("option_symbol") or "")
+        if text:
+            return text
     return ""
+
+
+def _logged_entry_ask(order: dict) -> Optional[float]:
+    """Ask stored when the buy was sent. A model price is not that ask."""
+    if str(order.get("price_source") or "") == "model":
+        return None
+    for key in ("quote_px", "sandbox_price"):
+        value = _num(order.get(key))
+        if value is not None and value > 0:
+            return value
+    return None
 
 
 def _sent_at(order, signal):
