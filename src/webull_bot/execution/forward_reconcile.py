@@ -150,6 +150,7 @@ def reset_order_poll() -> None:
     _POLL["list_blocked_until"] = 0.0
     _POLL["list_strikes"] = 0
     _POLL["send_at"] = {}
+    _POLL["read_seq"] = 0
 
 
 def read_order_detail(broker, client_order_id: str, force: bool = False) -> dict:
@@ -281,6 +282,9 @@ def account_view(broker) -> dict:
     except Exception as exc:
         if _rate_limited(exc):
             _penalize(_POLL, "list_blocked_until", "list_strikes", now)
+    if view["holdings_ok"]:
+        _POLL["read_seq"] = int(_POLL.get("read_seq") or 0) + 1
+        view["read_token"] = _POLL["read_seq"]
     if armed and view["holdings_ok"]:
         _POLL["view"] = view
         _POLL["view_at"] = time_mod.monotonic()
@@ -909,6 +913,276 @@ def _position_probe(position: dict) -> dict:
         "qty": position.get("qty") or position.get("quantity"),
         "limit": position.get("fill"),
     }
+
+
+UNRESOLVED_REASON = "unresolved: not held by sandbox"
+
+
+def release_unheld_positions(state, broker, lines, now=None) -> bool:
+    """Close a journaled contract the sandbox no longer holds.
+
+    Two successful position reads in a row must miss it, and the open-order
+    list must show no working order for it. A failed or budgeted read is not
+    one of those reads. No fill price is stored. Model P&L stays on the signal.
+    The position is removed so the book can take a new signal.
+    """
+    if broker is None or not isinstance(state, dict):
+        return False
+    view = account_view(broker)
+    if not view.get("holdings_ok"):
+        return False
+    token = view.get("read_token")
+    changed = False
+    for sid in _unheld_ids(state):
+        if _close_if_unheld(state, sid, view, token, lines, now):
+            changed = True
+    return changed
+
+
+def _unheld_ids(state: dict) -> list[str]:
+    from webull_bot.execution.forward_fills import _signal_filled, position_is_filled
+
+    found: list[str] = []
+    seen: set[str] = set()
+    for position in state.get("positions") or []:
+        if not isinstance(position, dict) or not position_is_filled(state, position):
+            continue
+        sid = str(position.get("id") or "")
+        if sid and sid not in seen:
+            seen.add(sid)
+            found.append(sid)
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict) or str(order.get("kind") or "") != "exit":
+            continue
+        if not order_needs_detail(order) or _known(order.get("fill")) is not None:
+            continue
+        sid = _signal_id(str(order.get("key") or ""))
+        if sid and sid not in seen and _signal_filled(state, sid):
+            seen.add(sid)
+            found.append(sid)
+    return found
+
+
+def _close_if_unheld(state, sid: str, view: dict, token, lines, now) -> bool:
+    position = _position_by_id(state, sid)
+    exits = _exit_orders_for(state, sid)
+    if any(_known(order.get("fill")) is not None for order in exits):
+        return False
+    probe = _unheld_probe(state, sid, position, exits)
+    if probe is None or not contract_for(state, probe):
+        return False
+    rows = _absence_rows(state, sid, position, exits)
+    if match_holding(state, probe, view.get("holdings") or []) is not None:
+        dirty = any(int(row.get("absent_reads") or 0) for row in rows)
+        _reset_absence(rows)
+        return dirty
+    reads, advanced = _bump_absence(rows, token)
+    if not advanced:
+        return False
+    label = contract_for(state, probe) or sid
+    if reads < 2:
+        lines.append(
+            f"{label}: sandbox holdings do not include this contract ({reads} of 2). "
+            "The journal position stays."
+        )
+        return True
+    working = _working_order_for(state, probe, view, _journal_order_ids(state, sid))
+    if working is None:
+        lines.append(
+            f"{label}: absent on {reads} reads, but open orders were not read. "
+            "The journal position stays."
+        )
+        return True
+    if working:
+        lines.append(
+            f"{label}: absent from holdings, but a working order exists. The journal position stays."
+        )
+        return True
+    _mark_unresolved(state, sid, position, exits, lines, now, label, reads)
+    return True
+
+
+def _unheld_probe(state, sid: str, position, exits) -> Optional[dict]:
+    if isinstance(position, dict) and (position.get("option_symbol") or position.get("strike")):
+        return _position_probe(position)
+    for order in exits:
+        if contract_for(state, order):
+            return order
+    signal = _signal_by_id(state, sid)
+    if isinstance(signal, dict) and (signal.get("option_symbol") or signal.get("strike")):
+        return _position_probe(signal)
+    if isinstance(position, dict):
+        return _position_probe(position)
+    return exits[0] if exits else None
+
+
+def _absence_rows(state, sid: str, position, exits) -> list:
+    rows = []
+    signal = _signal_by_id(state, sid)
+    if isinstance(signal, dict):
+        rows.append(signal)
+    if isinstance(position, dict):
+        rows.append(position)
+    rows.extend(order for order in exits if isinstance(order, dict))
+    return rows
+
+
+def _reset_absence(rows) -> None:
+    for row in rows:
+        row["absent_reads"] = 0
+        row.pop("absent_token", None)
+
+
+def _bump_absence(rows, token) -> tuple[int, bool]:
+    """The running count, and whether this read is a new one."""
+    if not rows:
+        return 0, False
+    if token is not None and any(row.get("absent_token") == token for row in rows):
+        current = max(int(row.get("absent_reads") or 0) for row in rows)
+        return current, False
+    current = max(int(row.get("absent_reads") or 0) for row in rows) + 1
+    for row in rows:
+        row["absent_reads"] = current
+        if token is not None:
+            row["absent_token"] = token
+    return current, True
+
+
+def _journal_order_ids(state, sid: str) -> set:
+    found = set()
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict):
+            continue
+        if _signal_id(str(order.get("key") or "")) != sid:
+            continue
+        oid = str(order.get("id") or "")
+        if oid:
+            found.add(oid)
+    return found
+
+
+def _working_order_for(state, probe: dict, view: dict, journal_ids: set) -> Optional[bool]:
+    """True when a working order matches. None when that list was not read."""
+    if not view.get("orders_ok"):
+        return None
+    contract = contract_for(state, probe).upper()
+    for row in view.get("orders") or []:
+        if not isinstance(row, dict) or _blank_order(row):
+            continue
+        kind = str(row.get("kind") or "")
+        if kind in {"cancelled", "canceled", "expired", "rejected", "filled"}:
+            continue
+        oid = str(row.get("id") or "")
+        if oid and oid in journal_ids:
+            return True
+        names = [str(row.get("symbol") or "").upper(), *[str(item).upper() for item in row.get("symbols") or []]]
+        if contract and contract in names:
+            return True
+    return False
+
+
+def _mark_unresolved(state, sid: str, position, exits, lines, now, label: str, reads: int) -> None:
+    signal = _signal_by_id(state, sid)
+    model = None
+    if isinstance(signal, dict):
+        prior = str(signal.get("reason") or "")
+        if prior and prior != UNRESOLVED_REASON and not signal.get("model_reason"):
+            signal["model_reason"] = prior
+        model = _model_pnl(signal)
+        signal["status"] = "closed"
+        signal["reason"] = UNRESOLVED_REASON
+        signal["fill_pnl"] = None
+        if model is not None:
+            signal["model_pnl"] = model
+        if not signal.get("exit_time"):
+            signal["exit_time"] = _unresolved_stamp(now)
+    for order in exits:
+        if _known(order.get("fill")) is not None:
+            continue
+        order["status"] = "unresolved"
+        order["broker_status"] = "unresolved"
+        order["resolution"] = UNRESOLVED_REASON
+    state["positions"] = [
+        row for row in (state.get("positions") or []) if not (isinstance(row, dict) and str(row.get("id") or "") == sid)
+    ]
+    found = False
+    for row in state.get("exits") or []:
+        if not isinstance(row, dict) or str(row.get("id") or "") != sid:
+            continue
+        found = True
+        prior = str(row.get("reason") or "")
+        if prior and prior != UNRESOLVED_REASON and not row.get("model_reason"):
+            row["model_reason"] = prior
+        row["reason"] = UNRESOLVED_REASON
+        row["fill_pnl"] = None
+        if model is not None:
+            row["model_pnl"] = model
+        elif row.get("pnl") is not None and row.get("model_pnl") is None:
+            row["model_pnl"] = row.get("pnl")
+    if not found:
+        state.setdefault("exits", []).append(
+            {
+                "id": sid,
+                "time": _unresolved_stamp(now),
+                "reason": UNRESOLVED_REASON,
+                "right": (position or signal or {}).get("right") if isinstance(position or signal, dict) else None,
+                "pnl": None if model is None else model,
+                "model_pnl": model,
+                "fill_pnl": None,
+            }
+        )
+    if model is None:
+        model_txt = "Model P&L was not booked."
+    else:
+        model_txt = f"Model P&L ${float(model):.2f} stays separate."
+    lines.append(
+        f"{label}: not in sandbox holdings on {reads} consecutive reads. "
+        f"No working order. Closed as {UNRESOLVED_REASON}. No fill P&L booked. {model_txt} Slot freed."
+    )
+
+
+def _model_pnl(signal: dict):
+    if signal.get("model_pnl") is not None:
+        return signal.get("model_pnl")
+    debit = _known(signal.get("model_debit"))
+    credit = _known(signal.get("model_credit"))
+    if debit is not None and credit is not None:
+        return credit - debit
+    if signal.get("pnl") is not None:
+        return signal.get("pnl")
+    return None
+
+
+def _unresolved_stamp(now) -> str:
+    moment = now or datetime.now()
+    try:
+        return to_ny(moment).isoformat()
+    except (TypeError, ValueError):
+        return str(moment)
+
+
+def _position_by_id(state, sid: str):
+    for row in state.get("positions") or []:
+        if isinstance(row, dict) and str(row.get("id") or "") == sid:
+            return row
+    return None
+
+
+def _signal_by_id(state, sid: str):
+    for row in state.get("signals") or []:
+        if isinstance(row, dict) and str(row.get("id") or "") == sid:
+            return row
+    return None
+
+
+def _exit_orders_for(state, sid: str) -> list:
+    found = []
+    for order in state.get("orders") or []:
+        if not isinstance(order, dict) or str(order.get("kind") or "") != "exit":
+            continue
+        if _signal_id(str(order.get("key") or "")) == sid:
+            found.append(order)
+    return found
 
 
 def _holding_explained(row: dict, loaded: list) -> bool:
@@ -2200,6 +2474,8 @@ def settle_expired_unsold(state: dict, broker, now: datetime, holdings: list[dic
         if not isinstance(signal, dict) or signal.get("status") not in {"open", "closed"}:
             continue
         if str(signal.get("settlement") or "") == "expiry":
+            continue
+        if str(signal.get("reason") or "").startswith("unresolved:"):
             continue
         expiry = _as_date(signal.get("expiry"))
         if not _zero_dte(signal, expiry) or not _contract_expired(expiry, now):

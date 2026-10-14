@@ -11,9 +11,12 @@ from webull_bot.execution.forward_cash import prepare_cash
 from webull_bot.execution.forward_reconcile import (
     chase_exit_orders,
     limit_fill_text,
+    order_needs_detail,
     parse_order_detail,
     reconcile_book,
+    release_unheld_positions,
     require_sandbox,
+    reset_order_poll,
 )
 from webull_bot.execution.forward_vwap import QQQ_AGGR_NAME, report_text
 from webull_bot.journal.store import Journal
@@ -708,3 +711,221 @@ def test_a_rejected_option_order_logs_the_body():
     assert "was rejected" in text
     assert order["error"]
     assert "not printed" not in text
+
+
+class _Lists:
+    def __init__(self, holdings, orders):
+        self.holdings = holdings
+        self.orders = orders
+        self.fail_holdings = False
+        self.fail_orders = False
+
+    def get_account_position(self, account_id):
+        if self.fail_holdings:
+            raise RuntimeError("429")
+        return {"positions": self.holdings}
+
+    def get_order_open(self, account_id, page_size=50):
+        if self.fail_orders:
+            raise RuntimeError("429")
+        return {"orders": self.orders}
+
+
+class _AccountBroker:
+    def __init__(self, holdings=None, orders=None):
+        self.lists = _Lists(holdings or [], orders or [])
+        self._trade = SimpleNamespace(account_v2=self.lists, order_v3=self.lists)
+        self.account_id = "sandbox-account"
+
+
+def _open_put(signal_id: str, contract: str, *, debit: float = 77.0, credit: float = 40.0) -> dict:
+    return {
+        "book": "four_hour_qqq_1dte",
+        "stake": 2500.0,
+        "settled": 2500.0,
+        "unsettled": [],
+        "signals": [
+            {
+                "id": signal_id,
+                "status": "open",
+                "symbol": "QQQ",
+                "direction": "short",
+                "right": "put",
+                "option_type": "PUT",
+                "option_symbol": contract,
+                "strike": 742.0,
+                "expiry": "2026-10-14",
+                "qty": 1,
+                "entry_time": "2026-10-13T12:55:00-04:00",
+                "model_debit": debit,
+                "model_credit": credit,
+                "pnl": credit - debit,
+            }
+        ],
+        "orders": [
+            {
+                "key": f"{signal_id}|entry",
+                "id": f"{signal_id}-buy",
+                "kind": "entry",
+                "side": "BUY",
+                "qty": "1",
+                "symbol": "QQQ",
+                "option_symbol": contract,
+                "strike": 742.0,
+                "expiry": "2026-10-14",
+                "right": "put",
+                "status": "submitted",
+                "broker_status": "filled",
+                "fill": 0.77,
+            }
+        ],
+        "positions": [
+            {
+                "id": signal_id,
+                "symbol": "QQQ",
+                "right": "put",
+                "option_type": "PUT",
+                "option_symbol": contract,
+                "strike": 742.0,
+                "expiry": "2026-10-14",
+                "qty": 1,
+                "entry_filled": True,
+                "entry_time": "2026-10-13T12:55:00-04:00",
+                "fill": 0.77,
+            }
+        ],
+        "exits": [],
+        "fills": [],
+    }
+
+
+def _pending_exit(signal_id: str, contract: str, expiry: str) -> dict:
+    state = _open_put(signal_id, contract, debit=180.0, credit=40.0)
+    state["positions"] = []
+    state["signals"][0]["status"] = "closed"
+    state["signals"][0]["reason"] = "flat"
+    state["signals"][0]["expiry"] = expiry
+    state["signals"][0]["pnl"] = -140.0
+    state["orders"].append(
+        {
+            "key": f"{signal_id}|exit",
+            "id": f"{signal_id}-sell",
+            "kind": "exit",
+            "side": "SELL",
+            "qty": "3",
+            "symbol": "QQQ",
+            "option_symbol": contract,
+            "strike": 742.0,
+            "expiry": expiry,
+            "right": "put",
+            "status": "submitted",
+            "broker_status": "working",
+            "limit": "0.40",
+            "fill": None,
+        }
+    )
+    state["exits"] = [{"id": signal_id, "reason": "flat", "pnl": -140.0}]
+    return state
+
+
+def test_two_empty_reads_free_the_4hr_slot_without_a_fill_pnl():
+    reset_order_poll()
+    contract = "QQQ261014P00742000"
+    state = _open_put("4hr-1255", contract)
+    broker = _AccountBroker()
+    lines = []
+    assert release_unheld_positions(state, broker, lines, _now("09:31", "2026-10-14")) is True
+    assert state["positions"]
+    assert state["signals"][0]["status"] == "open"
+    assert state["signals"][0]["absent_reads"] == 1
+    assert release_unheld_positions(state, broker, lines, _now("09:32", "2026-10-14")) is True
+    assert state["positions"] == []
+    signal = state["signals"][0]
+    assert signal["status"] == "closed"
+    assert signal["reason"] == "unresolved: not held by sandbox"
+    assert signal["fill_pnl"] is None
+    assert signal["model_pnl"] == pytest.approx(-37.0)
+    prepare_cash(state, None, 2500.0, _now("09:32", "2026-10-14").date())
+    assert signal["fill_pnl"] is None
+    assert signal["model_pnl"] == pytest.approx(-37.0)
+    assert all(item.get("id") != "4hr-1255" for item in state["unsettled"])
+    assert "No fill P&L booked" in "\n".join(lines)
+    assert "Slot freed" in "\n".join(lines)
+
+
+def test_aggressive_and_1dte_fill_pending_exits_close_without_a_fill():
+    reset_order_poll()
+    rows = [
+        _pending_exit("aggr-1013", "QQQ261013P00742000", "2026-10-13"),
+        _pending_exit("dte-1013", "QQQ261013P00743000", "2026-10-13"),
+    ]
+    broker = _AccountBroker()
+    for state in rows:
+        lines = []
+        release_unheld_positions(state, broker, lines, _now("09:31", "2026-10-14"))
+        assert order_needs_detail(state["orders"][-1])
+        release_unheld_positions(state, broker, lines, _now("09:32", "2026-10-14"))
+        exit_order = state["orders"][-1]
+        assert exit_order["status"] == "unresolved"
+        assert exit_order["broker_status"] == "unresolved"
+        assert order_needs_detail(exit_order) is False
+        assert exit_order.get("fill") is None
+        signal = state["signals"][0]
+        assert signal["reason"] == "unresolved: not held by sandbox"
+        assert signal["model_reason"] == "flat"
+        assert signal["fill_pnl"] is None
+        assert signal["model_pnl"] == pytest.approx(-140.0)
+        prepare_cash(state, None, 2500.0, _now("09:32", "2026-10-14").date())
+        assert signal["fill_pnl"] is None
+        assert all(item.get("id") != signal["id"] for item in state["unsettled"])
+        chase = []
+        chase_exit_orders(state, broker, _now("09:33", "2026-10-14"), chase)
+        assert not any("Fill pending" in line for line in chase)
+        assert state["positions"] == []
+
+
+def test_a_failed_read_and_a_working_order_do_not_free_the_slot():
+    reset_order_poll()
+    contract = "QQQ261014P00742000"
+    state = _open_put("4hr-1255", contract)
+    broker = _AccountBroker()
+    lines = []
+    release_unheld_positions(state, broker, lines, _now("09:31", "2026-10-14"))
+    assert state["signals"][0]["absent_reads"] == 1
+    broker.lists.fail_holdings = True
+    assert release_unheld_positions(state, broker, lines, _now("09:32", "2026-10-14")) is False
+    assert state["signals"][0]["absent_reads"] == 1
+    assert state["positions"]
+    broker.lists.fail_holdings = False
+    broker.lists.orders = [
+        {
+            "client_order_id": "4hr-1255-sell",
+            "symbol": contract,
+            "side": "SELL",
+            "status": "Working",
+            "quantity": "1",
+        }
+    ]
+    release_unheld_positions(state, broker, lines, _now("09:33", "2026-10-14"))
+    assert state["positions"]
+    assert state["signals"][0]["status"] == "open"
+    assert any("working order" in line for line in lines)
+
+
+def test_the_same_cached_position_read_counts_once():
+    reset_order_poll()
+    from webull_bot.execution.forward_reconcile import _POLL
+
+    contract = "QQQ261014P00742000"
+    state = _open_put("4hr-1255", contract)
+    broker = _AccountBroker()
+    broker._watch_armed = True
+    lines = []
+    release_unheld_positions(state, broker, lines, _now("09:31", "2026-10-14"))
+    release_unheld_positions(state, broker, lines, _now("09:31", "2026-10-14"))
+    assert state["signals"][0]["absent_reads"] == 1
+    assert state["positions"]
+    _POLL["view_at"] = 0.0
+    release_unheld_positions(state, broker, lines, _now("09:32", "2026-10-14"))
+    assert state["positions"] == []
+    assert state["signals"][0]["reason"] == "unresolved: not held by sandbox"

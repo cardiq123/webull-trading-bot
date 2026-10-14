@@ -191,6 +191,10 @@ def sync_working_entries(state, broker, now, spot, lines) -> bool:
             "Entry status was not confirmed. No exit was sent and the buy was not cancelled."
         )
     _drop_rejected_exits(state, lines)
+    from webull_bot.execution.forward_reconcile import release_unheld_positions
+
+    if release_unheld_positions(state, broker, lines, now):
+        changed = True
     return changed
 
 
@@ -871,8 +875,7 @@ def account_blocks_sell(state, position, broker, lines) -> bool:
     if not position.get("absent_noted"):
         name = position.get("option_symbol") or position.get("right") or position.get("id")
         lines.append(
-            f"No sell. The sandbox account does not hold {name}. "
-            "The journal position was left in place. No order."
+            f"No sell. The sandbox account does not hold {name}. No order."
         )
         position["absent_noted"] = True
     return True

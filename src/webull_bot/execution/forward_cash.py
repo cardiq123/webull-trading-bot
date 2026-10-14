@@ -76,6 +76,8 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
     the model figure. ``fill_pnl`` is set when both legs have a sandbox fill,
     and also when an expired unsold contract is closed at intrinsic value.
     A worthless expiry is a fill of zero and a full premium loss.
+    A close marked unresolved was not held and has no sandbox exit. Its
+    model P&L stays on the signal. No fill credit and no fill P&L are booked.
     """
     settled = float(stake)
     unsettled: list[dict[str, Any]] = []
@@ -106,6 +108,12 @@ def rebuild_fill_mirror(state: dict, stake: float) -> None:
         if signal.get("status") != "closed":
             signal["fill_credit"] = None
             signal["fill_pnl"] = None
+            continue
+        if str(signal.get("reason") or "").startswith("unresolved:"):
+            signal["fill_exit"] = None
+            signal["fill_credit"] = None
+            signal["fill_pnl"] = None
+            _stamp_exit(exits, signal)
             continue
         exit_order = _order_for(state, str(signal.get("id") or ""), "exit")
         expiry_close = isinstance(exit_order, dict) and str(exit_order.get("settlement") or "") == "expiry"
@@ -183,6 +191,8 @@ def pnl_phrase(row: dict) -> str:
     if model is None:
         model = _number(row.get("pnl"))
     model_txt = "model P&L n/a" if model is None else f"model P&L ${model:.2f}"
+    if str(row.get("reason") or "").startswith("unresolved:"):
+        return f"fill P&L not booked. {model_txt}"
     fill = _number(row.get("fill_pnl"))
     if fill is None:
         return f"fill P&L waiting on the order. The limit is not a fill. {model_txt}"
